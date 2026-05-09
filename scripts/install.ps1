@@ -71,6 +71,62 @@ function Resolve-OptionalPath([string]$PathValue) {
     }
 }
 
+function Copy-SaitecSkillsResources(
+    [string]$BinaryPath,
+    [string]$VersionDir,
+    [string]$StableDir,
+    [string]$InstallDir,
+    [string]$SourceOverride
+) {
+    $resourceCandidates = @(
+        $SourceOverride,
+        (Join-Path (Get-Location) '_vendor\SAITEC-Skills'),
+        (Join-Path $PSScriptRoot '..\_vendor\SAITEC-Skills'),
+        (Join-Path (Split-Path -Parent $BinaryPath) 'resources\SAITEC-Skills')
+    )
+
+    $resolvedSource = $null
+    foreach ($candidate in $resourceCandidates) {
+        if (-not $candidate) {
+            continue
+        }
+        $full = [System.IO.Path]::GetFullPath($candidate)
+        if (Test-Path -LiteralPath $full) {
+            $resolvedSource = $full
+            break
+        }
+    }
+
+    if (-not $resolvedSource) {
+        Write-Warn "SAITEC-Skills resources were not found; MCP bootstrap may stay disabled until resources are added"
+        return
+    }
+
+    $destinations = @(
+        (Join-Path (Join-Path $VersionDir 'resources') 'SAITEC-Skills'),
+        (Join-Path (Join-Path $StableDir 'resources') 'SAITEC-Skills'),
+        (Join-Path (Join-Path (Split-Path -Parent $InstallDir) 'resources') 'SAITEC-Skills')
+    )
+
+    foreach ($destDir in $destinations) {
+        if ([System.StringComparer]::OrdinalIgnoreCase.Equals(
+            [System.IO.Path]::GetFullPath($resolvedSource),
+            [System.IO.Path]::GetFullPath($destDir)
+        )) {
+            Write-Info "SAITEC-Skills resources already present: $destDir"
+            continue
+        }
+
+        $destRoot = Split-Path -Parent $destDir
+        New-Item -ItemType Directory -Path $destRoot -Force | Out-Null
+        if (Test-Path -LiteralPath $destDir) {
+            Remove-Item -LiteralPath $destDir -Recurse -Force
+        }
+        Copy-Item -LiteralPath $resolvedSource -Destination $destDir -Recurse -Force
+        Write-Info "Bundled SAITEC-Skills resources: $destDir"
+    }
+}
+
 function Stop-ProcessTree([int]$ProcessId) {
     try {
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -478,6 +534,7 @@ if ($ResolvedArtifactExePath) {
 }
 
 $DestBin = Join-Path $VersionDir "jcode.exe"
+$ExtractedSaitecResources = $null
 
 if ($DownloadMode -eq "tar") {
     Write-Info "Extracting..."
@@ -486,6 +543,7 @@ if ($DownloadMode -eq "tar") {
     if (-not (Test-Path $SrcBin)) {
         Write-Err "Downloaded archive did not contain expected binary: $Artifact.exe"
     }
+    $ExtractedSaitecResources = Join-Path $TempDir "resources\SAITEC-Skills"
     Move-Item -Path $SrcBin -Destination $DestBin -Force
 } elseif ($DownloadMode -eq "bin") {
     Move-Item -Path $DownloadPath -Destination $DestBin -Force
@@ -531,6 +589,13 @@ if ($DownloadMode -eq "tar") {
     if (-not (Test-Path $BuiltBin)) { Write-Err "Built binary not found at $BuiltBin" }
     Copy-Item -Path $BuiltBin -Destination $DestBin -Force
 }
+
+Copy-SaitecSkillsResources `
+    -BinaryPath $DestBin `
+    -VersionDir $VersionDir `
+    -StableDir $StableDir `
+    -InstallDir $InstallDir `
+    -SourceOverride $ExtractedSaitecResources
 
 Copy-Item -Path $DestBin -Destination (Join-Path $StableDir "jcode.exe") -Force
 Set-Content -Path (Join-Path $BuildsDir "stable-version") -Value $VersionNum

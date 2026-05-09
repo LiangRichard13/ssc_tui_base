@@ -875,6 +875,26 @@ mod tests {
     }
 
     #[test]
+    fn build_header_lines_show_saitec_mcp_status_and_tool_count() {
+        let mut app = create_test_app();
+        app.set_mcp_server_names_for_tests(vec![
+            ("SAITEC-Skills".to_string(), 0),
+            ("helper".to_string(), 3),
+        ]);
+
+        let lines = build_header_lines(&app, 80);
+        let rendered = lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(rendered.contains("mcp:"));
+        assert!(rendered.contains("SAITEC-Skills"));
+        assert!(rendered.contains("helper (3 tools)") || rendered.contains("helper(3)"));
+    }
+
+    #[test]
     fn build_header_lines_omits_placeholder_provider_label_when_unknown() {
         let mut app = crate::tui::app::App::new_for_remote(None);
         app.set_remote_startup_phase(crate::tui::app::RemoteStartupPhase::LoadingSession);

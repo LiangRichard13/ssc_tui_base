@@ -7,7 +7,9 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
     let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
     let temp = tempfile::TempDir::new().unwrap();
     let skills_root = temp.path().join("vendored-skills");
-    std::fs::create_dir_all(&skills_root).unwrap();
+    let server_dir = skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
     crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
 
@@ -15,6 +17,17 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
 
     let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
     assert!(mcp_path.exists(), "expected bootstrap to create mcp.json");
+    let config = McpConfig::load_from_file(&mcp_path).unwrap();
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(saitec.command, "python");
+    assert_eq!(
+        saitec.args,
+        vec![server_dir.join("server.py").display().to_string()]
+    );
+    assert_eq!(
+        saitec.env.get("PYTHONIOENCODING"),
+        Some(&"utf-8".to_string())
+    );
 
     if let Some(prev_home) = prev_home {
         crate::env::set_var("JCODE_HOME", prev_home);
@@ -35,7 +48,9 @@ fn test_saitec_bootstrap_preserves_existing_servers_and_saitec_entry() {
     let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
     let temp = tempfile::TempDir::new().unwrap();
     let skills_root = temp.path().join("vendored-skills");
-    std::fs::create_dir_all(&skills_root).unwrap();
+    let server_dir = skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
     crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
 
@@ -93,6 +108,7 @@ fn test_saitec_bootstrap_skips_when_vendored_script_missing() {
     let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
     let temp = tempfile::TempDir::new().unwrap();
     let skills_root = temp.path().join("missing-vendored-skills");
+    std::fs::create_dir_all(&skills_root).unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
     crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
 

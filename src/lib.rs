@@ -61,6 +61,7 @@ pub mod replay;
 pub mod restart_snapshot;
 pub mod runtime_memory_log;
 pub mod safety;
+pub mod saitec;
 pub mod server;
 pub mod session;
 pub mod setup_hints;

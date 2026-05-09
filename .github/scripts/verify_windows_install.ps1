@@ -8,7 +8,16 @@ Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $resolvedArtifact = (Resolve-Path -LiteralPath $ArtifactExePath).Path
-$tempRoot = Join-Path $env:RUNNER_TEMP ("jcode-windows-install-verify-" + [guid]::NewGuid().ToString('N'))
+$tempBase = if ($env:RUNNER_TEMP) {
+    $env:RUNNER_TEMP
+} elseif ($env:TEMP) {
+    $env:TEMP
+} elseif ($env:TMP) {
+    $env:TMP
+} else {
+    [System.IO.Path]::GetTempPath()
+}
+$tempRoot = Join-Path $tempBase ("jcode-windows-install-verify-" + [guid]::NewGuid().ToString('N'))
 $localAppData = Join-Path $tempRoot 'localappdata'
 $appData = Join-Path $tempRoot 'appdata'
 $userProfile = Join-Path $tempRoot 'userprofile'
@@ -34,10 +43,18 @@ $installScript = Join-Path $repoRoot 'scripts\install.ps1'
 $launcherPath = Join-Path $installDir 'jcode.exe'
 $versionDir = Join-Path $localAppData ('jcode\builds\versions\' + $Version.TrimStart('v') + '\jcode.exe')
 $stablePath = Join-Path $localAppData 'jcode\builds\stable\jcode.exe'
+$launcherResources = Join-Path $localAppData 'jcode\resources\SAITEC-Skills\mcp_server\server.py'
+$versionResources = Join-Path $localAppData ('jcode\builds\versions\' + $Version.TrimStart('v') + '\resources\SAITEC-Skills\mcp_server\server.py')
 
 foreach ($path in @($launcherPath, $versionDir, $stablePath)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Expected installed file missing: $path"
+    }
+}
+
+foreach ($path in @($launcherResources, $versionResources)) {
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "Expected SAITEC resource missing: $path"
     }
 }
 

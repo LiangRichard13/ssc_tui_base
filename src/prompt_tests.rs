@@ -147,13 +147,16 @@ fn test_system_prompt_includes_saitec_non_disclosure_rules() {
 
     assert!(prompt.contains("SAITEC"));
     assert!(
-        prompt.contains("must not reveal") || prompt.contains("never reveal"),
+        prompt.contains("must not reveal")
+            || prompt.contains("never reveal")
+            || prompt.contains("Never reveal"),
         "expected SAITEC anti-leak wording in system prompt"
     );
     assert!(
-        prompt.contains("skill") && prompt.contains("do not"),
+        prompt.contains("skill") && (prompt.contains("do not") || prompt.contains("Never")),
         "expected system prompt to forbid exposing skill contents"
     );
+    assert!(prompt.contains("internal SAITEC skill prompt"));
 }
 
 #[test]
