@@ -210,7 +210,7 @@ impl McpConfig {
     }
 
     /// Import MCP servers from Claude Code and Codex CLI on first run.
-    /// Only runs if ~/.jcode/mcp.json doesn't exist yet.
+    /// Only runs if the product-owned MCP config doesn't exist yet.
     #[expect(
         clippy::collapsible_if,
         reason = "Import logic keeps source-specific MCP config handling explicit"
@@ -330,19 +330,21 @@ impl McpConfig {
         reason = "Import logic keeps source-specific MCP config merge order explicit"
     )]
     pub fn load() -> Self {
+        if let Err(err) = crate::saitec::mcp::ensure_bootstrap() {
+            crate::logging::warn(&format!("SAITEC MCP bootstrap failed: {}", err));
+        }
+
         // First-run import from Claude Code / Codex CLI
         Self::import_from_external();
 
         let mut merged = Self::default();
 
-        // Load jcode's own global config (~/.jcode/mcp.json)
-        if let Ok(jcode_dir) = crate::storage::jcode_dir() {
-            let jcode_mcp = jcode_dir.join("mcp.json");
-            if jcode_mcp.exists() {
-                if let Ok(config) = Self::load_from_file(&jcode_mcp) {
-                    merged.servers.extend(config.servers);
-                }
-            }
+        // Load SAITEC's product-owned global config (~/.saitec_tui/mcp.json)
+        if let Ok(saitec_mcp) = crate::saitec::mcp::mcp_config_file()
+            && saitec_mcp.exists()
+            && let Ok(config) = Self::load_from_file(&saitec_mcp)
+        {
+            merged.servers.extend(config.servers);
         }
 
         // Load project-local jcode config (.jcode/mcp.json)

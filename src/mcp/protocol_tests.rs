@@ -1,6 +1,138 @@
 use super::*;
 
 #[test]
+fn test_saitec_bootstrap_creates_missing_mcp_config() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let temp = tempfile::TempDir::new().unwrap();
+    let skills_root = temp.path().join("vendored-skills");
+    let server_dir = skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+
+    crate::saitec::mcp::ensure_bootstrap().unwrap();
+
+    let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+    assert!(mcp_path.exists(), "expected bootstrap to create mcp.json");
+    let config = McpConfig::load_from_file(&mcp_path).unwrap();
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(saitec.command, "python");
+    assert_eq!(
+        saitec.args,
+        vec![server_dir.join("server.py").display().to_string()]
+    );
+    assert_eq!(
+        saitec.env.get("PYTHONIOENCODING"),
+        Some(&"utf-8".to_string())
+    );
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_skills_root) = prev_skills_root {
+        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
+    } else {
+        crate::env::remove_var("SAITEC_SKILLS_ROOT");
+    }
+}
+
+#[test]
+fn test_saitec_bootstrap_preserves_existing_servers_and_saitec_entry() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let temp = tempfile::TempDir::new().unwrap();
+    let skills_root = temp.path().join("vendored-skills");
+    let server_dir = skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+
+    let mcp_dir = temp.path().join("external").join(".saitec_tui");
+    std::fs::create_dir_all(&mcp_dir).unwrap();
+    let mcp_path = mcp_dir.join("mcp.json");
+    std::fs::write(
+        &mcp_path,
+        r#"{
+            "servers": {
+                "existing-server": {
+                    "command": "existing-bin",
+                    "args": ["--flag"],
+                    "env": {"EXISTING": "1"}
+                },
+                "SAITEC-Skills": {
+                    "command": "custom-bin",
+                    "args": ["--custom"],
+                    "env": {"CUSTOM": "1"}
+                }
+            }
+        }"#,
+    )
+    .unwrap();
+
+    crate::saitec::mcp::ensure_bootstrap().unwrap();
+
+    let config = McpConfig::load_from_file(&mcp_path).unwrap();
+    let existing = config.servers.get("existing-server").unwrap();
+    assert_eq!(existing.command, "existing-bin");
+    assert_eq!(existing.args, vec!["--flag"]);
+    assert_eq!(existing.env.get("EXISTING"), Some(&"1".to_string()));
+
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(saitec.command, "custom-bin");
+    assert_eq!(saitec.args, vec!["--custom"]);
+    assert_eq!(saitec.env.get("CUSTOM"), Some(&"1".to_string()));
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_skills_root) = prev_skills_root {
+        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
+    } else {
+        crate::env::remove_var("SAITEC_SKILLS_ROOT");
+    }
+}
+
+#[test]
+fn test_saitec_bootstrap_skips_when_vendored_script_missing() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let temp = tempfile::TempDir::new().unwrap();
+    let skills_root = temp.path().join("missing-vendored-skills");
+    std::fs::create_dir_all(&skills_root).unwrap();
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+
+    crate::saitec::mcp::ensure_bootstrap().unwrap();
+
+    let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+    assert!(
+        !mcp_path.exists(),
+        "expected bootstrap to skip config creation when the vendored server script is missing"
+    );
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_skills_root) = prev_skills_root {
+        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
+    } else {
+        crate::env::remove_var("SAITEC_SKILLS_ROOT");
+    }
+}
+
+#[test]
 fn test_json_rpc_request_serialization() {
     let request = JsonRpcRequest::new(1, "tools/list", None);
     let json = serde_json::to_string(&request).unwrap();

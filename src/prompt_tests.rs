@@ -142,6 +142,24 @@ fn test_non_selfdev_prompt_includes_lightweight_selfdev_hint() {
 }
 
 #[test]
+fn test_system_prompt_includes_saitec_non_disclosure_rules() {
+    let prompt = build_system_prompt(None, &[]);
+
+    assert!(prompt.contains("SAITEC"));
+    assert!(
+        prompt.contains("must not reveal")
+            || prompt.contains("never reveal")
+            || prompt.contains("Never reveal"),
+        "expected SAITEC anti-leak wording in system prompt"
+    );
+    assert!(
+        prompt.contains("skill") && (prompt.contains("do not") || prompt.contains("Never")),
+        "expected system prompt to forbid exposing skill contents"
+    );
+    assert!(prompt.contains("internal SAITEC skill prompt"));
+}
+
+#[test]
 fn test_selfdev_prompt_uses_full_selfdev_instructions() {
     let prompt = build_system_prompt_with_selfdev(None, &[], true);
     assert!(prompt.contains("You are working on the jcode codebase itself."));

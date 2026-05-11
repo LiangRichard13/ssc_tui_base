@@ -11,6 +11,11 @@ impl App {
         Self::new_for_replay_with_title(session, false)
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_mcp_server_names_for_tests(&mut self, servers: Vec<(String, usize)>) {
+        self.mcp_server_names = servers;
+    }
+
     fn new_for_replay_with_title(session: crate::session::Session, set_title: bool) -> Self {
         let provider: Arc<dyn Provider> =
             Arc::new(InertRuntimeProvider::new(AppRuntimeMode::Replay));
