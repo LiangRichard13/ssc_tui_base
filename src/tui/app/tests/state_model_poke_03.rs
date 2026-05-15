@@ -653,7 +653,7 @@ fn test_model_picker_filter_text_includes_provider_and_method() {
 }
 
 #[test]
-fn test_login_picker_preview_stays_open_and_updates_filter() {
+fn test_login_command_does_not_open_inline_login_picker_preview() {
     let mut app = create_test_app();
 
     for c in "/login jc".chars() {
@@ -661,18 +661,9 @@ fn test_login_picker_preview_stays_open_and_updates_filter() {
             .unwrap();
     }
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("login picker preview should be open");
-    assert!(picker.preview);
-    assert_eq!(picker.kind, crate::tui::PickerKind::Login);
-    assert_eq!(picker.filter, "jc");
     assert!(
-        picker
-            .filtered
-            .iter()
-            .any(|&i| picker.entries[i].name == "Saitec Subscription")
+        app.inline_interactive_state.is_none(),
+        "typing /login variants should not open the inline login picker preview"
     );
     assert_eq!(app.input(), "/login jc");
 }

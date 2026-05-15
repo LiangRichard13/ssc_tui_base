@@ -104,7 +104,7 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit jcode"),
     RegisteredCommand::public("/auth", "Show authentication status"),
-    RegisteredCommand::public("/login", "Choose SAITEC login or base-model configuration"),
+    RegisteredCommand::public("/login", "Start the Saitec login flow"),
     RegisteredCommand::public("/logout", "Logout from Saitec and clear local auth"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
     RegisteredCommand::public("/accounts", "Alias for /account"),

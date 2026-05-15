@@ -466,7 +466,7 @@ impl App {
     }
 
     pub(super) fn show_interactive_login(&mut self) {
-        self.open_login_mode_selector();
+        self.start_jcode_login();
     }
 
     pub(super) fn start_login_provider(
@@ -559,6 +559,13 @@ impl App {
 
     pub(super) fn start_jcode_login(&mut self) {
         crate::logging::info("login-debug: start_jcode_login opened Saitec form");
+        self.abandon_pending_login_for_new_flow();
+        self.login_picker_overlay = None;
+        self.account_picker_overlay = None;
+        self.inline_interactive_state = None;
+        self.input.clear();
+        self.cursor_pos = 0;
+        self.clear_input_undo_history();
         self.push_display_message(DisplayMessage::system(
             "**Saitec Login**\n\nEnter your email or phone plus password to continue.".to_string(),
         ));
@@ -1557,6 +1564,10 @@ impl App {
                 crate::telemetry::record_auth_cancelled(&provider, &method);
             }
             self.push_display_message(DisplayMessage::system("Login cancelled.".to_string()));
+            return;
+        }
+
+        if super::auth::handle_auth_command(self, trimmed) {
             return;
         }
 
