@@ -1,6 +1,22 @@
 use super::*;
 use crate::tui::connection_type_icon;
 
+const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+
+fn runtime_window_title(
+    _icon: &str,
+    server_name: &str,
+    session_label: &str,
+    suffix: &str,
+) -> String {
+    let brand_label = if server_name.eq_ignore_ascii_case("jcode") {
+        SAITEC_WINDOW_TITLE.to_string()
+    } else {
+        format!("{SAITEC_WINDOW_TITLE}/{}", server_name.to_lowercase())
+    };
+    format!("{brand_label}/{session_label}{suffix}")
+}
+
 impl App {
     /// Create an App instance for replay mode (playing back a saved session)
     pub fn new_for_replay(session: crate::session::Session) -> Self {
@@ -14,6 +30,84 @@ impl App {
     #[cfg(test)]
     pub(crate) fn set_mcp_server_names_for_tests(&mut self, servers: Vec<(String, usize)>) {
         self.mcp_server_names = servers;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_remote_header_metadata_for_tests(
+        &mut self,
+        session_id: &str,
+        server_name: &str,
+        server_icon: &str,
+        client_count: Option<usize>,
+        provider_name: &str,
+        provider_model: &str,
+    ) {
+        self.remote_session_id = Some(session_id.to_string());
+        self.remote_server_short_name = Some(server_name.to_string());
+        self.remote_server_icon = Some(server_icon.to_string());
+        self.remote_client_count = client_count;
+        self.remote_provider_name = Some(provider_name.to_string());
+        self.remote_provider_model = Some(provider_model.to_string());
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_processing_state_for_tests(&mut self, status: ProcessingStatus) {
+        self.is_processing = true;
+        self.status = status;
+        if self.processing_started.is_none() {
+            self.processing_started = Some(std::time::Instant::now());
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear_display_messages_for_tests(&mut self) {
+        self.display_messages.clear();
+        self.display_messages_version = self.display_messages_version.saturating_add(1);
+        self.display_user_message_count = 0;
+        self.display_edit_tool_message_count = 0;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_display_messages_for_tests(
+        &mut self,
+        messages: Vec<crate::tui::DisplayMessage>,
+    ) {
+        self.display_messages = messages;
+        self.bump_display_messages_version();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_pending_saitec_login_for_tests(&mut self) {
+        self.pending_login = Some(super::auth::PendingLogin::SaitecForm {
+            form: super::auth::SaitecPendingForm {
+                form: crate::saitec::auth::SaitecLoginForm::new(
+                    "".to_string(),
+                    "".to_string(),
+                    "".to_string(),
+                ),
+                focus: super::auth::SaitecLoginField::Email,
+                error: None,
+                submitting: false,
+            },
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_pending_saitec_login_form_for_tests(
+        &mut self,
+        form: crate::saitec::auth::SaitecLoginForm,
+        focus: super::auth::SaitecLoginField,
+        error: Option<String>,
+        submitting: bool,
+    ) {
+        self.pending_login = Some(super::auth::PendingLogin::SaitecForm {
+            form: super::auth::SaitecPendingForm {
+                form,
+                focus,
+                error,
+                submitting,
+            },
+        });
     }
 
     fn new_for_replay_with_title(session: crate::session::Session, set_title: bool) -> Self {
@@ -93,11 +187,6 @@ impl App {
         let suffix = if is_canary { " [self-dev]" } else { "" };
         let server_name = self.remote_server_short_name.as_deref().unwrap_or("jcode");
         let icon = connection_type_icon(self.connection_type.as_deref()).unwrap_or(session_icon);
-        let server_label = if server_name.eq_ignore_ascii_case("jcode") {
-            "jcode".to_string()
-        } else {
-            format!("jcode/{}", server_name.to_lowercase())
-        };
         if server_name.eq_ignore_ascii_case("jcode") {
             crate::process_title::set_client_display_title(&session_name, is_canary);
         } else {
@@ -109,9 +198,11 @@ impl App {
         }
         let _ = crossterm::execute!(
             std::io::stdout(),
-            crossterm::terminal::SetTitle(format!(
-                "{} {} {}{}",
-                icon, server_label, session_label, suffix
+            crossterm::terminal::SetTitle(runtime_window_title(
+                icon,
+                server_name,
+                &session_label,
+                suffix,
             ))
         );
     }

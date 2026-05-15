@@ -36,7 +36,7 @@ impl App {
 
         if accounts.is_empty() {
             return "**OpenAI Accounts:** none configured\n\n\
-                 Use `/account openai add` to add the next numbered account, or `/login openai` to refresh the active one."
+                 Use `/account openai settings` to review this provider, or `/login` to access Saitec."
                 .to_string();
         }
 
@@ -66,7 +66,7 @@ impl App {
 
         lines.push(String::new());
         lines.push(
-            "Commands: `/account openai switch <label>`, `/account openai add`, `/account openai remove <label>`"
+            "Commands: `/account openai switch <label>`, `/account openai remove <label>`"
                 .to_string(),
         );
 
@@ -80,7 +80,7 @@ impl App {
 
         if accounts.is_empty() {
             return "**Anthropic Accounts:** none configured\n\n\
-                 Use `/account claude add` to add the next numbered account, or `/login claude` to refresh the active one."
+                 Use `/account claude settings` to review this provider, or `/login` to access Saitec."
                 .to_string();
         }
 
@@ -110,7 +110,7 @@ impl App {
 
         lines.push(String::new());
         lines.push(
-            "Commands: `/account claude switch <label>`, `/account claude add`, `/account claude remove <label>`"
+            "Commands: `/account claude switch <label>`, `/account claude remove <label>`"
                 .to_string(),
         );
 
@@ -149,16 +149,6 @@ impl App {
                 format!("{email} - {status} - plan {plan}{active_suffix}"),
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(format!(
                     "/account {} switch {}",
-                    provider.id, label
-                )),
-            ));
-            items.push(crate::tui::account_picker::AccountPickerItem::action(
-                provider.id,
-                provider.display_name,
-                format!("Re-login account `{label}`"),
-                format!("Refresh OAuth tokens for `{label}`"),
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(format!(
-                    "/account {} add {}",
                     provider.id, label
                 )),
             ));
@@ -207,16 +197,6 @@ impl App {
                 format!("{email} - {status} - acct {account_id}{active_suffix}"),
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(format!(
                     "/account {} switch {}",
-                    provider.id, label
-                )),
-            ));
-            items.push(crate::tui::account_picker::AccountPickerItem::action(
-                provider.id,
-                provider.display_name,
-                format!("Re-login account `{label}`"),
-                format!("Refresh OpenAI OAuth tokens for `{label}`"),
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(format!(
-                    "/account {} add {}",
                     provider.id, label
                 )),
             ));

@@ -46,7 +46,7 @@ fn configure_system_allocator() {
 #[cfg(not(all(target_os = "linux", not(feature = "jemalloc"))))]
 fn configure_system_allocator() {}
 
-fn main() -> Result<()> {
+fn run_app() -> Result<()> {
     configure_system_allocator();
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -55,4 +55,27 @@ fn main() -> Result<()> {
         .build()?;
 
     runtime.block_on(async { jcode::run().await })
+}
+
+#[cfg(windows)]
+fn main() -> Result<()> {
+    // The clap command tree is large enough to overflow the default Windows
+    // main-thread stack during startup/argument parsing in local dev builds.
+    // Run the app on a dedicated thread with a larger stack so normal CLI/TUI
+    // startup remains stable on Windows.
+    let handle = std::thread::Builder::new()
+        .name("jcode-main".to_string())
+        .stack_size(8 * 1024 * 1024)
+        .spawn(run_app)
+        .map_err(|err| anyhow::anyhow!("failed to spawn Windows main thread: {}", err))?;
+
+    match handle.join() {
+        Ok(result) => result,
+        Err(payload) => std::panic::resume_unwind(payload),
+    }
+}
+
+#[cfg(not(windows))]
+fn main() -> Result<()> {
+    run_app()
 }

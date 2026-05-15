@@ -35,6 +35,7 @@ pub use generated_image::{
 };
 
 use crate::message::ToolCall;
+use crate::tui::ui::should_show_startup_splash;
 use ratatui::prelude::Frame;
 use ratatui::text::Line;
 use std::time::Duration;
@@ -177,6 +178,15 @@ pub trait TuiState {
     }
     /// Whether a transient remote startup phase is active and should keep redraws responsive.
     fn remote_startup_phase_active(&self) -> bool;
+    /// Whether the branded startup/login splash should stay visible even after
+    /// transient system notices are appended to the transcript.
+    fn preserve_branded_startup_surface(&self) -> bool {
+        false
+    }
+    /// Pending SAITEC business-login form state when the login overlay should render.
+    fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
+        None
+    }
     /// Whether mouse-wheel smoothing has queued lines to animate.
     fn has_pending_mouse_scroll_animation(&self) -> bool {
         false
@@ -644,6 +654,10 @@ impl PickerKind {
                 format!("{} {} {}", entry.name, provider, state)
             }
             Self::Login => {
+                let provider_id = match &entry.action {
+                    PickerAction::Login(provider) => provider.id,
+                    _ => "",
+                };
                 let auth_kind = entry
                     .active_option()
                     .map(|option| option.provider.as_str())
@@ -656,7 +670,10 @@ impl PickerKind {
                     .active_option()
                     .map(|option| option.detail.as_str())
                     .unwrap_or("");
-                format!("{} {} {} {}", entry.name, auth_kind, state, detail)
+                format!(
+                    "{} {} {} {} {}",
+                    entry.name, provider_id, auth_kind, state, detail
+                )
             }
             Self::Usage => {
                 let status = entry
@@ -1044,18 +1061,27 @@ fn fps_to_duration(fps: u32) -> Duration {
     Duration::from_millis((1000 / fps.max(1)) as u64)
 }
 
+fn branded_startup_animation_enabled(policy: &crate::perf::TuiPerfPolicy) -> bool {
+    policy.enable_decorative_animations || crate::saitec::product_profile::use_fixed_shell_layout()
+}
+
 pub(crate) fn redraw_interval_with_policy(
     state: &dyn TuiState,
     policy: &crate::perf::TuiPerfPolicy,
 ) -> Duration {
     let animation_interval = fps_to_duration(policy.animation_fps);
     let fast_interval = fps_to_duration(policy.redraw_fps);
+    let brand_animations = branded_startup_animation_enabled(policy);
 
     if idle_donut_active_with_policy(state, policy) {
         return match policy.tier {
             crate::perf::PerformanceTier::Minimal => fast_interval,
             _ => animation_interval,
         };
+    }
+
+    if brand_animations && should_show_startup_splash(state) {
+        return animation_interval;
     }
 
     if !policy.enable_decorative_animations
@@ -1108,8 +1134,13 @@ pub(crate) fn redraw_interval(state: &dyn TuiState) -> Duration {
 
 pub(crate) fn periodic_redraw_required(state: &dyn TuiState) -> bool {
     let policy = crate::perf::tui_policy();
+    let brand_animations = branded_startup_animation_enabled(&policy);
 
     if idle_donut_active_with_policy(state, &policy) {
+        return true;
+    }
+
+    if brand_animations && should_show_startup_splash(state) {
         return true;
     }
 

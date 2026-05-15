@@ -207,61 +207,15 @@ pub fn profile_for_choice(choice: &ProviderChoice) -> Option<OpenAiCompatiblePro
 pub fn login_provider_for_choice(choice: &ProviderChoice) -> Option<LoginProviderDescriptor> {
     match choice {
         ProviderChoice::Jcode => Some(crate::provider_catalog::JCODE_LOGIN_PROVIDER),
-        ProviderChoice::Claude | ProviderChoice::ClaudeSubprocess => {
-            Some(crate::provider_catalog::CLAUDE_LOGIN_PROVIDER)
-        }
-        ProviderChoice::Openai => Some(crate::provider_catalog::OPENAI_LOGIN_PROVIDER),
-        ProviderChoice::OpenaiApi => Some(crate::provider_catalog::OPENAI_API_LOGIN_PROVIDER),
-        ProviderChoice::Openrouter => Some(crate::provider_catalog::OPENROUTER_LOGIN_PROVIDER),
-        ProviderChoice::Bedrock => Some(crate::provider_catalog::BEDROCK_LOGIN_PROVIDER),
-        ProviderChoice::Azure => Some(crate::provider_catalog::AZURE_LOGIN_PROVIDER),
-        ProviderChoice::Opencode => Some(crate::provider_catalog::OPENCODE_LOGIN_PROVIDER),
-        ProviderChoice::OpencodeGo => Some(crate::provider_catalog::OPENCODE_GO_LOGIN_PROVIDER),
-        ProviderChoice::Zai => Some(crate::provider_catalog::ZAI_LOGIN_PROVIDER),
-        ProviderChoice::Kimi => Some(crate::provider_catalog::KIMI_LOGIN_PROVIDER),
-        ProviderChoice::Ai302 => Some(crate::provider_catalog::AI302_LOGIN_PROVIDER),
-        ProviderChoice::Baseten => Some(crate::provider_catalog::BASETEN_LOGIN_PROVIDER),
-        ProviderChoice::Cortecs => Some(crate::provider_catalog::CORTECS_LOGIN_PROVIDER),
-        ProviderChoice::Comtegra => Some(crate::provider_catalog::COMTEGRA_LOGIN_PROVIDER),
-        ProviderChoice::Deepseek => Some(crate::provider_catalog::DEEPSEEK_LOGIN_PROVIDER),
-        ProviderChoice::Fpt => Some(crate::provider_catalog::FPT_LOGIN_PROVIDER),
-        ProviderChoice::Firmware => Some(crate::provider_catalog::FIRMWARE_LOGIN_PROVIDER),
-        ProviderChoice::HuggingFace => Some(crate::provider_catalog::HUGGING_FACE_LOGIN_PROVIDER),
-        ProviderChoice::MoonshotAi => Some(crate::provider_catalog::MOONSHOT_LOGIN_PROVIDER),
-        ProviderChoice::Nebius => Some(crate::provider_catalog::NEBIUS_LOGIN_PROVIDER),
-        ProviderChoice::Scaleway => Some(crate::provider_catalog::SCALEWAY_LOGIN_PROVIDER),
-        ProviderChoice::Stackit => Some(crate::provider_catalog::STACKIT_LOGIN_PROVIDER),
-        ProviderChoice::Groq => Some(crate::provider_catalog::GROQ_LOGIN_PROVIDER),
-        ProviderChoice::Mistral => Some(crate::provider_catalog::MISTRAL_LOGIN_PROVIDER),
-        ProviderChoice::Perplexity => Some(crate::provider_catalog::PERPLEXITY_LOGIN_PROVIDER),
-        ProviderChoice::TogetherAi => Some(crate::provider_catalog::TOGETHER_AI_LOGIN_PROVIDER),
-        ProviderChoice::Deepinfra => Some(crate::provider_catalog::DEEPINFRA_LOGIN_PROVIDER),
-        ProviderChoice::Fireworks => Some(crate::provider_catalog::FIREWORKS_LOGIN_PROVIDER),
-        ProviderChoice::Minimax => Some(crate::provider_catalog::MINIMAX_LOGIN_PROVIDER),
-        ProviderChoice::Xai => Some(crate::provider_catalog::XAI_LOGIN_PROVIDER),
-        ProviderChoice::Lmstudio => Some(crate::provider_catalog::LMSTUDIO_LOGIN_PROVIDER),
-        ProviderChoice::Ollama => Some(crate::provider_catalog::OLLAMA_LOGIN_PROVIDER),
-        ProviderChoice::Chutes => Some(crate::provider_catalog::CHUTES_LOGIN_PROVIDER),
-        ProviderChoice::Cerebras => Some(crate::provider_catalog::CEREBRAS_LOGIN_PROVIDER),
-        ProviderChoice::AlibabaCodingPlan => {
-            Some(crate::provider_catalog::ALIBABA_CODING_PLAN_LOGIN_PROVIDER)
-        }
-        ProviderChoice::OpenaiCompatible => {
-            Some(crate::provider_catalog::OPENAI_COMPAT_LOGIN_PROVIDER)
-        }
-        ProviderChoice::Cursor => Some(crate::provider_catalog::CURSOR_LOGIN_PROVIDER),
-        ProviderChoice::Copilot => Some(crate::provider_catalog::COPILOT_LOGIN_PROVIDER),
-        ProviderChoice::Gemini => Some(crate::provider_catalog::GEMINI_LOGIN_PROVIDER),
-        ProviderChoice::Antigravity => Some(crate::provider_catalog::ANTIGRAVITY_LOGIN_PROVIDER),
-        ProviderChoice::Google => Some(crate::provider_catalog::GOOGLE_LOGIN_PROVIDER),
-        ProviderChoice::Auto => None,
+        ProviderChoice::Auto => Some(crate::provider_catalog::JCODE_LOGIN_PROVIDER),
+        _ => None,
     }
 }
 
 pub fn choice_for_login_provider(provider: LoginProviderDescriptor) -> Option<ProviderChoice> {
     match provider.target {
-        LoginProviderTarget::AutoImport => None,
         LoginProviderTarget::Jcode => Some(ProviderChoice::Jcode),
+        LoginProviderTarget::AutoImport => None,
         LoginProviderTarget::Claude => Some(ProviderChoice::Claude),
         LoginProviderTarget::OpenAi => Some(ProviderChoice::Openai),
         LoginProviderTarget::OpenAiApiKey => Some(ProviderChoice::OpenaiApi),
@@ -639,7 +593,7 @@ fn ensure_openai_auth_allowed_for_explicit_choice() -> Result<()> {
     if maybe_prompt_for_generic_oauth_source(
         "OpenAI/Codex",
         auth::external::preferred_unconsented_openai_oauth_source(),
-        "jcode login --provider openai",
+        "jcode login --provider jcode",
         false,
         || auth::codex::load_credentials().is_ok(),
     )? {
@@ -657,7 +611,7 @@ fn ensure_openai_auth_allowed_for_explicit_choice() -> Result<()> {
             "OpenAI/Codex",
             "Codex",
             &path,
-            "jcode login --provider openai"
+            "jcode login --provider jcode"
         ));
     }
 
@@ -667,7 +621,7 @@ fn ensure_openai_auth_allowed_for_explicit_choice() -> Result<()> {
     }
 
     anyhow::bail!(
-        "Skipped trusting existing ~/.codex/auth.json credentials. Run `jcode login --provider openai` to authenticate jcode directly."
+        "Skipped trusting existing ~/.codex/auth.json credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
     )
 }
 
@@ -683,7 +637,7 @@ fn maybe_enable_legacy_codex_auth_for_auto(has_other_provider: bool) -> Result<b
         return maybe_prompt_for_generic_oauth_source(
             "OpenAI/Codex",
             Some(source),
-            "jcode login --provider openai",
+            "jcode login --provider jcode",
             true,
             || auth::codex::load_credentials().is_ok(),
         );
@@ -704,7 +658,7 @@ fn maybe_enable_legacy_codex_auth_for_auto(has_other_provider: bool) -> Result<b
             "OpenAI/Codex",
             "Codex",
             &path,
-            "jcode login --provider openai",
+            "jcode login --provider jcode",
         ));
         return Ok(false);
     }
@@ -725,7 +679,7 @@ fn ensure_claude_auth_allowed_for_explicit_choice() -> Result<()> {
     if maybe_prompt_for_generic_oauth_source(
         "Claude",
         auth::external::preferred_unconsented_anthropic_oauth_source(),
-        "jcode login --provider claude",
+        "jcode login --provider jcode",
         false,
         || auth::claude::load_credentials().is_ok(),
     )? {
@@ -741,7 +695,7 @@ fn ensure_claude_auth_allowed_for_explicit_choice() -> Result<()> {
             "Claude",
             source.display_name(),
             &path,
-            "jcode login --provider claude"
+            "jcode login --provider jcode"
         ));
     }
     if prompt_to_trust_external_auth("Claude", source.display_name(), &path)? {
@@ -749,7 +703,7 @@ fn ensure_claude_auth_allowed_for_explicit_choice() -> Result<()> {
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting external Claude credentials. Run `jcode login --provider claude` to authenticate jcode directly."
+        "Skipped trusting external Claude credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
     )
 }
 
@@ -765,7 +719,7 @@ fn maybe_enable_claude_auth_for_auto(has_other_provider: bool) -> Result<bool> {
         return maybe_prompt_for_generic_oauth_source(
             "Claude",
             Some(source),
-            "jcode login --provider claude",
+            "jcode login --provider jcode",
             true,
             || auth::claude::load_credentials().is_ok(),
         );
@@ -783,7 +737,7 @@ fn maybe_enable_claude_auth_for_auto(has_other_provider: bool) -> Result<bool> {
             "Claude",
             source.display_name(),
             &path,
-            "jcode login --provider claude",
+            "jcode login --provider jcode",
         ));
         return Ok(false);
     }
@@ -1176,7 +1130,7 @@ async fn init_provider_with_options(
 
     let provider: Arc<dyn provider::Provider> = match choice {
         ProviderChoice::Jcode => {
-            init_notice("Using Jcode subscription provider (provider locked)");
+            init_notice("Using Saitec subscription provider (provider locked)");
             Arc::new(provider::jcode::JcodeProvider::new())
         }
         ProviderChoice::Claude => {

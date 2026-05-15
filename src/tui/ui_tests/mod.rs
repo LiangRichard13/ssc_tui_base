@@ -10,6 +10,21 @@ fn viewport_snapshot_test_lock() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+fn buffer_to_text(terminal: &ratatui::Terminal<ratatui::backend::TestBackend>) -> Vec<String> {
+    let buf = terminal.backend().buffer();
+    let width = buf.area.width as usize;
+    let height = buf.area.height as usize;
+    let mut lines = Vec::with_capacity(height);
+    for y in 0..height {
+        let mut line = String::with_capacity(width);
+        for x in 0..width {
+            line.push_str(buf[(x as u16, y as u16)].symbol());
+        }
+        lines.push(line);
+    }
+    lines
+}
+
 #[test]
 fn parse_changelog_from_supports_timestamped_entries() {
     let changelog = concat!(
@@ -110,6 +125,514 @@ fn native_scrollbar_visibility_requires_overflow() {
     assert!(native_scrollbar_visible(true, 6, 5));
 }
 
+#[test]
+fn startup_splash_footer_renders_on_bottom_row() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState::default();
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let layout = last_layout_snapshot().expect("missing layout snapshot");
+    let lines = buffer_to_text(&terminal);
+    let footer_row = lines
+        .iter()
+        .rposition(|line| line.contains(semver()))
+        .expect("missing footer row");
+
+    assert_eq!(
+        footer_row,
+        (layout.messages_area.y + layout.messages_area.height).saturating_sub(1) as usize,
+        "footer row should render on the bottom of the messages area, got row {footer_row}"
+    );
+}
+
+#[test]
+fn startup_splash_shows_prompt_above_footer() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState::default();
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let layout = last_layout_snapshot().expect("missing layout snapshot");
+    let lines = buffer_to_text(&terminal);
+    let prompt_row = lines
+        .iter()
+        .rposition(|line| line.contains("> "))
+        .expect("missing startup prompt row");
+    let footer_row = lines
+        .iter()
+        .rposition(|line| line.contains(semver()))
+        .expect("missing footer row");
+
+    assert!(
+        prompt_row < footer_row,
+        "prompt should render above footer, got prompt row {prompt_row}, footer row {footer_row}"
+    );
+}
+
+#[test]
+fn startup_splash_keeps_prompt_close_to_logo() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState::default();
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let layout = last_layout_snapshot().expect("missing layout snapshot");
+    let lines = buffer_to_text(&terminal);
+    let prompt_row = lines
+        .iter()
+        .rposition(|line| line.contains("> "))
+        .expect("missing startup prompt row");
+    let footer_row = lines
+        .iter()
+        .rposition(|line| line.contains(semver()))
+        .expect("missing footer row");
+    let logo_bottom_row = lines
+        .iter()
+        .rposition(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.contains("> ") && !trimmed.contains(semver())
+        })
+        .expect("missing startup logo rows");
+
+    assert!(
+        prompt_row <= logo_bottom_row + 2,
+        "prompt should sit directly below the logo, got logo bottom row {logo_bottom_row}, prompt row {prompt_row}"
+    );
+    assert!(
+        prompt_row < footer_row,
+        "footer should remain below the prompt, got prompt row {prompt_row}, footer row {footer_row}"
+    );
+}
+
+#[test]
+fn startup_splash_shows_login_tab_completion_hint_before_first_message() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "/login".to_string(),
+        cursor_pos: "/login".len(),
+        command_suggestions: vec![
+            (
+                "/login".to_string(),
+                "Choose SAITEC login or base-model configuration",
+            ),
+            (
+                "/login jcode".to_string(),
+                crate::provider_catalog::JCODE_LOGIN_PROVIDER.menu_detail,
+            ),
+            (
+                "/login base-models".to_string(),
+                "Open the filtered base-model provider picker",
+            ),
+        ],
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("/login - Choose SAITEC login or base-model configuration"),
+        "startup splash should show the /login completion hint when /login is typed before the first message: {rendered}"
+    );
+    assert!(
+        rendered.contains("Tab: +2 more"),
+        "startup splash should show the Tab cycling hint for additional /login completions: {rendered}"
+    );
+}
+
+#[test]
+fn startup_splash_renders_png_logo_without_external_asset_file() {
+    let _guard = viewport_snapshot_test_lock();
+    let _env_guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_cwd = std::env::current_dir().expect("current dir");
+    std::env::set_current_dir(temp.path()).expect("set current dir");
+
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState::default();
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    std::env::set_current_dir(prev_cwd).expect("restore current dir");
+
+    let lines = buffer_to_text(&terminal);
+    let fallback_logo_lines = crate::tui::ui::header::startup_logo_lines(80);
+    let rendered = lines.join("\n");
+
+    for fallback in fallback_logo_lines {
+        assert!(
+            !lines.iter().any(|line| line.trim() == fallback.trim()),
+            "startup splash should render the PNG logo instead of the text fallback line `{fallback}`: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn startup_splash_footer_shows_three_segments() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        auth_status: crate::auth::AuthStatus {
+            openai: crate::auth::AuthState::Available,
+            openai_has_api_key: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let lines = buffer_to_text(&terminal);
+    let footer = lines
+        .iter()
+        .find(|line| line.contains(semver()))
+        .expect("missing footer row");
+
+    assert!(footer.contains("Not Logged In"), "footer: {footer}");
+    assert!(footer.contains("Model Configured"), "footer: {footer}");
+    assert!(footer.contains('●'), "footer: {footer}");
+    assert!(footer.contains(semver()), "footer: {footer}");
+}
+
+#[test]
+fn conversation_screen_keeps_branded_footer_fixed_while_messages_grow() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 28);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        display_messages: vec![
+            DisplayMessage::user("hello"),
+            DisplayMessage::assistant("world"),
+        ],
+        messages_version: 2,
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("conversation draw should succeed");
+
+    let layout = last_layout_snapshot().expect("missing layout snapshot");
+    let lines = buffer_to_text(&terminal);
+    let footer_row = lines
+        .iter()
+        .rposition(|line| line.contains(semver()))
+        .expect("missing footer row during conversation");
+    let message_row = lines
+        .iter()
+        .position(|line| line.contains("world"))
+        .expect("missing assistant message");
+
+    assert_eq!(
+        footer_row,
+        (layout.messages_area.y + layout.messages_area.height).saturating_sub(1) as usize,
+        "footer should stay pinned to the bottom row even during conversation, got row {footer_row}"
+    );
+    assert!(
+        message_row < footer_row,
+        "messages should render above the fixed footer, got message row {message_row} and footer row {footer_row}"
+    );
+    assert!(
+        layout.messages_area.y > 0,
+        "conversation layout should reserve a fixed branded region above the message viewport"
+    );
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("mock-model") || line.contains("/model to switch")),
+        "conversation screen should not fall back to the old chat header chrome"
+    );
+}
+
+#[test]
+fn saitec_login_overlay_renders_masked_password_over_startup_splash() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "secret".to_string(),
+        cursor_pos: "secret".len(),
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "secret".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Password,
+            error: Some("password cannot be empty".to_string()),
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(rendered.contains("Saitec Login"), "rendered: {rendered}");
+    assert!(rendered.contains("Email"), "rendered: {rendered}");
+    assert!(rendered.contains("Phone"), "rendered: {rendered}");
+    assert!(rendered.contains("Password"), "rendered: {rendered}");
+    assert!(
+        rendered.contains("user@example.com"),
+        "rendered: {rendered}"
+    );
+    assert!(rendered.contains("******"), "rendered: {rendered}");
+}
+
+#[test]
+fn saitec_login_overlay_hides_live_password_from_startup_prompt() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "secret-password".to_string(),
+        cursor_pos: "secret-password".len(),
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Password,
+            error: None,
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        !rendered.contains("secret-password"),
+        "startup prompt should not leak the live password while the login form is focused: {rendered}"
+    );
+    assert!(rendered.contains("***************"), "rendered: {rendered}");
+}
+
+#[test]
+fn saitec_login_overlay_uses_live_input_and_moves_cursor_into_overlay() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "13900139000".to_string(),
+        cursor_pos: "13900139000".len(),
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Phone,
+            error: None,
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(rendered.contains("13900139000"), "rendered: {rendered}");
+
+    let cursor = terminal
+        .backend_mut()
+        .get_cursor_position()
+        .expect("cursor position should be available");
+    let layout = last_layout_snapshot().expect("missing layout snapshot");
+    let prompt_area = layout.input_area.expect("missing prompt area");
+    assert!(
+        cursor.y > prompt_area.y + prompt_area.height.saturating_sub(1),
+        "cursor should move into the login overlay instead of staying on the startup prompt: cursor={cursor:?}, prompt_area={prompt_area:?}"
+    );
+}
+
+#[test]
+fn saitec_login_overlay_does_not_render_placeholder_asterisk_for_empty_password() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: String::new(),
+        cursor_pos: 0,
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Password,
+            error: None,
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let lines = buffer_to_text(&terminal);
+    let password_row = lines
+        .iter()
+        .find(|line| line.contains("Password"))
+        .expect("password row should be present");
+
+    assert!(
+        !password_row.contains('*'),
+        "empty password row should not render a placeholder asterisk: {password_row}"
+    );
+}
+
+#[test]
+fn saitec_login_overlay_wraps_long_error_messages() {
+    let backend = ratatui::backend::TestBackend::new(72, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let long_error = "Saitec login failed: Invalid credentials. Please verify whether the email or phone matches the account and try again with the correct password.".to_string();
+    let state = TestState {
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "secret".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Password,
+            error: Some(long_error.clone()),
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let lines = buffer_to_text(&terminal);
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("Saitec login failed:")),
+        "rendered output should include the beginning of the long login error: {}",
+        lines.join("\n")
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("email or phone matches")),
+        "rendered output should wrap and include the middle of the long login error: {}",
+        lines.join("\n")
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("correct"))
+            && lines.iter().any(|line| line.contains("password.")),
+        "rendered output should include the tail of the long login error: {}",
+        lines.join("\n")
+    );
+}
+
+#[test]
+fn saitec_login_overlay_stays_visible_after_chat_history_exists() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        display_messages: vec![DisplayMessage::user("hello")],
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Email,
+            error: None,
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(rendered.contains("Saitec Login"), "rendered: {rendered}");
+    assert!(rendered.contains("Email"), "rendered: {rendered}");
+    assert!(rendered.contains("[ Submit ]"), "rendered: {rendered}");
+    assert!(rendered.contains("[ Cancel ]"), "rendered: {rendered}");
+}
+
+#[test]
+fn saitec_login_overlay_hides_live_password_from_conversation_input() {
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "secret-password".to_string(),
+        cursor_pos: "secret-password".len(),
+        display_messages: vec![DisplayMessage::user("hello")],
+        pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
+            form: crate::saitec::auth::SaitecLoginForm::new(
+                "user@example.com".to_string(),
+                "".to_string(),
+                "".to_string(),
+            ),
+            focus: crate::tui::app::SaitecLoginField::Password,
+            error: None,
+            submitting: false,
+        }),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("saitec login overlay draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        !rendered.contains("secret-password"),
+        "conversation input should not leak the live password while the login form is focused: {rendered}"
+    );
+    assert!(rendered.contains("***************"), "rendered: {rendered}");
+}
+
 #[derive(Clone, Default)]
 struct TestState {
     input: String,
@@ -133,6 +656,9 @@ struct TestState {
     changelog_scroll: Option<usize>,
     help_scroll: Option<usize>,
     chat_native_scrollbar: bool,
+    auth_status: crate::auth::AuthStatus,
+    pending_saitec_login_form: Option<crate::tui::app::SaitecPendingForm>,
+    command_suggestions: Vec<(String, &'static str)>,
 }
 
 impl crate::tui::TuiState for TestState {
@@ -227,7 +753,7 @@ impl crate::tui::TuiState for TestState {
         self.status.clone()
     }
     fn command_suggestions(&self) -> Vec<(String, &'static str)> {
-        Vec::new()
+        self.command_suggestions.clone()
     }
     fn active_skill(&self) -> Option<String> {
         self.active_skill.clone()
@@ -280,6 +806,9 @@ impl crate::tui::TuiState for TestState {
     fn remote_startup_phase_active(&self) -> bool {
         self.remote_startup_phase_active
     }
+    fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
+        self.pending_saitec_login_form.as_ref()
+    }
     fn dictation_key_label(&self) -> Option<String> {
         None
     }
@@ -320,7 +849,7 @@ impl crate::tui::TuiState for TestState {
         self.centered_mode
     }
     fn auth_status(&self) -> crate::auth::AuthStatus {
-        Default::default()
+        self.auth_status.clone()
     }
     fn update_cost(&mut self) {}
     fn diagram_mode(&self) -> crate::config::DiagramDisplayMode {

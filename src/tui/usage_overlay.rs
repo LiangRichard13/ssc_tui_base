@@ -111,7 +111,7 @@ impl UsageOverlay {
                 vec![
                     "## No usage sources found".to_string(),
                     "• No providers with OAuth credentials were found.".to_string(),
-                    "• Use `/login claude` or `/login openai` to connect a provider.".to_string(),
+                    "• Use `/login` to connect Saitec, or `/account` to review provider-specific auth.".to_string(),
                     "• Then run `/usage` again.".to_string(),
                 ],
             ));
@@ -637,11 +637,17 @@ fn provider_detail_lines(report: &crate::usage::ProviderUsage) -> Vec<String> {
             "• Re-run `/usage` to retry after credentials or network issues are fixed.".to_string(),
         );
         if report.provider_name.to_lowercase().contains("openai") {
-            lines.push("• Use `/login openai` if the token needs refreshing.".to_string());
+            lines.push(
+                "• Reconnect that provider from `/account` if its token needs refreshing."
+                    .to_string(),
+            );
         } else if report.provider_name.to_lowercase().contains("anthropic")
             || report.provider_name.to_lowercase().contains("claude")
         {
-            lines.push("• Use `/login claude` if the token needs refreshing.".to_string());
+            lines.push(
+                "• Reconnect that provider from `/account` if its token needs refreshing."
+                    .to_string(),
+            );
         }
         return lines;
     }

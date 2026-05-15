@@ -484,15 +484,47 @@ fn test_refresh_model_list_command_suggestions() {
 }
 
 #[test]
-fn test_registered_command_suggestions_include_aliases_and_hide_secret_commands() {
+fn test_registered_command_suggestions_match_saitec_public_surface() {
     let app = create_test_app();
     let suggestions = app.get_suggestions_for("/");
     let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();
 
-    assert!(commands.contains(&"/models"));
-    assert!(commands.contains(&"/sessions"));
-    assert!(commands.contains(&"/dictation"));
-    assert!(commands.contains(&"/feedback"));
+    for public in [
+        "/help",
+        "/?",
+        "/commands",
+        "/login",
+        "/logout",
+        "/auth",
+        "/model",
+        "/models",
+        "/clear",
+        "/resume",
+        "/sessions",
+        "/usage",
+        "/version",
+        "/quit",
+    ] {
+        assert!(commands.contains(&public), "missing public command {public}: {commands:?}");
+    }
+
+    for hidden in [
+        "/dictation",
+        "/feedback",
+        "/git",
+        "/selfdev",
+        "/subscription",
+        "/catchup",
+        "/back",
+        "/transcript",
+        "/optimization",
+    ] {
+        assert!(
+            !commands.contains(&hidden),
+            "unexpected hidden command {hidden}: {commands:?}"
+        );
+    }
+
     assert!(!commands.contains(&"/z"));
     assert!(!commands.contains(&"/zz"));
     assert!(!commands.contains(&"/zzz"));
@@ -506,43 +538,44 @@ fn test_auth_doctor_command_suggestion_is_not_shadowed_by_provider_suggestions()
 }
 
 #[test]
-fn test_top_level_command_suggestions_include_config_and_subscription() {
+fn test_top_level_command_suggestions_hide_internal_and_hidden_commands() {
     let app = create_test_app();
     let suggestions = app.get_suggestions_for("/con");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/config"));
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/context"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/config"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/context"));
 
     let suggestions = app.get_suggestions_for("/ali");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/alignment"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/alignment"));
 
     let suggestions = app.get_suggestions_for("/sub");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/subscription"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/subscription"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/subagent"));
 }
 
 #[test]
-fn test_top_level_command_suggestions_include_project_local_skills() {
+fn test_top_level_command_suggestions_hide_project_local_skills() {
     let app = create_test_app();
 
     let suggestions = app.get_suggestions_for("/optim");
 
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/optimization"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/optimization"));
 }
 
 #[test]
-fn test_top_level_command_suggestions_include_catchup_and_back() {
+fn test_top_level_command_suggestions_hide_compatibility_commands() {
     let app = create_test_app();
 
     let suggestions = app.get_suggestions_for("/cat");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/catchup"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/catchup"));
 
     let suggestions = app.get_suggestions_for("/bac");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/back"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/back"));
 
     let suggestions = app.get_suggestions_for("/gi");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/git"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/git"));
 
     let suggestions = app.get_suggestions_for("/tran");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/transcript"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/transcript"));
 }
 
 #[test]
@@ -557,22 +590,43 @@ fn test_transcript_command_suggestions_include_path_variant() {
 #[test]
 fn test_help_topic_suggestions_are_contextual() {
     let app = create_test_app();
-    let suggestions = app.get_suggestions_for("/help fi");
+    let suggestions = app.get_suggestions_for("/help ver");
     assert_eq!(
         suggestions.first().map(|(cmd, _)| cmd.as_str()),
-        Some("/help fix")
+        Some("/help version")
     );
 }
 
 #[test]
-fn test_help_topic_suggestions_include_catchup_topics() {
+fn test_help_topic_suggestions_hide_compatibility_topics() {
     let app = create_test_app();
 
     let suggestions = app.get_suggestions_for("/help cat");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/help catchup"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/help catchup"));
 
     let suggestions = app.get_suggestions_for("/help bac");
-    assert!(suggestions.iter().any(|(cmd, _)| cmd == "/help back"));
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/help back"));
+
+    let suggestions = app.get_suggestions_for("/help gi");
+    assert!(!suggestions.iter().any(|(cmd, _)| cmd == "/help git"));
+}
+
+#[test]
+fn test_hidden_compatibility_commands_still_accept_args_for_manual_entry() {
+    for command in [
+        "/git",
+        "/selfdev",
+        "/subscription",
+        "/memory",
+        "/swarm",
+        "/improve",
+        "/refactor",
+    ] {
+        assert!(
+            App::command_accepts_args(command),
+            "expected hidden compatibility command to keep arg support: {command}"
+        );
+    }
 }
 
 #[test]
@@ -809,11 +863,43 @@ fn test_login_picker_preview_filter_parsing() {
         Some(String::new())
     );
     assert_eq!(
-        App::login_picker_preview_filter("/login   zai"),
-        Some("zai".to_string())
+        App::login_picker_preview_filter("/login   jcode"),
+        Some("jcode".to_string())
     );
     assert_eq!(App::login_picker_preview_filter("/loginx"), None);
     assert_eq!(App::login_picker_preview_filter("hello /login"), None);
+}
+
+#[test]
+fn test_suggestion_prompts_keep_login_hint_when_only_model_auth_is_configured() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::TempDir::new().expect("create temp dir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_openai = std::env::var_os("OPENAI_API_KEY");
+
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("OPENAI_API_KEY", "test-openai-key");
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let app = create_test_app();
+    let suggestions = app.suggestion_prompts();
+
+    assert_eq!(
+        suggestions,
+        vec![("Log in to get started".to_string(), "/login".to_string())]
+    );
+
+    if let Some(value) = prev_home {
+        crate::env::set_var("JCODE_HOME", value);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(value) = prev_openai {
+        crate::env::set_var("OPENAI_API_KEY", value);
+    } else {
+        crate::env::remove_var("OPENAI_API_KEY");
+    }
+    crate::auth::AuthStatus::invalidate_cache();
 }
 
 #[test]

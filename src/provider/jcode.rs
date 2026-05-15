@@ -84,7 +84,7 @@ impl Provider for JcodeProvider {
     }
 
     fn name(&self) -> &str {
-        "Jcode Subscription"
+        "Saitec Subscription"
     }
 
     fn model(&self) -> String {
@@ -278,7 +278,7 @@ mod tests {
 
         runtime.block_on(async {
             let provider = JcodeProvider::new();
-            assert_eq!(provider.name(), "Jcode Subscription");
+            assert_eq!(provider.name(), "Saitec Subscription");
             let model = provider.model();
             assert!(
                 crate::subscription_catalog::is_curated_model(&model),

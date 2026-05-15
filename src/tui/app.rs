@@ -20,6 +20,7 @@ use crate::tool::selfdev::ReloadContext;
 use crate::tool::{Registry, ToolContext};
 use anyhow::Result;
 use auth::PendingLogin;
+pub(crate) use auth::{SaitecLoginField, SaitecPendingForm};
 use crossterm::event::{
     Event, EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
     MouseEventKind,
@@ -115,6 +116,12 @@ struct PendingSplitPrompt {
 
 struct PendingLocalTransfer {
     receiver: mpsc::Receiver<anyhow::Result<PreparedTransferSession>>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct SubmittedInputHistory {
+    entries: Vec<String>,
+    recall_index: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -867,6 +874,8 @@ pub struct App {
     scroll_bookmark: Option<usize>,
     // Stashed input: saved via Ctrl+S for later retrieval
     stashed_input: Option<(String, usize)>,
+    // Recently submitted raw inputs for lightweight recall in login-gated flows.
+    submitted_input_history: SubmittedInputHistory,
     // Undo history for in-progress input editing (Ctrl+Z)
     input_undo_stack: Vec<(String, usize)>,
     // Short-lived notice for status feedback (model switch, cycle diff mode, etc.)

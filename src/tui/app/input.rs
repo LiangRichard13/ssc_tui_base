@@ -492,6 +492,7 @@ pub(super) fn insert_input_text(app: &mut App, text: &str) {
         return;
     }
 
+    reset_submitted_input_recall(app);
     app.remember_input_undo_state();
     app.input.insert_str(app.cursor_pos, text);
     app.cursor_pos += text.len();
@@ -649,6 +650,100 @@ pub(super) fn retrieve_pending_message_for_edit(app: &mut App) -> bool {
     }
 
     had_pending
+}
+
+const SUBMITTED_INPUT_HISTORY_LIMIT: usize = 32;
+
+fn push_submitted_input_history(app: &mut App, raw_input: &str) {
+    let trimmed = raw_input.trim();
+    if trimmed.is_empty() {
+        app.submitted_input_history.recall_index = None;
+        return;
+    }
+
+    let history = &mut app.submitted_input_history;
+    if history.entries.last().is_some_and(|entry| entry == trimmed) {
+        history.recall_index = None;
+        return;
+    }
+
+    history.entries.push(trimmed.to_string());
+    if trimmed == "/login" || trimmed == "/login jcode" {
+        crate::logging::info(&format!(
+            "login-debug: pushed submitted history entry `{trimmed}` (len={})",
+            history.entries.len()
+        ));
+    }
+    if history.entries.len() > SUBMITTED_INPUT_HISTORY_LIMIT {
+        let overflow = history.entries.len() - SUBMITTED_INPUT_HISTORY_LIMIT;
+        history.entries.drain(0..overflow);
+    }
+    history.recall_index = None;
+}
+
+fn reset_submitted_input_recall(app: &mut App) {
+    app.submitted_input_history.recall_index = None;
+}
+
+fn recall_submitted_input(app: &mut App, reverse: bool) -> bool {
+    if app.submitted_input_history.entries.is_empty() {
+        crate::logging::info("login-debug: recall_submitted_input found empty history");
+        return false;
+    }
+
+    let len = app.submitted_input_history.entries.len();
+    let next_index = match (app.submitted_input_history.recall_index, reverse) {
+        (None, true) => len.saturating_sub(1),
+        (None, false) => return false,
+        (Some(0), true) => 0,
+        (Some(idx), true) => idx.saturating_sub(1),
+        (Some(idx), false) if idx + 1 < len => idx + 1,
+        (Some(_), false) => {
+            app.submitted_input_history.recall_index = None;
+            app.input.clear();
+            app.cursor_pos = 0;
+            app.clear_input_undo_history();
+            app.reset_tab_completion();
+            app.sync_model_picker_preview_from_input();
+            app.set_status_notice("Returned to fresh input");
+            return true;
+        }
+    };
+
+    if let Some(entry) = app.submitted_input_history.entries.get(next_index).cloned() {
+        app.submitted_input_history.recall_index = Some(next_index);
+        app.input = entry;
+        app.cursor_pos = app.input.len();
+        app.clear_input_undo_history();
+        app.reset_tab_completion();
+        app.sync_model_picker_preview_from_input();
+        app.set_status_notice("Recalled previous input");
+        crate::logging::info(&format!(
+            "login-debug: recalled submitted history entry `{}` at index {}",
+            app.input, next_index
+        ));
+        return true;
+    }
+
+    false
+}
+
+pub(super) fn handle_submitted_input_recall_key(
+    app: &mut App,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    if !modifiers.is_empty() {
+        return false;
+    }
+
+    match code {
+        KeyCode::Up if app.input.is_empty() => recall_submitted_input(app, true),
+        KeyCode::Down if app.submitted_input_history.recall_index.is_some() => {
+            recall_submitted_input(app, false)
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn send_action(app: &App, alternate_shortcut: bool) -> SendAction {
@@ -1175,6 +1270,10 @@ pub(super) fn handle_modal_key(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> Result<bool> {
+    if app.pending_login.is_some() {
+        return Ok(handle_pending_saitec_login_key(app, code, modifiers));
+    }
+
     if app.changelog_scroll.is_some() {
         app.handle_changelog_key(code)?;
         return Ok(true);
@@ -1196,6 +1295,16 @@ pub(super) fn handle_modal_key(
     }
 
     if app.account_picker_overlay.is_some() {
+        if code == KeyCode::Up
+            && !modifiers.contains(KeyModifiers::CONTROL)
+            && !modifiers.contains(KeyModifiers::ALT)
+            && app.input.is_empty()
+            && app.is_login_mode_selector_open()
+            && recall_submitted_input(app, true)
+        {
+            app.account_picker_overlay = None;
+            return Ok(true);
+        }
         if let Some(command) = app.next_account_picker_action(code, modifiers)? {
             app.handle_account_picker_command(command);
         }
@@ -1226,6 +1335,97 @@ pub(super) fn handle_modal_key(
     }
 
     Ok(false)
+}
+
+pub(super) fn handle_pending_saitec_login_key(
+    app: &mut App,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    let has_saitec_form = matches!(
+        app.pending_login.as_ref(),
+        Some(super::auth::PendingLogin::SaitecForm { .. })
+    );
+    if !has_saitec_form {
+        return false;
+    }
+
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+
+    match code {
+        KeyCode::Tab | KeyCode::BackTab => {
+            let reverse = code == KeyCode::BackTab;
+            if app.commit_input_to_pending_saitec_form()
+                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
+                    app.pending_login.as_mut()
+            {
+                form.focus = App::next_saitec_focus(form.focus, reverse);
+                form.error = None;
+                form.submitting = false;
+            }
+            app.sync_input_with_pending_saitec_form();
+            true
+        }
+        KeyCode::Up => {
+            if app.input.is_empty()
+                && matches!(
+                    app.pending_login.as_ref(),
+                    Some(super::auth::PendingLogin::SaitecForm { form })
+                        if form.focus == super::auth::SaitecLoginField::Email
+                )
+                && recall_submitted_input(app, true)
+            {
+                return true;
+            }
+            if app.input.is_empty()
+                && matches!(
+                    app.pending_login.as_ref(),
+                    Some(super::auth::PendingLogin::SaitecForm { form })
+                        if form.focus == super::auth::SaitecLoginField::Email
+                )
+            {
+                crate::logging::info(
+                    "login-debug: Up on empty Email field did not recall history; falling back to field navigation",
+                );
+            }
+            if app.commit_input_to_pending_saitec_form()
+                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
+                    app.pending_login.as_mut()
+            {
+                form.focus = App::next_saitec_focus(form.focus, true);
+                form.error = None;
+                form.submitting = false;
+            }
+            app.sync_input_with_pending_saitec_form();
+            true
+        }
+        KeyCode::Down => {
+            if app.commit_input_to_pending_saitec_form()
+                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
+                    app.pending_login.as_mut()
+            {
+                form.focus = App::next_saitec_focus(form.focus, false);
+                form.error = None;
+                form.submitting = false;
+            }
+            app.sync_input_with_pending_saitec_form();
+            true
+        }
+        KeyCode::Enter => {
+            let pending = app.pending_login.take();
+            if let Some(super::auth::PendingLogin::SaitecForm { form }) = pending {
+                app.handle_saitec_form_submit(form);
+            }
+            true
+        }
+        KeyCode::Esc => {
+            app.cancel_pending_saitec_form();
+            true
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn handle_global_control_shortcuts(
@@ -1268,6 +1468,18 @@ pub(super) fn handle_global_control_shortcuts(
 }
 
 pub(super) fn handle_enter(app: &mut App) -> bool {
+    if app.input.trim() == "/login" || app.input.trim() == "/login jcode" {
+        let preview_login = app
+            .inline_interactive_state
+            .as_ref()
+            .is_some_and(|picker| picker.preview && picker.kind == crate::tui::PickerKind::Login);
+        crate::logging::info(&format!(
+            "login-debug: handle_enter input=`{}` preview_login={} pending_login={}",
+            app.input.trim(),
+            preview_login,
+            app.pending_login.is_some()
+        ));
+    }
     if app.activate_picker_from_preview() {
         return true;
     }
@@ -1293,6 +1505,7 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
         KeyCode::Backspace => {
             if app.cursor_pos > 0 {
                 let prev = crate::tui::core::prev_char_boundary(&app.input, app.cursor_pos);
+                reset_submitted_input_recall(app);
                 app.remember_input_undo_state();
                 app.input.drain(prev..app.cursor_pos);
                 app.cursor_pos = prev;
@@ -1304,6 +1517,7 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
         KeyCode::Delete => {
             if app.cursor_pos < app.input.len() {
                 let next = crate::tui::core::next_char_boundary(&app.input, app.cursor_pos);
+                reset_submitted_input_recall(app);
                 app.remember_input_undo_state();
                 app.input.drain(app.cursor_pos..next);
                 app.reset_tab_completion();
@@ -1331,6 +1545,11 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
             app.cursor_pos = app.input.len();
             true
         }
+        KeyCode::Up | KeyCode::Down
+            if handle_submitted_input_recall_key(app, code, KeyModifiers::empty()) =>
+        {
+            true
+        }
         KeyCode::Tab => {
             app.autocomplete();
             true
@@ -1346,6 +1565,7 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
             true
         }
         KeyCode::Esc => {
+            reset_submitted_input_recall(app);
             if app
                 .inline_interactive_state
                 .as_ref()
@@ -1393,6 +1613,7 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
 
 pub(super) fn take_prepared_input(app: &mut App) -> PreparedInput {
     let raw_input = std::mem::take(&mut app.input);
+    push_submitted_input_history(app, &raw_input);
     let expanded = expand_paste_placeholders(app, &raw_input);
     app.pasted_contents.clear();
     let images = std::mem::take(&mut app.pending_images);
@@ -1835,10 +2056,22 @@ impl App {
         }
 
         let raw_input = std::mem::take(&mut self.input);
+        if raw_input.trim() == "/login" || raw_input.trim() == "/login jcode" {
+            crate::logging::info(&format!(
+                "login-debug: submit_input raw=`{}` pending_login_before={} preview_active={}",
+                raw_input.trim(),
+                self.pending_login.is_some(),
+                self.inline_interactive_state
+                    .as_ref()
+                    .is_some_and(|picker| picker.preview)
+            ));
+        }
+        push_submitted_input_history(self, &raw_input);
         let input = self.expand_paste_placeholders(&raw_input);
         self.pasted_contents.clear();
         self.cursor_pos = 0;
         self.clear_input_undo_history();
+        reset_submitted_input_recall(self);
         self.follow_chat_bottom(); // Reset to bottom and resume auto-scroll on new input
 
         // If the previous assistant turn still has visible streamed text that has not yet been
@@ -1869,10 +2102,27 @@ impl App {
             || super::state_ui::handle_info_command(self, trimmed)
             || super::auth::handle_auth_command(self, trimmed)
             || super::tui_lifecycle_runtime::handle_dev_command(self, trimmed);
+        if trimmed == "/login" || trimmed == "/login jcode" {
+            crate::logging::info(&format!(
+                "login-debug: submit_input handled auth command `{trimmed}` -> handled={handled} pending_login_after={}",
+                self.pending_login.is_some()
+            ));
+        }
         if handled {
             if trimmed.starts_with('/') {
                 crate::telemetry::record_command_family(trimmed);
             }
+            return;
+        }
+
+        if !trimmed.is_empty()
+            && !trimmed.starts_with('/')
+            && crate::saitec::auth::ensure_logged_in().is_err()
+        {
+            self.push_display_message(DisplayMessage::error(
+                "Please log in first. Use `/login` to open the Saitec login form.".to_string(),
+            ));
+            self.set_status_notice("Login: required");
             return;
         }
 

@@ -12,19 +12,23 @@ use crate::{
 
 use super::hot_exec::{execute_requested_action, has_requested_action};
 
+use super::terminal::sync_tui_runtime_mouse_capture;
 use super::terminal::{
     cleanup_tui_runtime, cleanup_tui_runtime_for_run_result, init_tui_runtime,
     print_session_resume_hint, set_current_session, spawn_session_signal_watchers,
 };
 
+const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+
 pub(crate) fn resumed_window_title(session_id: &str) -> String {
-    let session_name = crate::process_title::session_name(session_id);
-    let icon = id::session_icon(&session_name);
     let session_label = crate::process_title::terminal_session_label_for_id(session_id);
     if let Some(server_info) = crate::registry::find_server_by_socket_sync(&server::socket_path()) {
-        format!("{} jcode/{} {}", icon, server_info.name, session_label)
+        format!(
+            "{SAITEC_WINDOW_TITLE}/{} {}",
+            server_info.name, session_label
+        )
     } else {
-        format!("{} jcode {}", icon, session_label)
+        format!("{SAITEC_WINDOW_TITLE}/{}", session_label)
     }
 }
 
@@ -121,7 +125,7 @@ pub async fn run_tui_client(
     fresh_spawn: bool,
 ) -> Result<()> {
     startup_profile::mark("tui_client_enter");
-    let (terminal, tui_runtime) = init_tui_runtime()?;
+    let (terminal, mut tui_runtime) = init_tui_runtime()?;
     startup_profile::mark("tui_terminal_init");
     startup_profile::mark("mermaid_picker");
     startup_profile::mark("config_load");
@@ -155,7 +159,10 @@ pub async fn run_tui_client(
         );
     } else {
         crate::process_title::set_client_generic_title(super::selfdev::client_selfdev_requested());
-        let _ = crossterm::execute!(std::io::stdout(), crossterm::terminal::SetTitle("jcode"));
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::SetTitle(SAITEC_WINDOW_TITLE)
+        );
     }
     startup_profile::mark("terminal_title");
 
@@ -173,7 +180,7 @@ pub async fn run_tui_client(
     startup_profile::mark("pre_run_remote");
     startup_profile::report_to_log();
 
-    let result = app.run_remote(terminal).await;
+    let result = app.run_remote(terminal, &mut tui_runtime).await;
 
     let run_result = result?;
 
@@ -330,12 +337,13 @@ pub async fn run_replay_command(
         );
         eprintln!("  Controls: Space=pause  +/-=speed  q=quit\n");
 
-        let (terminal, tui_runtime) = init_tui_runtime()?;
+        let (terminal, mut tui_runtime) = init_tui_runtime()?;
         let _ = crossterm::execute!(
             std::io::stdout(),
             crossterm::terminal::SetTitle(format!("🐝 swarm replay: {}", session_id_or_path))
         );
 
+        sync_tui_runtime_mouse_capture(&mut tui_runtime, false)?;
         let result =
             tui::App::run_swarm_replay(terminal, replayable_panes, speed, centered_override).await;
 
@@ -419,7 +427,8 @@ pub async fn run_replay_command(
     );
     eprintln!("  Controls: Space=pause  +/-=speed  q=quit\n");
 
-    let (terminal, tui_runtime) = init_tui_runtime()?;
+    let (terminal, mut tui_runtime) = init_tui_runtime()?;
+    sync_tui_runtime_mouse_capture(&mut tui_runtime, false)?;
 
     let _ = crossterm::execute!(
         std::io::stdout(),

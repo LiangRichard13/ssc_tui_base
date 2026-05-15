@@ -751,7 +751,17 @@ impl App {
             return false;
         }
         if let Some(ref picker_cell) = self.account_picker_overlay {
-            picker_cell.borrow_mut().handle_overlay_mouse(mouse);
+            let action = picker_cell.borrow_mut().handle_overlay_mouse(mouse);
+            match action {
+                crate::tui::account_picker::OverlayAction::Continue => {}
+                crate::tui::account_picker::OverlayAction::Close => {
+                    self.account_picker_overlay = None;
+                }
+                crate::tui::account_picker::OverlayAction::Execute(command) => {
+                    self.account_picker_overlay = None;
+                    self.handle_account_picker_command(command);
+                }
+            }
             return false;
         }
         self.normalize_diagram_state();

@@ -1034,6 +1034,10 @@ fn handle_disconnected_key_internal(
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
 
+    if input::handle_submitted_input_recall_key(app, code, modifiers) {
+        return Ok(());
+    }
+
     if input::handle_navigation_shortcuts(app, code, modifiers) {
         return Ok(());
     }

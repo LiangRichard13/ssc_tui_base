@@ -1,0 +1,69 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+$SupportScript = Join-Path $PSScriptRoot "..\..\scripts\dev_saitec_tui_support.ps1"
+. $SupportScript
+
+Describe "New-DevRuntimeLayout" {
+    It "places runtime copies under dist\\dev-saitec-tui with a timestamped run directory" {
+        $repoRoot = "G:\Workspace\Project2026\JCode\jcode"
+        $layout = New-DevRuntimeLayout `
+            -RepoRootPath $repoRoot `
+            -ProfileName "selfdev" `
+            -TargetTripleName "" `
+            -Timestamp "20260513-221500"
+
+        $layout.RuntimeRoot | Should Be (Join-Path $repoRoot "dist\dev-saitec-tui")
+        $layout.RuntimeDir | Should Be (Join-Path $repoRoot "dist\dev-saitec-tui\run-selfdev-20260513-221500")
+        $layout.RuntimeExe | Should Be (Join-Path $repoRoot "dist\dev-saitec-tui\run-selfdev-20260513-221500\jcode.exe")
+        $layout.StatePath | Should Be (Join-Path $repoRoot "dist\dev-saitec-tui\dev-runtime-state.json")
+    }
+
+    It "includes the target triple in the runtime directory name when provided" {
+        $repoRoot = "G:\Workspace\Project2026\JCode\jcode"
+        $layout = New-DevRuntimeLayout `
+            -RepoRootPath $repoRoot `
+            -ProfileName "selfdev" `
+            -TargetTripleName "x86_64-pc-windows-msvc" `
+            -Timestamp "20260513-221500"
+
+        $layout.RuntimeDir | Should Be (Join-Path $repoRoot "dist\dev-saitec-tui\run-selfdev-x86_64-pc-windows-msvc-20260513-221500")
+    }
+}
+
+Describe "Get-DevBuildArtifactPaths" {
+    It "resolves the source exe and pdb inside the profile target directory" {
+        $repoRoot = "G:\Workspace\Project2026\JCode\jcode"
+        $paths = Get-DevBuildArtifactPaths `
+            -RepoRootPath $repoRoot `
+            -ProfileName "selfdev" `
+            -TargetTripleName ""
+
+        $paths.BuildDir | Should Be (Join-Path $repoRoot "target\selfdev")
+        $paths.ExePath | Should Be (Join-Path $repoRoot "target\selfdev\jcode.exe")
+        $paths.PdbPath | Should Be (Join-Path $repoRoot "target\selfdev\jcode.pdb")
+    }
+}
+
+Describe "Write-DevRuntimeState" {
+    It "persists runtime metadata without colliding with PowerShell built-in variables" {
+        $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("saitec-dev-runtime-test-" + [guid]::NewGuid().ToString("N"))
+        $statePath = Join-Path $tempRoot "dev-runtime-state.json"
+
+        try {
+            Write-DevRuntimeState `
+                -StatePath $statePath `
+                -RuntimePid 12345 `
+                -RuntimeDir "G:\Workspace\Project2026\JCode\jcode\dist\dev-saitec-tui\run-selfdev-test" `
+                -RuntimeExe "G:\Workspace\Project2026\JCode\jcode\dist\dev-saitec-tui\run-selfdev-test\jcode.exe"
+
+            $state = Read-DevRuntimeState -StatePath $statePath
+            $state.pid | Should Be 12345
+            $state.runtime_exe | Should Be "G:\Workspace\Project2026\JCode\jcode\dist\dev-saitec-tui\run-selfdev-test\jcode.exe"
+        } finally {
+            if (Test-Path -LiteralPath $tempRoot) {
+                Remove-Item -LiteralPath $tempRoot -Recurse -Force
+            }
+        }
+    }
+}

@@ -18,7 +18,7 @@ pub(super) async fn fetch_anthropic_usage_for_token(
                     return ProviderUsage {
                         provider_name: display_name,
                         error: Some(
-                            "OAuth token expired - use `/login claude` to re-authenticate"
+                            "OAuth token expired. Reconnect with the provider-specific auth flow from `/account`, or use `/login` for Saitec access."
                                 .to_string(),
                         ),
                         ..Default::default()
@@ -147,7 +147,7 @@ pub(super) async fn fetch_openai_usage_for_account(
                     let report = ProviderUsage {
                         provider_name: display_name,
                         error: Some(format!(
-                            "Token refresh failed: {} - use `/login openai` to re-authenticate",
+                            "Token refresh failed: {} - reconnect from `/account`, or use `/login` for Saitec access",
                             e
                         )),
                         ..Default::default()

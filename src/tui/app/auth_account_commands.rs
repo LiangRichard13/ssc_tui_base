@@ -1,5 +1,9 @@
 use super::*;
 
+fn unsupported_provider_error() -> String {
+    crate::saitec::product_profile::unsupported_base_model_provider_message()
+}
+
 pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     if trimmed == "/auth" {
         app.show_auth_status();
@@ -15,7 +19,24 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     if trimmed == "/login" {
-        app.show_interactive_login();
+        crate::logging::info("login-debug: handle_auth_command matched `/login`");
+        app.open_login_mode_selector();
+        return true;
+    }
+
+    if trimmed == "/logout" {
+        match crate::saitec::auth::clear_session() {
+            Ok(()) => {
+                crate::auth::AuthStatus::invalidate_cache();
+                app.push_display_message(DisplayMessage::system(
+                    "Logged out from Saitec. Reopening the login form.".to_string(),
+                ));
+                app.set_status_notice("Login: required");
+                app.start_jcode_login();
+            }
+            Err(err) => app
+                .push_display_message(DisplayMessage::error(format!("Failed to log out: {}", err))),
+        }
         return true;
     }
 
@@ -23,21 +44,35 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
         .strip_prefix("/login ")
         .or_else(|| trimmed.strip_prefix("/auth "))
     {
-        let providers = crate::provider_catalog::tui_login_providers();
-        if let Some(provider) =
-            crate::provider_catalog::resolve_login_selection(provider, &providers)
+        let requested = provider.trim();
+        if requested.eq_ignore_ascii_case("base-models")
+            || requested.eq_ignore_ascii_case("base-model")
+            || requested.eq_ignore_ascii_case("models")
         {
+            app.open_saitec_base_model_login_picker();
+        } else if requested.eq_ignore_ascii_case("jcode")
+            || requested.eq_ignore_ascii_case("subscription")
+            || requested.eq_ignore_ascii_case("jcode-subscription")
+        {
+            crate::logging::info(&format!(
+                "login-debug: handle_auth_command matched `/login {requested}`"
+            ));
+            app.start_login_provider(crate::provider_catalog::JCODE_LOGIN_PROVIDER);
+        } else if let Some(provider) = resolve_account_provider_descriptor(requested) {
+            crate::logging::info(&format!(
+                "login-debug: handle_auth_command matched `/login {requested}` as provider `{}`",
+                provider.id
+            ));
             app.start_login_provider(provider);
-        } else {
-            let valid = providers
-                .iter()
-                .map(|provider| provider.id)
-                .collect::<Vec<_>>()
-                .join(", ");
+        } else if crate::provider_catalog::resolve_login_provider(requested).is_some() {
             app.push_display_message(DisplayMessage::error(format!(
-                "Unknown provider '{}'. Use: {}",
-                provider.trim(),
-                valid
+                "{} Unsupported provider `{}`.",
+                unsupported_provider_error(),
+                requested
+            )));
+        } else {
+            app.push_display_message(DisplayMessage::error(format!(
+                "Use `/login`, `/login jcode`, `/login base-models`, or `/login <openai|claude|zai|kimi|alibaba-coding-plan>`."
             )));
         }
         return true;
@@ -108,9 +143,13 @@ fn parse_account_command(trimmed: &str) -> Option<Result<AccountCommand, String>
             }));
         }
         "add" | "login" => {
-            return Some(Ok(AccountCommand::Add {
-                provider_id: "claude".to_string(),
-                label: (!remainder.is_empty()).then(|| remainder.to_string()),
+            if !remainder.is_empty() {
+                return Some(Err(
+                    "Only Saitec login is available. Use `/login` or `/login jcode`.".to_string(),
+                ));
+            }
+            return Some(Ok(AccountCommand::Login {
+                provider_id: crate::provider_catalog::JCODE_LOGIN_PROVIDER.id.to_string(),
             }));
         }
         "remove" | "rm" | "delete" => {
@@ -125,7 +164,7 @@ fn parse_account_command(trimmed: &str) -> Option<Result<AccountCommand, String>
         "default-provider" => {
             if remainder.is_empty() {
                 return Some(Err(
-                    "Usage: `/account default-provider <claude|openai|copilot|gemini|openrouter|auto>`"
+                    "Usage: `/account default-provider <claude|openai|zai|kimi|alibaba-coding-plan|auto>`"
                         .to_string(),
                 ));
             }
@@ -283,6 +322,14 @@ fn parse_account_command(trimmed: &str) -> Option<Result<AccountCommand, String>
         return Some(Ok(parsed));
     }
 
+    if crate::provider_catalog::resolve_login_provider(first).is_some() {
+        return Some(Err(format!(
+            "{} Unsupported provider `{}`.",
+            unsupported_provider_error(),
+            first
+        )));
+    }
+
     Some(Ok(AccountCommand::SwitchShorthand {
         label: first.to_string(),
     }))
@@ -307,13 +354,34 @@ fn execute_account_command_local(app: &mut App, command: AccountCommand) {
             match resolve_account_provider_descriptor(&provider_id) {
                 Some(provider) => app.start_login_provider(provider),
                 None => app.push_display_message(DisplayMessage::error(format!(
-                    "Unknown provider `{}`.",
-                    provider_id
+                    "{} Unsupported provider `{}`.",
+                    unsupported_provider_error(),
+                    provider_id,
                 ))),
             }
         }
         AccountCommand::Add { provider_id, label } => {
-            execute_account_add_local(app, &provider_id, label.as_deref())
+            if provider_id == crate::provider_catalog::JCODE_LOGIN_PROVIDER.id {
+                if label.is_some() {
+                    app.push_display_message(DisplayMessage::error(
+                        "Saitec login does not support named account labels. Use `/login` or `/login jcode`."
+                            .to_string(),
+                    ));
+                } else {
+                    app.start_login_provider(crate::provider_catalog::JCODE_LOGIN_PROVIDER);
+                }
+            } else if let Some(provider) = resolve_account_provider_descriptor(&provider_id) {
+                if label.is_some() {
+                    app.push_display_message(DisplayMessage::error(format!(
+                        "Provider `{}` does not support named account labels here. Use `/account {} login`.",
+                        provider.display_name, provider.id
+                    )));
+                } else {
+                    app.start_login_provider(provider);
+                }
+            } else {
+                app.push_display_message(DisplayMessage::error(unsupported_provider_error()));
+            }
         }
         AccountCommand::Switch { provider_id, label } => match provider_id.as_str() {
             "claude" => app.switch_account(&label),
@@ -488,54 +556,13 @@ async fn execute_account_command_remote(
     Ok(())
 }
 
-fn execute_account_add_local(app: &mut App, provider_id: &str, label: Option<&str>) {
-    match provider_id {
-        "claude" => {
-            let target = match label.map(str::trim).filter(|label| !label.is_empty()) {
-                Some(existing) => existing.to_string(),
-                None => match crate::auth::claude::next_account_label() {
-                    Ok(label) => label,
-                    Err(e) => {
-                        app.push_display_message(DisplayMessage::error(format!(
-                            "Failed to prepare Claude account: {}",
-                            e
-                        )));
-                        return;
-                    }
-                },
-            };
-            app.start_claude_login_for_account(&target)
-        }
-        "openai" => {
-            let target = match label.map(str::trim).filter(|label| !label.is_empty()) {
-                Some(existing) => existing.to_string(),
-                None => match crate::auth::codex::next_account_label() {
-                    Ok(label) => label,
-                    Err(e) => {
-                        app.push_display_message(DisplayMessage::error(format!(
-                            "Failed to prepare OpenAI account: {}",
-                            e
-                        )));
-                        return;
-                    }
-                },
-            };
-            app.start_openai_login_for_account(&target)
-        }
-        other => match resolve_account_provider_descriptor(other) {
-            Some(provider) => app.start_login_provider(provider),
-            None => app.push_display_message(DisplayMessage::error(format!(
-                "Unknown provider `{}`.",
-                other
-            ))),
-        },
-    }
-}
-
 pub(crate) fn resolve_account_provider_descriptor(
     input: &str,
 ) -> Option<crate::provider_catalog::LoginProviderDescriptor> {
-    crate::provider_catalog::resolve_login_provider(input)
+    let provider = crate::provider_catalog::resolve_login_provider(input)?;
+    (provider.id == crate::provider_catalog::JCODE_LOGIN_PROVIDER.id
+        || crate::saitec::product_profile::is_allowed_base_model_provider(provider.id))
+    .then_some(provider)
 }
 
 fn normalize_clearish_value(value: &str) -> Option<String> {
@@ -561,10 +588,10 @@ fn save_default_provider_setting(app: &mut App, provider: Option<&str>) {
     let provider = match normalized.as_deref() {
         None => None,
         Some("auto") => None,
-        Some("claude" | "openai" | "copilot" | "gemini" | "openrouter") => normalized,
+        Some("claude" | "openai" | "zai" | "kimi" | "alibaba-coding-plan") => normalized,
         Some(other) => {
             app.push_display_message(DisplayMessage::error(format!(
-                "Unsupported default provider `{}`. Use claude, openai, copilot, gemini, openrouter, or auto.",
+                "Unsupported default provider `{}`. Use claude, openai, zai, kimi, alibaba-coding-plan, or auto.",
                 other
             )));
             return;
@@ -849,7 +876,12 @@ fn render_provider_settings_markdown(app: &App, provider_id: &str) -> String {
             .map(crate::auth::validation::format_record_label)
             .unwrap_or_else(|| "not validated".to_string())
     ));
-    lines.push(format!("- Login command: `/account {} login`", provider.id));
+    if provider.id == "jcode" {
+        lines.push("- Login command: `/login` or `/login jcode`".to_string());
+    } else {
+        lines.push("- Login command: unavailable in this Saitec-only build".to_string());
+        lines.push("- Saitec access: `/login` or `/login jcode`".to_string());
+    }
     lines.push(format!(
         "- Doctor command: `/account {} doctor`",
         provider.id
@@ -871,7 +903,6 @@ fn render_provider_settings_markdown(app: &App, provider_id: &str) -> String {
             lines.push(app.render_anthropic_accounts_markdown());
             lines.push(String::new());
             lines.push("Commands:".to_string());
-            lines.push("- `/account claude add`".to_string());
             lines.push("- `/account claude switch <label>`".to_string());
             lines.push("- `/account claude remove <label>`".to_string());
         }
@@ -947,7 +978,7 @@ fn render_provider_settings_markdown(app: &App, provider_id: &str) -> String {
                 .unwrap_or("(provider default)")
         ));
         lines.push(
-            "- `/account default-provider <claude|openai|copilot|gemini|openrouter|auto>`"
+            "- `/account default-provider <claude|openai|zai|kimi|alibaba-coding-plan|auto>`"
                 .to_string(),
         );
         lines.push("- `/account default-model <model|clear>`".to_string());
@@ -970,14 +1001,14 @@ fn render_auth_doctor_markdown(provider_filter: Option<&str>) -> String {
             }
         },
         None => {
-            let configured = crate::provider_catalog::auth_status_login_providers()
+            let configured = crate::provider_catalog::saitec_auth_status_login_providers()
                 .into_iter()
                 .filter(|provider| {
                     status.state_for_provider(*provider) != crate::auth::AuthState::NotConfigured
                 })
                 .collect::<Vec<_>>();
             if configured.is_empty() {
-                crate::provider_catalog::auth_status_login_providers().to_vec()
+                crate::provider_catalog::saitec_auth_status_login_providers()
             } else {
                 configured
             }
@@ -1075,7 +1106,7 @@ mod tests {
         let markdown = render_auth_doctor_markdown(Some("openai"));
         assert!(markdown.contains("**OpenAI** (`openai`)"));
         assert!(markdown.contains("**Next steps**"));
-        assert!(markdown.contains("jcode login --provider openai"));
+        assert!(markdown.contains("/account"));
         assert!(markdown.contains("Review current state: `jcode auth status --json`"));
     }
 }

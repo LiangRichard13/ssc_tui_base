@@ -5,10 +5,224 @@ use super::{
 };
 use crate::tui::TuiState;
 use crate::tui::info_widget::WidgetPlacement;
+use crate::tui::markdown;
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
+
+fn saitec_form_field_value(
+    form: &crate::tui::app::SaitecPendingForm,
+    field: crate::tui::app::SaitecLoginField,
+) -> String {
+    match field {
+        crate::tui::app::SaitecLoginField::Email => form.form.email.clone(),
+        crate::tui::app::SaitecLoginField::Phone => form.form.phone.clone(),
+        crate::tui::app::SaitecLoginField::Password => {
+            "*".repeat(form.form.password.chars().count())
+        }
+        crate::tui::app::SaitecLoginField::Submit => {
+            if form.submitting {
+                "[ Submitting... ]".to_string()
+            } else {
+                "[ Submit ]".to_string()
+            }
+        }
+        crate::tui::app::SaitecLoginField::Cancel => "[ Cancel ]".to_string(),
+    }
+}
+
+fn saitec_focus_style(
+    form: &crate::tui::app::SaitecPendingForm,
+    field: crate::tui::app::SaitecLoginField,
+) -> Style {
+    if form.focus == field {
+        Style::default()
+            .fg(accent_color())
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(rgb(210, 210, 225))
+    }
+}
+
+pub(super) fn draw_saitec_login_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    form: &crate::tui::app::SaitecPendingForm,
+    live_input: &str,
+    live_cursor_pos: usize,
+) {
+    let width = area.width.min(72).max(48);
+    let inner_width = width.saturating_sub(2) as usize;
+    let error_lines = form
+        .error
+        .as_deref()
+        .map(|error| {
+            markdown::wrap_line(
+                Line::from(Span::styled(
+                    format!(" {}", error),
+                    Style::default().fg(Color::Red),
+                )),
+                inner_width.max(1),
+            )
+        })
+        .unwrap_or_default();
+    let hint_lines = if form.error.is_some() {
+        Vec::new()
+    } else if form.submitting {
+        vec![Line::from(Span::styled(
+            " Validating API key session and saving local auth...",
+            Style::default().fg(pending_color()),
+        ))]
+    } else {
+        vec![Line::from(Span::styled(
+            " Email and phone cannot both be empty.",
+            Style::default().fg(dim_color()),
+        ))]
+    };
+    let footer_lines = if error_lines.is_empty() {
+        hint_lines.clone()
+    } else {
+        error_lines.clone()
+    };
+    let desired_height = (10usize + footer_lines.len()).min(area.height.saturating_sub(2) as usize);
+    let height = desired_height.max(10) as u16;
+    let popup = Rect {
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    clear_area(frame, popup);
+
+    let block = Block::default()
+        .title(Span::styled(
+            " Saitec Login ",
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ))
+        .title_bottom(Line::from(Span::styled(
+            " Tab/Shift+Tab move · Enter submit · /cancel abort ",
+            Style::default().fg(dim_color()),
+        )))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(rgb(90, 120, 110)));
+
+    let email_value = if form.focus == crate::tui::app::SaitecLoginField::Email {
+        live_input.to_string()
+    } else {
+        form.form.email.clone()
+    };
+    let phone_value = if form.focus == crate::tui::app::SaitecLoginField::Phone {
+        live_input.to_string()
+    } else {
+        form.form.phone.clone()
+    };
+    let password_value = if form.focus == crate::tui::app::SaitecLoginField::Password {
+        "*".repeat(live_input.chars().count())
+    } else {
+        saitec_form_field_value(form, crate::tui::app::SaitecLoginField::Password)
+    };
+
+    let mut lines: Vec<Line<'static>> = vec![
+        Line::from(Span::styled(
+            " Enter email or phone plus password to continue.",
+            Style::default().fg(rgb(180, 185, 195)),
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                " Email    ",
+                saitec_focus_style(form, crate::tui::app::SaitecLoginField::Email),
+            ),
+            Span::styled(
+                if email_value.is_empty() {
+                    " ".to_string()
+                } else {
+                    email_value.clone()
+                },
+                Style::default().fg(rgb(235, 235, 245)),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                " Phone    ",
+                saitec_focus_style(form, crate::tui::app::SaitecLoginField::Phone),
+            ),
+            Span::styled(
+                if phone_value.is_empty() {
+                    " ".to_string()
+                } else {
+                    phone_value.clone()
+                },
+                Style::default().fg(rgb(235, 235, 245)),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(
+                " Password ",
+                saitec_focus_style(form, crate::tui::app::SaitecLoginField::Password),
+            ),
+            Span::styled(
+                password_value.clone(),
+                Style::default().fg(rgb(235, 235, 245)),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                saitec_form_field_value(form, crate::tui::app::SaitecLoginField::Submit),
+                saitec_focus_style(form, crate::tui::app::SaitecLoginField::Submit),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                saitec_form_field_value(form, crate::tui::app::SaitecLoginField::Cancel),
+                saitec_focus_style(form, crate::tui::app::SaitecLoginField::Cancel),
+            ),
+        ]),
+        Line::from(""),
+    ];
+
+    lines.extend(footer_lines);
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, popup);
+
+    let field_row = match form.focus {
+        crate::tui::app::SaitecLoginField::Email => {
+            Some((2u16, " Email    ", email_value.as_str()))
+        }
+        crate::tui::app::SaitecLoginField::Phone => {
+            Some((3u16, " Phone    ", phone_value.as_str()))
+        }
+        crate::tui::app::SaitecLoginField::Password => Some((4u16, " Password ", live_input)),
+        crate::tui::app::SaitecLoginField::Submit | crate::tui::app::SaitecLoginField::Cancel => {
+            None
+        }
+    };
+
+    if let Some((content_row, label, field_value)) = field_row {
+        let cursor_char_pos =
+            crate::tui::core::byte_offset_to_char_index(field_value, live_cursor_pos);
+        let cursor_prefix = field_value
+            .chars()
+            .take(cursor_char_pos)
+            .collect::<String>();
+        let cursor_x = popup.x
+            + 1
+            + UnicodeWidthStr::width(label) as u16
+            + UnicodeWidthStr::width(cursor_prefix.as_str()) as u16;
+        let cursor_y = popup.y + 1 + content_row;
+        frame.set_cursor_position(Position::new(
+            cursor_x.min(popup.x + popup.width.saturating_sub(2)),
+            cursor_y.min(popup.y + popup.height.saturating_sub(2)),
+        ));
+    }
+}
 
 pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usize) {
     clear_area(frame, area);
@@ -128,189 +342,44 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         "/help <command>",
         "Show details for one command",
     ));
+    lines.push(help_entry("/login", "Start the Saitec login flow"));
+    lines.push(help_entry("/logout", "Clear local Saitec authentication"));
+    lines.push(help_entry("/auth", "Show authentication status"));
     lines.push(help_entry("/model", "List or switch models"));
-    lines.push(help_entry("/model <name>", "Switch to a different model"));
-    lines.push(help_entry("/agents", "Configure models for agent roles"));
-    lines.push(help_entry(
-        "/effort <level>",
-        "Set reasoning effort (none|low|medium|high|xhigh)",
-    ));
-    lines.push(help_entry(
-        "/fast [on|off|status|default ...]",
-        "Toggle OpenAI/Codex fast mode",
-    ));
-    lines.push(help_entry(
-        "/transport <mode>",
-        "Set connection transport (auto|https|websocket)",
-    ));
-    lines.push(help_entry(
-        "/alignment [status|centered|left]",
-        "Show or persist text alignment preference",
-    ));
-    lines.push(help_entry("/config", "Show active configuration"));
-    lines.push(help_entry("/config init", "Create default config file"));
-    lines.push(help_entry("/config edit", "Open config in $EDITOR"));
-    lines.push(help_entry("/dictate", "Run configured external dictation"));
-    lines.push(help_entry(
-        "/git [status]",
-        "Show branch and working tree status for the repo",
-    ));
-    lines.push(help_entry(
-        "/context",
-        "Show the full session context snapshot",
-    ));
-    lines.push(help_entry("/info", "Show session info and token usage"));
+    lines.push(help_entry("/clear", "Clear conversation and start fresh"));
+    lines.push(help_entry("/resume", "Browse and resume previous sessions"));
     lines.push(help_entry("/usage", "Show connected provider usage limits"));
     lines.push(help_entry("/version", "Show version and build details"));
-    lines.push(help_entry(
-        "/changelog",
-        "Show recent changes in this build",
-    ));
+    lines.push(help_entry("/quit", "Exit SAITEC-TUI"));
 
     lines.push(Line::from(""));
     lines.push(separator());
     lines.push(Line::from(""));
 
-    lines.push(Line::from(Span::styled("  Session", section_style)));
+    lines.push(Line::from(Span::styled("  MCP Status", section_style)));
     lines.push(Line::from(""));
-    lines.push(help_entry("/clear", "Clear conversation and start fresh"));
-    lines.push(help_entry(
-        "/compact",
-        "Summarize old messages to free context",
-    ));
-    lines.push(help_entry(
-        "/rewind",
-        "Show numbered history, /rewind N to rewind",
-    ));
-    lines.push(help_entry(
-        "/fix",
-        "Attempt recovery when model cannot continue",
-    ));
-    lines.push(help_entry(
-        "/poke",
-        "Poke model to resume with incomplete todos (on/off/status)",
-    ));
-    lines.push(help_entry(
-        "/improve",
-        "Autonomously improve the repo until returns diminish",
-    ));
-    lines.push(help_entry(
-        "/improve resume",
-        "Resume the last saved improve loop/plan",
-    ));
-    lines.push(help_entry(
-        "/refactor",
-        "Run a safe refactor loop with independent review",
-    ));
-    lines.push(help_entry(
-        "/refactor resume",
-        "Resume the last saved refactor loop/plan",
-    ));
-    lines.push(help_entry(
-        "/splitview [on|off|status]",
-        "Mirror the current chat in the side panel",
-    ));
-    lines.push(help_entry("/split", "Clone session into a new window"));
-    lines.push(help_entry(
-        "/transfer",
-        "Open a fresh session with only compacted context + copied todos",
-    ));
-    lines.push(help_entry(
-        "/workspace [status|on|off|add]",
-        "Enable and manage the Niri-style session workspace",
-    ));
-    lines.push(help_entry(
-        "/catchup [next|list]",
-        "Jump to finished sessions and open a Catch Up brief",
-    ));
-    lines.push(help_entry(
-        "/back",
-        "Return to the previous Catch Up source session",
-    ));
-    lines.push(help_entry("/resume", "Browse and resume previous sessions"));
-    lines.push(help_entry(
-        "/catchup [next]",
-        "Jump into finished sessions with a side-panel brief",
-    ));
-    lines.push(help_entry(
-        "/back",
-        "Return to the previous Catch Up session",
-    ));
-    lines.push(help_entry("/save [label]", "Bookmark session for /resume"));
-    lines.push(help_entry(
-        "/rename <name>|--clear",
-        "Set or clear current session name",
-    ));
-    lines.push(help_entry(
-        "/unsave",
-        "Remove bookmark from current session",
-    ));
-
-    lines.push(Line::from(""));
-    lines.push(separator());
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(Span::styled("  Memory & Swarm", section_style)));
-    lines.push(Line::from(""));
-    lines.push(help_entry("/memory [on|off]", "Toggle memory features"));
-    lines.push(help_entry("/goals", "Open goals overview / resume a goal"));
-    lines.push(help_entry("/swarm [on|off]", "Toggle swarm features"));
-
-    lines.push(Line::from(""));
-    lines.push(separator());
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(Span::styled("  Auth & Accounts", section_style)));
-    lines.push(Line::from(""));
-    lines.push(help_entry("/auth", "Show authentication status"));
-    lines.push(help_entry(
-        "/login [provider]",
-        "Interactive or direct login",
-    ));
-    lines.push(help_entry(
-        "/account",
-        "Open combined Claude/OpenAI account picker",
-    ));
-    lines.push(help_entry(
-        "/subscription",
-        "Inspect jcode subscription scaffold",
-    ));
-
-    lines.push(Line::from(""));
-    lines.push(separator());
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(Span::styled("  System", section_style)));
-    lines.push(Line::from(""));
-    lines.push(help_entry("/reload", "Reload to newer binary if available"));
-    lines.push(help_entry(
-        "/restart",
-        "Restart with current binary (no build)",
-    ));
-    lines.push(help_entry(
-        "/rebuild",
-        "Full update (git pull + build + tests)",
-    ));
-    if app.is_remote_mode() {
-        lines.push(help_entry("/client-reload", "Force reload client binary"));
-        lines.push(help_entry("/server-reload", "Force reload server binary"));
-    }
-    lines.push(help_entry(
-        "/debug-visual",
-        "Enable visual debugging for TUI issues",
-    ));
-    lines.push(help_entry("/quit", "Exit jcode"));
-
-    let skills = app.available_skills();
-    if !skills.is_empty() {
-        lines.push(Line::from(""));
-        lines.push(separator());
-        lines.push(Line::from(""));
-
-        lines.push(Line::from(Span::styled("  Skills", section_style)));
-        lines.push(Line::from(""));
-        for skill in &skills {
-            lines.push(help_entry(&format!("/{}", skill), "Activate skill"));
+    let mcps = app.mcp_servers();
+    if crate::saitec::product_profile::emphasize_mcp_status() {
+        if mcps.is_empty() {
+            lines.push(Line::from(vec![
+                Span::styled("    ", Style::default()),
+                Span::styled("Header mcp:", cmd_style),
+                Span::styled("  No MCP servers connected", desc_style),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("    ", Style::default()),
+                Span::styled("Header mcp:", cmd_style),
+                Span::styled("  Connected MCP servers and tool counts", desc_style),
+            ]));
+            for (name, count) in mcps {
+                let label = if count > 0 {
+                    format!("{name} ({count} tools)")
+                } else {
+                    format!("{name} (...)")
+                };
+                lines.push(help_entry(&label, "Connected MCP server"));
+            }
         }
     }
 
@@ -320,80 +389,22 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
 
     lines.push(Line::from(Span::styled("  Navigation", section_style)));
     lines.push(Line::from(""));
-    lines.push(key_entry("PageUp / PageDown", "Scroll history"));
-    lines.push(key_entry("Up / Down", "Scroll history (when input empty)"));
-    lines.push(key_entry("Ctrl+[ / Ctrl+]", "Jump between user prompts"));
-    lines.push(key_entry("Ctrl+1..4", "Resize side panel to 25/50/75/100%"));
     lines.push(key_entry(
-        "Ctrl+5..9",
-        "Jump by recency (5 = 5th most recent)",
+        "PageUp / PageDown",
+        "Scroll the help or chat history",
     ));
-
-    lines.push(Line::from(""));
-    lines.push(separator());
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(Span::styled(
-        "  Diagrams & Diffs",
-        section_style,
-    )));
-    lines.push(Line::from(""));
     lines.push(key_entry(
-        "Alt+M",
-        "Toggle side panel (or diagram pane if empty)",
+        "Up / Down",
+        "Scroll history when the input is empty",
     ));
-    lines.push(key_entry("Alt+T", "Toggle diagram position (side/top)"));
-    lines.push(key_entry("Ctrl+H / Ctrl+L", "Focus chat / diagram / diffs"));
     lines.push(key_entry(
-        "Ctrl+Left / Right",
-        "Cycle diagrams (when diagram focused)",
+        "Shift+Enter",
+        "Insert a newline in the input box",
     ));
-    lines.push(key_entry("h/j/k/l / arrows", "Pan diagram (when focused)"));
-    lines.push(key_entry("[ / ]", "Zoom diagram (when focused)"));
-    lines.push(key_entry("+ / -", "Resize diagram pane"));
-    lines.push(key_entry(
-        "Shift+Tab",
-        "Cycle diff mode (Off/Inline/Pinned)",
-    ));
-
-    lines.push(Line::from(""));
-    lines.push(separator());
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(Span::styled("  Input & Editing", section_style)));
-    lines.push(Line::from(""));
     lines.push(key_entry(
         "Ctrl+C / Ctrl+D",
         "Quit (press twice to confirm)",
     ));
-    lines.push(key_entry("Ctrl+X", "Cut entire input line to clipboard"));
-    lines.push(key_entry(
-        "Ctrl+A",
-        "Copy visible chat viewport plus nearby context",
-    ));
-    lines.push(key_entry("Ctrl+U", "Clear input line"));
-    lines.push(key_entry("Ctrl+S", "Stash / pop input (save for later)"));
-    lines.push(key_entry("Ctrl+Backspace", "Delete previous word in input"));
-    lines.push(key_entry("Ctrl+B / Ctrl+F", "Move by word left / right"));
-    lines.push(key_entry("Ctrl+Left / Right", "Move by word left / right"));
-    lines.push(key_entry("Shift+Enter", "Insert newline in input"));
-    lines.push(key_entry(
-        "Ctrl+Enter",
-        "Use opposite send mode while processing",
-    ));
-    lines.push(key_entry("Ctrl+Up", "Retrieve pending message for editing"));
-    lines.push(key_entry("Ctrl+Tab / Ctrl+T", "Toggle queue mode"));
-    lines.push(key_entry("Ctrl+R", "Recover from missing tool outputs"));
-    lines.push(key_entry("Ctrl+V", "Paste clipboard (text or image)"));
-    lines.push(key_entry("Alt+V", "Paste image from clipboard"));
-    lines.push(key_entry(
-        "Alt+A",
-        "Quick-copy visible chat viewport plus nearby context",
-    ));
-    lines.push(key_entry("Alt+Y", "Toggle chat selection/copy mode"));
-    lines.push(key_entry("Alt+S", "Toggle typing scroll lock"));
-    lines.push(key_entry("Ctrl+P", "Toggle auto-poke for incomplete todos"));
-    lines.push(key_entry("Alt+Left / Right", "Cycle reasoning effort"));
     if let Some(label) = app.dictation_key_label() {
         lines.push(key_entry(&label, "Run configured dictation"));
     }

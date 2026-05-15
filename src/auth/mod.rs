@@ -252,15 +252,9 @@ impl AuthStatus {
             crate::provider_catalog::LoginProviderTarget::Jcode => {
                 if self.state_for_provider(provider) == AuthState::Available {
                     if crate::subscription_catalog::has_router_base() {
-                        format!(
-                            "API key (`{}`) + router base",
-                            crate::subscription_catalog::JCODE_API_KEY_ENV
-                        )
+                        "Saitec auth token + router base".to_string()
                     } else {
-                        format!(
-                            "API key (`{}`), router base pending",
-                            crate::subscription_catalog::JCODE_API_KEY_ENV
-                        )
+                        "Saitec auth token, router base pending".to_string()
                     }
                 } else {
                     "not configured".to_string()
@@ -413,19 +407,25 @@ impl AuthStatus {
             ),
             crate::provider_catalog::LoginProviderTarget::Jcode => {
                 let (source, detail) = summarize_sources(vec![
+                    crate::saitec::auth::load_session().ok().flatten().map(|_| {
+                        (
+                            AuthCredentialSource::JcodeManagedFile,
+                            "~/.saitec_tui/auth.json".to_string(),
+                        )
+                    }),
                     env_source(crate::subscription_catalog::JCODE_API_KEY_ENV),
                     config_source(
                         crate::subscription_catalog::JCODE_API_KEY_ENV,
                         crate::subscription_catalog::JCODE_ENV_FILE,
-                        "~/.config/jcode/jcode-subscription.env",
+                        "~/.saitec_tui/saitec.env",
                     ),
                 ]);
                 (
                     source,
                     detail,
-                    AuthExpiryConfidence::NotApplicable,
-                    AuthRefreshSupport::NotApplicable,
-                    AuthValidationMethod::PresenceCheck,
+                    AuthExpiryConfidence::PresenceOnly,
+                    AuthRefreshSupport::ManualRelogin,
+                    AuthValidationMethod::CompositeProbe,
                 )
             }
             crate::provider_catalog::LoginProviderTarget::OpenRouter => {

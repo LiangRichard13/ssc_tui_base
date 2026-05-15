@@ -107,7 +107,8 @@ pub(super) fn render_table(rows: &[Vec<String>], max_width: Option<usize>) -> Ve
     for (row_idx, row) in rows.iter().enumerate() {
         let mut spans: Vec<Span<'static>> = Vec::new();
 
-        for (i, cell) in row.iter().enumerate() {
+        for i in 0..num_cols {
+            let cell = row.get(i).cloned().unwrap_or_default();
             let display_width = UnicodeWidthStr::width(cell.as_str());
             let col_width = col_widths.get(i).copied().unwrap_or(display_width);
 
@@ -125,7 +126,7 @@ pub(super) fn render_table(rows: &[Vec<String>], max_width: Option<usize>) -> Ve
                 truncated.push('…');
                 truncated
             } else {
-                cell.clone()
+                cell
             };
             let text_width = UnicodeWidthStr::width(display_text.as_str());
             let pad = col_width.saturating_sub(text_width);

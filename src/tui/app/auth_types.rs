@@ -1,5 +1,24 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SaitecLoginField {
+    Email,
+    Phone,
+    Password,
+    Submit,
+    Cancel,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SaitecPendingForm {
+    pub form: crate::saitec::auth::SaitecLoginForm,
+    pub focus: SaitecLoginField,
+    pub error: Option<String>,
+    pub submitting: bool,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum PendingLogin {
+    /// Waiting for the user to fill in the SAITEC business-login form.
+    SaitecForm { form: SaitecPendingForm },
     /// Waiting for user to paste Claude OAuth code for a specific stored account
     ClaudeAccount {
         verifier: String,
@@ -55,6 +74,7 @@ pub(crate) enum PendingLogin {
 impl PendingLogin {
     pub(crate) fn telemetry_context(&self) -> Option<(String, String)> {
         match self {
+            Self::SaitecForm { .. } => Some(("jcode".to_string(), "password".to_string())),
             Self::ClaudeAccount { .. } => Some(("claude".to_string(), "oauth".to_string())),
             Self::OpenAiAccount { .. } => Some(("openai".to_string(), "oauth".to_string())),
             Self::Gemini { .. } => Some(("gemini".to_string(), "oauth".to_string())),

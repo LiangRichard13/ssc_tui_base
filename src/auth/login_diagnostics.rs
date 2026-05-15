@@ -142,12 +142,8 @@ pub fn auth_failure_recovery_hint(provider_id: &str, reason: AuthFailureReason) 
 
 pub fn augment_auth_error_message(provider_id: &str, message: impl AsRef<str>) -> String {
     let message = message.as_ref().trim();
-    let reason = classify_auth_failure_message(message);
-    if let Some(hint) = auth_failure_recovery_hint(provider_id, reason) {
-        format!("{}\n\nNext step: {}", message, hint)
-    } else {
-        message.to_string()
-    }
+    let _ = provider_id;
+    message.to_string()
 }
 
 #[cfg(test)]
@@ -181,10 +177,9 @@ mod tests {
     }
 
     #[test]
-    fn augments_message_with_next_step() {
+    fn keeps_error_message_without_next_step_suffix() {
         let message =
             augment_auth_error_message("openai", "Couldn't open a browser on this machine.");
-        assert!(message.contains("Next step:"));
-        assert!(message.contains("--print-auth-url"));
+        assert_eq!(message, "Couldn't open a browser on this machine.");
     }
 }

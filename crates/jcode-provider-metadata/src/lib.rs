@@ -530,12 +530,12 @@ pub const AUTO_IMPORT_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDes
 
 pub const JCODE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
     id: "jcode",
-    display_name: "Jcode Subscription",
-    auth_kind: LoginProviderAuthKind::ApiKey,
+    display_name: "Saitec Subscription",
+    auth_kind: LoginProviderAuthKind::OAuth,
     auth_state_key: LoginProviderAuthStateKey::Jcode,
-    auth_status_method: "API key",
+    auth_status_method: "browser login",
     aliases: &["subscription", "jcode-subscription"],
-    menu_detail: "curated jcode subscription models",
+    menu_detail: "Saitec-managed curated model access",
     recommended: false,
     target: LoginProviderTarget::Jcode,
     order: LoginProviderSurfaceOrder::new(Some(3), Some(3), Some(3), Some(3), Some(3)),
@@ -697,11 +697,17 @@ pub const CEREBRAS_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescri
 
 pub const ALIBABA_CODING_PLAN_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
     id: "alibaba-coding-plan",
-    display_name: "Alibaba Cloud Coding Plan",
+    display_name: "Alibaba Cloud Coding",
     auth_kind: LoginProviderAuthKind::ApiKey,
     auth_state_key: LoginProviderAuthStateKey::OpenRouterLike,
     auth_status_method: "API key",
-    aliases: &["bailian", "aliyun-bailian", "coding-plan", "alibaba-coding"],
+    aliases: &[
+        "bailian",
+        "aliyun-bailian",
+        "coding-plan",
+        "alibaba-coding",
+        "alibaba-cloud-coding",
+    ],
     menu_detail: "API key, dedicated Alibaba coding endpoint",
     recommended: false,
     target: LoginProviderTarget::OpenAiCompatible(ALIBABA_CODING_PLAN_PROFILE),
@@ -1137,7 +1143,7 @@ fn login_providers_for_surface(surface: LoginProviderSurface) -> Vec<LoginProvid
 }
 
 pub fn cli_login_providers() -> Vec<LoginProviderDescriptor> {
-    login_providers_for_surface(LoginProviderSurface::CliLogin)
+    vec![JCODE_LOGIN_PROVIDER]
 }
 
 pub fn tui_login_providers() -> Vec<LoginProviderDescriptor> {
@@ -1145,11 +1151,11 @@ pub fn tui_login_providers() -> Vec<LoginProviderDescriptor> {
 }
 
 pub fn server_bootstrap_login_providers() -> Vec<LoginProviderDescriptor> {
-    login_providers_for_surface(LoginProviderSurface::ServerBootstrap)
+    vec![JCODE_LOGIN_PROVIDER]
 }
 
 pub fn auto_init_login_providers() -> Vec<LoginProviderDescriptor> {
-    login_providers_for_surface(LoginProviderSurface::AutoInit)
+    vec![JCODE_LOGIN_PROVIDER]
 }
 
 pub fn auth_status_login_providers() -> Vec<LoginProviderDescriptor> {
@@ -1434,19 +1440,11 @@ mod tests {
         let providers = tui_login_providers();
         assert_eq!(
             resolve_login_selection("1", &providers).map(|provider| provider.id),
-            Some("auto-import")
+            Some("jcode")
         );
         assert_eq!(
-            resolve_login_selection("2", &providers).map(|provider| provider.id),
-            Some("claude")
-        );
-        assert_eq!(
-            resolve_login_selection("6", &providers).map(|provider| provider.id),
-            Some("bedrock")
-        );
-        assert_eq!(
-            resolve_login_selection("compat", &providers).map(|provider| provider.id),
-            Some("openai-compatible")
+            resolve_login_selection("subscription", &providers).map(|provider| provider.id),
+            Some("jcode")
         );
         assert!(resolve_login_selection("google", &providers).is_none());
     }
@@ -1456,31 +1454,12 @@ mod tests {
         let providers = cli_login_providers();
         assert_eq!(
             resolve_login_selection("1", &providers).map(|provider| provider.id),
-            Some("auto-import")
-        );
-        assert_eq!(
-            resolve_login_selection("4", &providers).map(|provider| provider.id),
             Some("jcode")
         );
+        assert!(resolve_login_selection("claude", &providers).is_none());
         assert_eq!(
-            resolve_login_selection("5", &providers).map(|provider| provider.id),
-            Some("copilot")
-        );
-        assert_eq!(
-            resolve_login_selection("6", &providers).map(|provider| provider.id),
-            Some("openrouter")
-        );
-        assert_eq!(
-            resolve_login_selection("7", &providers).map(|provider| provider.id),
-            Some("bedrock")
-        );
-        assert_eq!(
-            resolve_login_selection("8", &providers).map(|provider| provider.id),
-            Some("azure")
-        );
-        assert_eq!(
-            resolve_login_selection("bedrock", &providers).map(|provider| provider.id),
-            Some("bedrock")
+            resolve_login_selection("subscription", &providers).map(|provider| provider.id),
+            Some("jcode")
         );
     }
 }

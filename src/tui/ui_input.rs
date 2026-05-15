@@ -75,6 +75,99 @@ pub(super) fn input_hint_line_height(app: &dyn TuiState) -> u16 {
     }
 }
 
+fn build_input_hint_lines(
+    app: &dyn TuiState,
+    input_text: &str,
+    mode: ComposerMode,
+    suggestions: &[(String, &'static str)],
+) -> (Vec<Line<'static>>, bool, Option<String>) {
+    let has_suggestions = !suggestions.is_empty()
+        && matches!(mode, ComposerMode::SlashCommand | ComposerMode::Chat)
+        && (matches!(mode, ComposerMode::SlashCommand) || !app.is_processing());
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut hint_shown = false;
+    let mut hint_line: Option<String> = None;
+
+    if has_suggestions {
+        let input_trimmed = input_text.trim();
+        let exact_match = suggestions.iter().find(|(cmd, _)| cmd == input_trimmed);
+
+        if suggestions.len() == 1 || exact_match.is_some() {
+            let (cmd, desc) = exact_match.unwrap_or(&suggestions[0]);
+            let mut spans = vec![
+                Span::styled("  ", Style::default().fg(dim_color())),
+                Span::styled(cmd.to_string(), Style::default().fg(rgb(138, 180, 248))),
+                Span::styled(format!(" - {}", desc), Style::default().fg(dim_color())),
+            ];
+            if suggestions.len() > 1 {
+                spans.push(Span::styled(
+                    format!("  Tab: +{} more", suggestions.len() - 1),
+                    Style::default().fg(dim_color()),
+                ));
+            }
+            lines.push(Line::from(spans));
+        } else {
+            let max_suggestions = 5;
+            let limited: Vec<_> = suggestions.iter().take(max_suggestions).collect();
+            let more_count = suggestions.len().saturating_sub(max_suggestions);
+
+            let mut spans = vec![Span::styled("  Tab: ", Style::default().fg(dim_color()))];
+            for (i, (cmd, desc)) in limited.iter().enumerate() {
+                if i > 0 {
+                    spans.push(Span::styled(" 鈹?", Style::default().fg(dim_color())));
+                }
+                spans.push(Span::styled(
+                    cmd.to_string(),
+                    Style::default().fg(rgb(138, 180, 248)),
+                ));
+                if i == 0 {
+                    spans.push(Span::styled(
+                        format!(" ({})", desc),
+                        Style::default().fg(dim_color()),
+                    ));
+                }
+            }
+            if more_count > 0 {
+                spans.push(Span::styled(
+                    format!(" (+{})", more_count),
+                    Style::default().fg(dim_color()),
+                ));
+            }
+            lines.push(Line::from(spans));
+        }
+    } else if let Some(shell_hint) = shell_mode_hint(mode) {
+        hint_shown = true;
+        hint_line = Some(shell_hint.trim().to_string());
+        lines.push(Line::from(Span::styled(
+            shell_hint,
+            Style::default().fg(shell_mode_color()),
+        )));
+    } else if app.next_prompt_new_session_armed() {
+        hint_shown = true;
+        let hint = "  鈫?Next prompt opens a new session";
+        hint_line = Some(hint.trim().to_string());
+        lines.push(Line::from(Span::styled(
+            hint,
+            Style::default().fg(rgb(120, 200, 255)),
+        )));
+    } else if app.is_processing() && !input_text.is_empty() {
+        hint_shown = true;
+        let hint = if app.queue_mode() {
+            "  Ctrl+Enter to send now"
+        } else {
+            "  Ctrl+Enter to queue"
+        };
+        hint_line = Some(hint.trim().to_string());
+        lines.push(Line::from(Span::styled(
+            hint,
+            Style::default().fg(dim_color()),
+        )));
+    }
+
+    (lines, hint_shown, hint_line)
+}
+
 pub(super) fn send_mode_reserved_width(app: &dyn TuiState) -> usize {
     let (icon, _) = send_mode_indicator(app);
     if icon.is_empty() { 0 } else { icon.len() + 1 }
@@ -1243,8 +1336,17 @@ pub(super) fn draw_input(
     next_prompt: usize,
     debug_capture: &mut Option<FrameCaptureBuilder>,
 ) {
-    let input_text = app.input();
-    let cursor_pos = app.cursor_pos();
+    let input_hidden_for_login = app.pending_saitec_login_form().is_some();
+    let input_text = if input_hidden_for_login {
+        ""
+    } else {
+        app.input()
+    };
+    let cursor_pos = if input_hidden_for_login {
+        0
+    } else {
+        app.cursor_pos()
+    };
 
     let mode = composer_mode(input_text, app.is_remote_mode());
     let suggestions = app.command_suggestions();
@@ -1399,6 +1501,11 @@ pub(super) fn draw_input(
     };
     frame.render_widget(paragraph, area);
 
+    if input_hidden_for_login {
+        draw_send_mode_indicator(frame, app, area);
+        return;
+    }
+
     let cursor_screen_line = cursor_line.saturating_sub(scroll_offset) + suggestions_offset;
     let cursor_y = area.y + (cursor_screen_line as u16).min(area.height.saturating_sub(1));
 
@@ -1416,6 +1523,91 @@ pub(super) fn draw_input(
 
     frame.set_cursor_position(Position::new(cursor_x, cursor_y));
     draw_send_mode_indicator(frame, app, area);
+}
+
+pub(super) fn draw_startup_input(
+    frame: &mut Frame,
+    app: &dyn TuiState,
+    area: Rect,
+    debug_capture: &mut Option<FrameCaptureBuilder>,
+) {
+    let input_hidden_for_login = app.pending_saitec_login_form().is_some();
+    let input_text = if input_hidden_for_login {
+        ""
+    } else {
+        app.input()
+    };
+    let cursor_pos = if input_hidden_for_login {
+        0
+    } else {
+        app.cursor_pos()
+    };
+    let prompt_char = "> ";
+    let prompt_len = prompt_char.chars().count();
+    let line_width = (area.width as usize).saturating_sub(prompt_len);
+
+    if line_width == 0 || area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    let mode = composer_mode(input_text, app.is_remote_mode());
+    let suggestions = app.command_suggestions();
+    let (mut lines, hint_shown, hint_line) =
+        build_input_hint_lines(app, input_text, mode, &suggestions);
+
+    let (all_lines, cursor_line, cursor_col) = wrap_input_text(
+        input_text,
+        cursor_pos,
+        line_width,
+        "",
+        prompt_char,
+        user_color(),
+        prompt_len,
+    );
+
+    let suggestions_offset = lines.len();
+    let visible_height = area.height as usize;
+    let scroll_offset = if all_lines.len() + suggestions_offset <= visible_height {
+        0
+    } else {
+        let available_for_input = visible_height.saturating_sub(suggestions_offset);
+        if cursor_line < available_for_input {
+            0
+        } else {
+            cursor_line.saturating_sub(available_for_input.saturating_sub(1))
+        }
+    };
+
+    for line in all_lines.into_iter().skip(scroll_offset) {
+        lines.push(line);
+        if lines.len() >= visible_height {
+            break;
+        }
+    }
+
+    if let Some(capture) = debug_capture {
+        capture.rendered_text.input_area = input_text.to_string();
+        if let Some(hint) = &hint_line {
+            capture.rendered_text.input_hint = Some(hint.clone());
+        }
+        visual_debug::check_shift_enter_anomaly(
+            capture,
+            app.is_processing(),
+            input_text,
+            hint_shown,
+        );
+    }
+
+    frame.render_widget(Paragraph::new(lines.clone()), area);
+
+    if input_hidden_for_login {
+        return;
+    }
+
+    let cursor_screen_line = cursor_line.saturating_sub(scroll_offset) + suggestions_offset;
+    let cursor_y = area.y + (cursor_screen_line as u16).min(area.height.saturating_sub(1));
+    let cursor_x = area.x + prompt_len as u16 + cursor_col as u16;
+    frame.set_cursor_position(Position::new(cursor_x, cursor_y));
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1635,12 +1827,20 @@ pub(crate) fn wrap_input_text<'a>(
         }
 
         if idx == 0 {
-            let num_color = rainbow_prompt_color(0);
-            lines.push(Line::from(vec![
-                Span::styled(num_str.to_string(), Style::default().fg(num_color)),
-                Span::styled(prompt_char.to_string(), Style::default().fg(caret_color)),
-                Span::raw(segment.text.clone()),
-            ]));
+            let mut spans = Vec::new();
+            if !num_str.is_empty() {
+                let num_color = rainbow_prompt_color(0);
+                spans.push(Span::styled(
+                    num_str.to_string(),
+                    Style::default().fg(num_color),
+                ));
+            }
+            spans.push(Span::styled(
+                prompt_char.to_string(),
+                Style::default().fg(caret_color),
+            ));
+            spans.push(Span::raw(segment.text.clone()));
+            lines.push(Line::from(spans));
         } else {
             lines.push(Line::from(vec![
                 Span::raw(" ".repeat(prompt_len)),

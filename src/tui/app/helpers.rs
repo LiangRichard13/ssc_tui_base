@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+
 static AMBIENT_INFO_CACHE: Mutex<
     Option<(std::time::Instant, bool, Option<AmbientWidgetData>, bool)>,
 > = Mutex::new(None);
@@ -37,6 +39,20 @@ pub(super) fn launch_client_executable() -> PathBuf {
         .map(|(path, _label)| path)
         .or_else(|| std::env::current_exe().ok())
         .unwrap_or_else(|| PathBuf::from("jcode"))
+}
+
+pub(super) fn runtime_window_title(
+    _icon: &str,
+    server_name: &str,
+    session_label: &str,
+    suffix: &str,
+) -> String {
+    let brand_label = if server_name.eq_ignore_ascii_case("jcode") {
+        SAITEC_WINDOW_TITLE.to_string()
+    } else {
+        format!("{SAITEC_WINDOW_TITLE}/{}", server_name.to_lowercase())
+    };
+    format!("{brand_label}/{session_label}{suffix}")
 }
 
 pub(super) fn partition_queued_messages(
@@ -463,15 +479,16 @@ pub(super) fn spawn_resume_target_in_new_terminal(
 }
 
 fn resumed_window_title(session_id: &str) -> String {
-    let session_name = crate::process_title::session_name(session_id);
-    let icon = crate::id::session_icon(&session_name);
     let session_label = crate::process_title::terminal_session_label_for_id(session_id);
     if let Some(server_info) =
         crate::registry::find_server_by_socket_sync(&crate::server::socket_path())
     {
-        format!("{} jcode/{} {}", icon, server_info.name, session_label)
+        format!(
+            "{SAITEC_WINDOW_TITLE}/{} {}",
+            server_info.name, session_label
+        )
     } else {
-        format!("{} jcode {}", icon, session_label)
+        format!("{SAITEC_WINDOW_TITLE}/{}", session_label)
     }
 }
 

@@ -142,35 +142,44 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
     let providers = tui_login_providers();
     assert_eq!(
         resolve_login_selection("1", &providers).map(|provider| provider.id),
-        Some("auto-import")
-    );
-    assert_eq!(
-        resolve_login_selection("2", &providers).map(|provider| provider.id),
         Some("claude")
     );
     assert_eq!(
-        resolve_login_selection("6", &providers).map(|provider| provider.id),
-        Some("bedrock")
-    );
-    assert_eq!(
-        resolve_login_selection("compat", &providers).map(|provider| provider.id),
-        Some("openai-compatible")
-    );
-    assert_eq!(
-        resolve_login_selection("cgc", &providers).map(|provider| provider.id),
-        Some("comtegra")
-    );
-    assert_eq!(
-        resolve_login_selection("bedrock", &providers).map(|provider| provider.id),
-        Some("bedrock")
-    );
-    assert!(
-        providers
-            .iter()
-            .take(6)
-            .any(|provider| provider.id == "bedrock")
+        resolve_login_selection("anthropic", &providers).map(|provider| provider.id),
+        Some("claude")
     );
     assert!(resolve_login_selection("google", &providers).is_none());
+}
+
+#[test]
+fn saitec_allowlisted_provider_ids_match_product_requirements() {
+    assert_eq!(
+        crate::saitec::product_profile::allowed_base_model_provider_ids(),
+        &["openai", "claude", "zai", "kimi", "alibaba-coding-plan"]
+    );
+}
+
+#[test]
+fn saitec_allowlist_accepts_aliases_through_catalog_resolution() {
+    let provider =
+        resolve_login_provider("bailian").expect("bailian alias should resolve through catalog");
+
+    assert_eq!(provider.id, "alibaba-coding-plan");
+    assert!(crate::saitec::product_profile::is_allowed_base_model_provider(provider.id));
+}
+
+#[test]
+fn saitec_visible_base_model_providers_only_include_allowlisted_entries() {
+    let providers = saitec_visible_base_model_providers();
+    let provider_ids = providers
+        .iter()
+        .map(|provider| provider.id)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        provider_ids,
+        vec!["openai", "claude", "zai", "kimi", "alibaba-coding-plan"]
+    );
 }
 
 #[test]
@@ -178,38 +187,10 @@ fn matrix_cli_login_selection_preserves_existing_order() {
     let providers = cli_login_providers();
     assert_eq!(
         resolve_login_selection("1", &providers).map(|provider| provider.id),
-        Some("auto-import")
-    );
-    assert_eq!(
-        resolve_login_selection("4", &providers).map(|provider| provider.id),
         Some("jcode")
     );
-    assert_eq!(
-        resolve_login_selection("5", &providers).map(|provider| provider.id),
-        Some("copilot")
-    );
-    assert_eq!(
-        resolve_login_selection("6", &providers).map(|provider| provider.id),
-        Some("openrouter")
-    );
-    assert_eq!(
-        resolve_login_selection("7", &providers).map(|provider| provider.id),
-        Some("bedrock")
-    );
-    assert_eq!(
-        resolve_login_selection("8", &providers).map(|provider| provider.id),
-        Some("azure")
-    );
-    assert_eq!(
-        resolve_login_selection("bedrock", &providers).map(|provider| provider.id),
-        Some("bedrock")
-    );
-    assert!(
-        providers
-            .iter()
-            .position(|provider| provider.id == "bedrock")
-            < providers.iter().position(|provider| provider.id == "azure")
-    );
+    assert!(resolve_login_selection("claude", &providers).is_none());
+    assert_eq!(providers, vec![JCODE_LOGIN_PROVIDER]);
 }
 
 #[test]

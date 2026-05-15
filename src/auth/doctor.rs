@@ -85,26 +85,30 @@ pub fn recommended_actions(
     validation_result: Option<&str>,
 ) -> Vec<String> {
     let mut actions = Vec::new();
+    let saitec_login = "Use `/login` or `jcode login --provider jcode` for Saitec access.";
     match assessment.state {
-        AuthState::NotConfigured => actions.push(format!(
-            "Connect it: `jcode login --provider {}`",
-            provider.id
-        )),
+        AuthState::NotConfigured => {
+            actions.push("Review provider-specific auth from `/account`.".to_string());
+            actions.push(saitec_login.to_string());
+        }
         AuthState::Expired
             if matches!(
                 assessment.refresh_support,
                 AuthRefreshSupport::ManualRelogin
             ) =>
         {
-            actions.push(format!(
-                "Re-run login; this provider cannot auto-refresh: `jcode login --provider {}`",
-                provider.id
-            ));
+            actions.push(
+                "Reconnect this provider from `/account`; it cannot auto-refresh.".to_string(),
+            );
+            actions.push(saitec_login.to_string());
         }
-        AuthState::Expired => actions.push(format!(
-            "Refresh or replace the current login: `jcode login --provider {}`",
-            provider.id
-        )),
+        AuthState::Expired => {
+            actions.push(
+                "Reconnect or replace the current provider credentials from `/account`."
+                    .to_string(),
+            );
+            actions.push(saitec_login.to_string());
+        }
         AuthState::Available => {}
     }
 
@@ -115,10 +119,7 @@ pub fn recommended_actions(
     {
         let lower = error.to_ascii_lowercase();
         if lower.contains("invalid_grant") || lower.contains("refresh token") {
-            actions.push(format!(
-                "Replace the stale OAuth account/token: `jcode login --provider {}`",
-                provider.id
-            ));
+            actions.push("Replace the stale provider credentials from `/account`.".to_string());
         } else if lower.contains("rate_limit")
             || lower.contains("rate limited")
             || lower.contains("too many requests")
@@ -164,10 +165,10 @@ pub fn recommended_actions(
         || matches!(provider.auth_kind, LoginProviderAuthKind::DeviceCode)
         || matches!(provider.auth_kind, LoginProviderAuthKind::Hybrid)
     {
-        actions.push(format!(
-            "For browser/callback issues, use the manual-safe flow: `jcode login --provider {} --print-auth-url`",
-            provider.id
-        ));
+        actions.push(
+            "For browser/callback issues, retry from `/account` in an interactive session."
+                .to_string(),
+        );
     }
 
     actions.push("Review current state: `jcode auth status --json`".to_string());
@@ -187,7 +188,7 @@ mod tests {
             state: AuthState::Available,
             method_detail: "OAuth".to_string(),
             credential_source: AuthCredentialSource::JcodeManagedFile,
-            credential_source_detail: "~/.jcode/auth.json".to_string(),
+            credential_source_detail: "~/.saitec_tui/auth.json".to_string(),
             expiry_confidence: AuthExpiryConfidence::Exact,
             refresh_support: AuthRefreshSupport::Automatic,
             validation_method: AuthValidationMethod::TimestampCheck,
@@ -228,7 +229,7 @@ mod tests {
                 None,
             )
             .iter()
-            .any(|line| line.contains("Replace the stale OAuth account/token"))
+            .any(|line| line.contains("Replace the stale provider credentials from `/account`"))
         );
     }
 

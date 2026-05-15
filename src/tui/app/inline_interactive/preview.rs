@@ -148,12 +148,19 @@ impl App {
     }
 
     pub(crate) fn activate_picker_from_preview(&mut self) -> bool {
-        if !self
+        let Some(preview_kind) = self
             .inline_interactive_state
             .as_ref()
-            .map(|picker| picker.preview)
-            .unwrap_or(false)
-        {
+            .filter(|picker| picker.preview)
+            .map(|picker| picker.kind)
+        else {
+            return false;
+        };
+
+        if preview_kind == PickerKind::Login {
+            crate::logging::info(
+                "login-debug: activate_picker_from_preview bypassed Login preview so /login can submit",
+            );
             return false;
         }
 

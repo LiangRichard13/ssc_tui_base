@@ -15,6 +15,15 @@ impl App {
         remote::handle_remote_char_input(self, c);
     }
 
+    #[cfg(test)]
+    pub(crate) fn apply_server_event_for_tests(
+        &mut self,
+        event: crate::protocol::ServerEvent,
+        remote: &mut impl backend::RemoteEventState,
+    ) -> bool {
+        self.handle_server_event(event, remote)
+    }
+
     /// Handle keyboard input in remote mode
     #[cfg(test)]
     pub(super) async fn handle_remote_key(

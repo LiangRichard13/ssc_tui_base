@@ -569,6 +569,23 @@ impl crate::tui::TuiState for App {
         self.remote_startup_phase.is_some()
     }
 
+    fn preserve_branded_startup_surface(&self) -> bool {
+        matches!(self.pending_login, Some(PendingLogin::SaitecForm { .. }))
+            && self.display_user_message_count == 0
+            && self.streaming_text.is_empty()
+            && self
+                .display_messages
+                .iter()
+                .all(|msg| msg.effective_role() == "system")
+    }
+
+    fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
+        match self.pending_login.as_ref() {
+            Some(PendingLogin::SaitecForm { form }) => Some(form),
+            _ => None,
+        }
+    }
+
     fn dictation_key_label(&self) -> Option<String> {
         self.dictation_key_label().map(|s| s.to_string())
     }

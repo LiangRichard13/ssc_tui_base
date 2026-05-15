@@ -70,7 +70,7 @@ pub fn jcode_dir() -> Result<PathBuf> {
     }
 
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home directory"))?;
-    Ok(home.join(".jcode"))
+    Ok(home.join(".saitec_tui"))
 }
 
 pub fn logs_dir() -> Result<PathBuf> {
@@ -373,3 +373,6 @@ pub fn append_json_line_fast<T: Serialize + ?Sized>(path: &Path, value: &T) -> R
     file.flush()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

@@ -131,7 +131,41 @@ fn test_mask_email_censors_local_part() {
 }
 
 #[test]
-fn test_subscription_command_shows_jcode_status_scaffold() {
+fn test_usage_report_shows_no_connected_providers_when_results_empty() {
+    let mut app = create_test_app();
+    app.handle_usage_report(Vec::new());
+
+    let msg = app.display_messages().last().expect("missing usage card");
+    assert_eq!(msg.role, "usage");
+    assert!(msg.content.contains("No connected providers"));
+    assert!(msg.content.contains("/login"));
+    assert!(msg.content.contains("/account"));
+}
+
+#[test]
+fn test_regular_prompt_is_blocked_when_saitec_login_missing() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let mut app = create_test_app();
+    app.input = "hello".to_string();
+    app.submit_input();
+
+    let last = app.display_messages().last().expect("missing response");
+    assert_eq!(last.role, "error");
+    assert!(last.content.contains("Please log in first"));
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[test]
+fn test_subscription_command_shows_saitec_status_scaffold() {
     let _guard = crate::storage::lock_test_env();
     crate::subscription_catalog::clear_runtime_env();
     crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
@@ -146,24 +180,12 @@ fn test_subscription_command_shows_jcode_status_scaffold() {
         .last()
         .expect("missing /subscription response");
     assert_eq!(msg.role, "system");
-    assert!(msg.content.contains("Jcode Subscription Status"));
+    assert!(msg.content.contains("Saitec Subscription Status"));
     assert!(msg.content.contains("/login jcode"));
     assert!(msg.content.contains("Healer Alpha"));
     assert!(msg.content.contains("Kimi K2.5"));
     assert!(msg.content.contains("$20 Starter"));
     assert!(msg.content.contains("$100 Pro"));
-}
-
-#[test]
-fn test_usage_report_shows_no_connected_providers_when_results_empty() {
-    let mut app = create_test_app();
-    app.handle_usage_report(Vec::new());
-
-    let msg = app.display_messages().last().expect("missing usage card");
-    assert_eq!(msg.role, "usage");
-    assert!(msg.content.contains("No connected providers"));
-    assert!(msg.content.contains("/login claude"));
-    assert!(msg.content.contains("/login openai"));
 }
 
 #[test]

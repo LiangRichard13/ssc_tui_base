@@ -167,16 +167,11 @@ fn test_login_command_suggestions_follow_provider_catalog() {
     let app = create_test_app();
     let suggestions = app.get_suggestions_for("/login ");
 
-    for provider in crate::provider_catalog::tui_login_providers() {
-        assert!(
-            suggestions
-                .iter()
-                .any(|(cmd, detail)| cmd == &format!("/login {}", provider.id)
-                    && detail == &provider.menu_detail),
-            "missing /login suggestion for provider {}",
-            provider.id
-        );
-    }
+    assert_eq!(crate::provider_catalog::tui_login_providers().len(), 1);
+    assert!(suggestions.iter().any(|(cmd, detail)| {
+        cmd == "/login jcode"
+            && *detail == crate::provider_catalog::JCODE_LOGIN_PROVIDER.menu_detail
+    }));
 }
 
 #[test]

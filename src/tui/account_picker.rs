@@ -37,6 +37,7 @@ pub struct AccountPicker {
     filter: String,
     summary: Option<AccountPickerSummary>,
     last_action_list_area: Option<Rect>,
+    simple_mode: bool,
 }
 
 pub enum OverlayAction {
@@ -92,9 +93,33 @@ impl AccountPicker {
             filter: String::new(),
             summary: Some(summary),
             last_action_list_area: None,
+            simple_mode: false,
         };
         picker.apply_filter();
         picker
+    }
+
+    pub fn simple(title: impl Into<String>, items: Vec<AccountPickerItem>) -> Self {
+        let mut picker = Self {
+            title: title.into(),
+            items,
+            filtered: Vec::new(),
+            selected: 0,
+            filter: String::new(),
+            summary: None,
+            last_action_list_area: None,
+            simple_mode: true,
+        };
+        picker.apply_filter();
+        picker
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn is_simple_mode(&self) -> bool {
+        self.simple_mode
     }
 
     fn selected_item(&self) -> Option<&AccountPickerItem> {
@@ -138,6 +163,44 @@ impl AccountPicker {
             rendered_row = rendered_row.saturating_add(1);
             if rendered_row > row && rendered_row >= list_height {
                 return None;
+            }
+        }
+
+        None
+    }
+
+    fn visible_index_for_simple_row(&self, row: u16, list_height: u16) -> Option<usize> {
+        if self.filtered.is_empty() {
+            return None;
+        }
+
+        let mut rendered_row = 0u16;
+
+        for (visible_idx, _) in self.filtered.iter().enumerate() {
+            if rendered_row >= list_height {
+                return None;
+            }
+            if rendered_row == row {
+                return Some(visible_idx);
+            }
+            rendered_row = rendered_row.saturating_add(1);
+
+            if rendered_row >= list_height {
+                return None;
+            }
+            if rendered_row == row {
+                return Some(visible_idx);
+            }
+            rendered_row = rendered_row.saturating_add(1);
+
+            if visible_idx + 1 < self.filtered.len() {
+                if rendered_row >= list_height {
+                    return None;
+                }
+                if rendered_row == row {
+                    return Some(visible_idx);
+                }
+                rendered_row = rendered_row.saturating_add(1);
             }
         }
 
@@ -365,7 +428,8 @@ impl AccountPicker {
             }
             KeyCode::Char(c)
                 if !modifiers.contains(KeyModifiers::CONTROL)
-                    && !modifiers.contains(KeyModifiers::ALT) =>
+                    && !modifiers.contains(KeyModifiers::ALT)
+                    && !self.simple_mode =>
             {
                 self.filter.push(c);
                 self.apply_filter();
@@ -375,9 +439,9 @@ impl AccountPicker {
         Ok(OverlayAction::Continue)
     }
 
-    pub fn handle_overlay_mouse(&mut self, mouse: MouseEvent) {
+    pub fn handle_overlay_mouse(&mut self, mouse: MouseEvent) -> OverlayAction {
         let Some(list_inner) = self.last_action_list_area else {
-            return;
+            return OverlayAction::Continue;
         };
         let inside_list = mouse.column >= list_inner.x
             && mouse.column < list_inner.x.saturating_add(list_inner.width)
@@ -387,23 +451,42 @@ impl AccountPicker {
         match mouse.kind {
             MouseEventKind::ScrollUp if inside_list => {
                 self.selected = self.selected.saturating_sub(1);
+                OverlayAction::Continue
             }
             MouseEventKind::ScrollDown if inside_list => {
                 let max = self.filtered.len().saturating_sub(1);
                 self.selected = (self.selected + 1).min(max);
+                OverlayAction::Continue
             }
-            MouseEventKind::Down(MouseButton::Left) if inside_list => {
+            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Up(MouseButton::Left)
+                if inside_list =>
+            {
                 let row = mouse.row.saturating_sub(list_inner.y);
-                if let Some(visible_idx) = self.visible_index_for_action_row(row, list_inner.height)
-                {
+                let visible_idx = if self.simple_mode {
+                    self.visible_index_for_simple_row(row, list_inner.height)
+                } else {
+                    self.visible_index_for_action_row(row, list_inner.height)
+                };
+                if let Some(visible_idx) = visible_idx {
                     self.selected = visible_idx;
+                    if self.simple_mode
+                        && let Some(item) = self.selected_item()
+                    {
+                        return OverlayAction::Execute(item.command.clone());
+                    }
                 }
+                OverlayAction::Continue
             }
-            _ => {}
+            _ => OverlayAction::Continue,
         }
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
+        if self.simple_mode {
+            self.render_simple(frame);
+            return;
+        }
+
         let area = centered_rect(OVERLAY_PERCENT_X, OVERLAY_PERCENT_Y, frame.area());
 
         let block = Block::default()
@@ -457,6 +540,68 @@ impl AccountPicker {
             ),
         ]));
         frame.render_widget(footer, rows[2]);
+    }
+
+    fn render_simple(&mut self, frame: &mut Frame) {
+        let area = centered_rect(50, 30, frame.area());
+        let block = Block::default()
+            .title(format!(" {} ", self.title))
+            .title_bottom(Line::from(vec![
+                hotkey(" Up/Down "),
+                Span::styled(" choose  ", Style::default().fg(MUTED_DARK)),
+                hotkey(" Enter "),
+                Span::styled(" continue  ", Style::default().fg(MUTED_DARK)),
+                hotkey(" Esc "),
+                Span::styled(" close ", Style::default().fg(MUTED_DARK)),
+            ]))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(PANEL_BORDER_ACTIVE));
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        self.last_action_list_area = Some(inner);
+
+        let mut lines = Vec::new();
+        for (visible_idx, idx) in self.filtered.iter().copied().enumerate() {
+            let item = &self.items[idx];
+            let selected = visible_idx == self.selected;
+            let pointer = if selected { "> " } else { "  " };
+            let row_style = if selected {
+                Style::default().bg(SELECTED_BG)
+            } else {
+                Style::default()
+            };
+
+            lines.push(Line::from(vec![
+                Span::styled(pointer, row_style.fg(Color::White)),
+                Span::styled(
+                    truncate_with_ellipsis(
+                        &item.provider_label,
+                        inner.width.saturating_sub(4) as usize,
+                    ),
+                    row_style.fg(Color::White).bold(),
+                ),
+            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!(
+                    "  {}",
+                    truncate_with_ellipsis(&item.subtitle, inner.width.saturating_sub(2) as usize,)
+                ),
+                row_style.fg(MUTED),
+            )]));
+            if visible_idx + 1 < self.filtered.len() {
+                lines.push(Line::from(""));
+            }
+        }
+
+        if lines.is_empty() {
+            lines.push(Line::from(Span::styled(
+                "No options available.",
+                Style::default().fg(MUTED),
+            )));
+        }
+
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
     }
 
     fn render_header(&self, frame: &mut Frame, area: Rect) {
@@ -864,9 +1009,9 @@ mod tests {
             vec![AccountPickerItem::action(
                 "openai",
                 "OpenAI",
-                "Add account",
-                "Start login flow",
-                AccountPickerCommand::SubmitInput("/account openai add default".to_string()),
+                "Provider settings",
+                "Review provider settings",
+                AccountPickerCommand::SubmitInput("/account openai settings".to_string()),
             )],
         );
 
@@ -906,9 +1051,9 @@ mod tests {
                 AccountPickerItem::action(
                     "openai",
                     "OpenAI",
-                    "Login / refresh",
-                    "OAuth",
-                    AccountPickerCommand::SubmitInput("/account openai login".to_string()),
+                    "Diagnose login",
+                    "Validation",
+                    AccountPickerCommand::SubmitInput("/account openai doctor".to_string()),
                 ),
             ],
         );

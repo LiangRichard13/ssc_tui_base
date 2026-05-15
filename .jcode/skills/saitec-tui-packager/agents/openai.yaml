@@ -1,0 +1,4 @@
+interface:
+  display_name: "SAITEC TUI Packager"
+  short_description: "Package SAITEC-TUI builds with output controls"
+  default_prompt: "Use $saitec-tui-packager to package SAITEC-TUI into a timestamped or custom output directory."

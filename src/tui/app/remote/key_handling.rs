@@ -176,9 +176,12 @@ impl App {
             } => self.open_account_center(provider_filter.as_deref()),
             crate::tui::account_picker::AccountPickerCommand::OpenAddReplaceFlow {
                 provider_filter,
-            } => self.open_account_add_replace_flow(provider_filter.as_deref()),
+            } => self.open_account_center(provider_filter.as_deref()),
             crate::tui::account_picker::AccountPickerCommand::SubmitInput(input) => {
-                crate::tui::app::auth::handle_account_command_remote(self, &input, remote).await?;
+                if !self.handle_login_command_local(&input) {
+                    crate::tui::app::auth::handle_account_command_remote(self, &input, remote)
+                        .await?;
+                }
             }
             crate::tui::account_picker::AccountPickerCommand::PromptValue {
                 prompt,
@@ -186,13 +189,13 @@ impl App {
                 empty_value,
                 status_notice,
             } => self.prompt_account_value(prompt, command_prefix, empty_value, status_notice),
-            crate::tui::account_picker::AccountPickerCommand::PromptNew { provider } => {
-                self.prompt_new_account_label(provider)
-            }
+            crate::tui::account_picker::AccountPickerCommand::PromptNew { .. } => {}
             other => {
                 if let Some(input) = Self::account_command_for_picker(&other) {
-                    crate::tui::app::auth::handle_account_command_remote(self, &input, remote)
-                        .await?;
+                    if !self.handle_login_command_local(&input) {
+                        crate::tui::app::auth::handle_account_command_remote(self, &input, remote)
+                            .await?;
+                    }
                 }
             }
         }
@@ -235,6 +238,10 @@ async fn handle_remote_key_internal(
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
 
+    if input::handle_pending_saitec_login_key(app, code, modifiers) {
+        return Ok(());
+    }
+
     if app.changelog_scroll.is_some() {
         return app.handle_changelog_key(code);
     }
@@ -252,6 +259,13 @@ async fn handle_remote_key_internal(
     }
 
     if app.account_picker_overlay.is_some() {
+        if app.input.is_empty()
+            && app.is_login_mode_selector_open()
+            && input::handle_submitted_input_recall_key(app, code, modifiers)
+        {
+            app.account_picker_overlay = None;
+            return Ok(());
+        }
         if let Some(command) = app.next_account_picker_action(code, modifiers)? {
             app.handle_account_picker_command_remote(remote, command)
                 .await?;
@@ -284,6 +298,10 @@ async fn handle_remote_key_internal(
     }
 
     if handle_workspace_navigation_key(app, code, modifiers, remote).await? {
+        return Ok(());
+    }
+
+    if input::handle_submitted_input_recall_key(app, code, modifiers) {
         return Ok(());
     }
 
@@ -1105,6 +1123,10 @@ async fn handle_remote_key_internal(
                         return Ok(());
                     }
                     remote.set_transport(mode).await?;
+                    return Ok(());
+                }
+
+                if app.handle_login_command_local(trimmed) {
                     return Ok(());
                 }
 
@@ -2184,6 +2206,8 @@ async fn handle_remote_key_internal(
                 }
             }
         }
+        KeyCode::Up | KeyCode::Down
+            if input::handle_submitted_input_recall_key(app, code, modifiers) => {}
         KeyCode::Up | KeyCode::PageUp => {
             let inc = if code == KeyCode::PageUp { 10 } else { 1 };
             app.scroll_up(inc);

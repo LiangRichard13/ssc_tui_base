@@ -7,7 +7,7 @@ use serde::Serialize;
 /// Authentication status for all supported providers
 #[derive(Debug, Clone, Default)]
 pub struct AuthStatus {
-    /// Jcode subscription router credentials
+    /// Saitec subscription credentials and router settings
     pub jcode: AuthState,
     /// Anthropic provider (Claude models) - via OAuth or API key
     pub anthropic: ProviderAuth,

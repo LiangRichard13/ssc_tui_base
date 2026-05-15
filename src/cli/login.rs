@@ -157,6 +157,12 @@ pub async fn run_login(
     account_label: Option<&str>,
     options: LoginOptions,
 ) -> Result<()> {
+    if !matches!(choice, ProviderChoice::Jcode | ProviderChoice::Auto) {
+        anyhow::bail!(
+            "Only Saitec login is available right now. Use `jcode login --provider jcode` or `jcode login`."
+        );
+    }
+
     if let Some(provider) = login_provider_for_choice(choice) {
         if matches!(choice, ProviderChoice::ClaudeSubprocess) {
             eprintln!(
@@ -174,27 +180,17 @@ pub async fn run_login(
                 );
             }
             crate::telemetry::record_setup_step_once("login_picker_opened");
-            let providers = crate::provider_catalog::cli_login_providers();
             if !io::stdin().is_terminal() {
                 anyhow::bail!(
                     "`jcode login --provider auto` requires an interactive terminal. Use `jcode login --provider <provider>` in non-interactive mode."
                 );
             }
-            if let Some(imported) =
-                super::provider_init::maybe_run_external_auth_auto_import_flow().await?
-                && imported > 0
-            {
-                eprintln!("\nImported {} existing auth source(s).", imported);
-                notify_running_server_auth_changed_best_effort().await;
-                return Ok(());
-            }
-            match super::provider_init::prompt_login_provider_selection_optional(
-                &providers,
-                "Choose a provider to log in:",
-            )? {
-                Some(provider) => run_login_provider(provider, account_label, options).await?,
-                None => eprintln!("Login skipped."),
-            }
+            run_login_provider(
+                crate::provider_catalog::JCODE_LOGIN_PROVIDER,
+                account_label,
+                options,
+            )
+            .await?;
         }
         _ => unreachable!("handled above"),
     }
@@ -243,7 +239,9 @@ pub async fn run_login_provider(
                 eprintln!("Imported {} existing auth source(s).", imported);
                 Ok(LoginFlowOutcome::Completed)
             }
-            LoginProviderTarget::Jcode => login_jcode_flow().map(|_| LoginFlowOutcome::Completed),
+            LoginProviderTarget::Jcode => login_jcode_flow()
+                .await
+                .map(|_| LoginFlowOutcome::Completed),
             LoginProviderTarget::Claude => login_claude_flow(account_label, options.no_browser)
                 .await
                 .map(|_| LoginFlowOutcome::Completed),
@@ -382,59 +380,46 @@ async fn notify_running_server_auth_changed_best_effort() {
     let _ = client.notify_auth_changed().await;
 }
 
-fn login_jcode_flow() -> Result<()> {
-    eprintln!("Setting up Jcode subscription access...");
+async fn login_jcode_flow() -> Result<()> {
+    let login_url = crate::saitec::auth::authorize_url(crate::saitec::auth::DEFAULT_CALLBACK_PORT);
+    let callback_url =
+        crate::saitec::auth::callback_url(crate::saitec::auth::DEFAULT_CALLBACK_PORT);
+
+    eprintln!("Starting Saitec login...");
     eprintln!(
-        "Paste the jcode subscription API key from your account portal. This key is used for your curated jcode router access.\n"
+        "Open the Saitec login page below, sign in, then paste the callback URL (or query string containing `auth_token`) back into this terminal.\n"
     );
-    eprint!("Paste your Jcode API key: ");
+    eprintln!("Login URL:\n{}\n", login_url);
+    eprintln!("Expected callback target: {}\n", callback_url);
+
+    let browser_opened = if crate::auth::browser_suppressed(false) {
+        false
+    } else {
+        open::that(&login_url).is_ok()
+    };
+    if browser_opened {
+        eprintln!("Opened your browser automatically.\n");
+    } else {
+        eprintln!("Could not open a browser automatically on this machine.\n");
+    }
+
+    eprint!("Paste the Saitec callback URL or query string: ");
     io::stdout().flush()?;
+    let callback_input = read_secret_line()?;
+    let session = crate::saitec::auth::session_from_callback_input(&callback_input).await?;
+    crate::saitec::auth::save_session(&session)?;
+    crate::auth::AuthStatus::invalidate_cache();
 
-    let key = read_secret_line()?;
-    if key.is_empty() {
-        anyhow::bail!("No API key provided.");
-    }
-
-    eprint!("Optional router base URL (press Enter to use the default placeholder): ");
-    io::stdout().flush()?;
-    let api_base = read_secret_line()?;
-
-    let mut content = format!(
-        "{}={}\n",
-        crate::subscription_catalog::JCODE_API_KEY_ENV,
-        key
-    );
-    if !api_base.trim().is_empty() {
-        content.push_str(&format!(
-            "{}={}\n",
-            crate::subscription_catalog::JCODE_API_BASE_ENV,
-            api_base.trim()
-        ));
-    }
-
-    let config_dir = crate::storage::app_config_dir()?;
-    let file_path = config_dir.join(crate::subscription_catalog::JCODE_ENV_FILE);
-    crate::storage::write_text_secret(&file_path, &content)?;
-
-    crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, key);
-    if !api_base.trim().is_empty() {
-        crate::env::set_var(
-            crate::subscription_catalog::JCODE_API_BASE_ENV,
-            api_base.trim(),
-        );
-    }
-
-    eprintln!("\nSuccessfully saved Jcode subscription credentials!");
-    eprintln!("Stored at {}", file_path.display());
+    eprintln!("\nSaitec login successful.");
     eprintln!(
-        "Curated models available now: {}",
-        crate::subscription_catalog::curated_models()
-            .iter()
-            .map(|model| model.display_name)
-            .collect::<Vec<_>>()
-            .join(", ")
+        "Stored auth token at {}",
+        crate::saitec::paths::auth_file()?.display()
     );
-    crate::telemetry::record_auth_success("jcode", "api_key");
+    eprintln!(
+        "Authenticated as {}.",
+        session.user_id.as_deref().unwrap_or("mock-user")
+    );
+    crate::telemetry::record_auth_success("jcode", "oauth");
     Ok(())
 }
 

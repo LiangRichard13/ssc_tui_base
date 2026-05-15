@@ -342,9 +342,78 @@ pub(super) fn prepare_messages(
 }
 
 fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> PreparedChatFrame {
-    let mut all_header_lines = header::build_persistent_header(app, width);
-    all_header_lines.extend(header::build_header_lines(app, width));
-    let header_prepared = Arc::new(wrap_lines(all_header_lines, &[], &[], &[], width));
+    let show_startup_splash = super::should_show_startup_splash(app);
+
+    if show_startup_splash {
+        let startup_lines = header::build_startup_header(app, width);
+        let logo_count = startup_lines.len().saturating_sub(2);
+        let footer_count = startup_lines.len().saturating_sub(logo_count);
+        let show_login_hint = app.auth_status().jcode != crate::auth::AuthState::Available;
+        let prompt_height = super::input_ui::wrapped_input_line_count(app, width, 0)
+            .min(6)
+            .max(1);
+        let prompt_lines = vec![Line::from(Span::raw("> ")); prompt_height];
+        let mut wrapped_lines = Vec::new();
+        let mut image_regions = Vec::new();
+
+        wrapped_lines.extend(startup_lines.iter().take(logo_count).cloned());
+        if let Some(region) = super::startup_logo_region(width) {
+            image_regions.push(ImageRegion {
+                abs_line_idx: 0,
+                end_line: region.height as usize,
+                hash: region.hash,
+                height: region.height,
+            });
+        }
+
+        wrapped_lines.push(Line::from(""));
+        if show_login_hint {
+            wrapped_lines.push(Line::from(Span::styled(
+                "Use `/login` to open the Saitec login form.",
+                Style::default().fg(dim_color()),
+            )));
+            wrapped_lines.push(Line::from(""));
+        }
+        wrapped_lines.extend(prompt_lines);
+
+        // The splash should fill the message viewport and leave only the
+        // always-visible status line below the footer.
+        let non_message_reserve = 1;
+        let available = (height as usize).saturating_sub(non_message_reserve);
+        let content_height = wrapped_lines.len() + footer_count;
+        let spacer_count = available.saturating_sub(content_height);
+
+        for _ in 0..spacer_count {
+            wrapped_lines.push(Line::from(""));
+        }
+
+        wrapped_lines.extend(startup_lines.iter().skip(logo_count).cloned());
+        let wrapped_line_count = wrapped_lines.len();
+        let wrapped_plain_lines = Arc::new(wrapped_lines.iter().map(ui::line_plain_text).collect());
+        let prepared = Arc::new(PreparedMessages {
+            wrapped_lines,
+            wrapped_plain_lines,
+            wrapped_copy_offsets: Arc::new(vec![0; wrapped_line_count]),
+            raw_plain_lines: Arc::new(Vec::new()),
+            wrapped_line_map: Arc::new(Vec::new()),
+            wrapped_user_indices: Vec::new(),
+            wrapped_user_prompt_starts: Vec::new(),
+            wrapped_user_prompt_ends: Vec::new(),
+            user_prompt_texts: Vec::new(),
+            image_regions,
+            edit_tool_ranges: Vec::new(),
+            copy_targets: Vec::new(),
+        });
+        return PreparedChatFrame::from_single(prepared);
+    }
+
+    let header_prepared = if crate::saitec::product_profile::use_fixed_shell_layout() {
+        Arc::new(empty_prepared_messages())
+    } else {
+        let mut all_header_lines = header::build_persistent_header(app, width);
+        all_header_lines.extend(header::build_header_lines(app, width));
+        Arc::new(wrap_lines(all_header_lines, &[], &[], &[], width))
+    };
 
     let body_prepared = prepare_body_cached(app, width);
     let has_batch_progress = active_batch_progress(app).is_some();
@@ -367,94 +436,6 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
     } else {
         Arc::new(empty_prepared_messages())
     };
-
-    let is_initial_empty = app.display_messages().is_empty()
-        && !app.is_processing()
-        && app.streaming_text().is_empty();
-
-    if is_initial_empty {
-        let suggestions = app.suggestion_prompts();
-        let is_centered = app.centered_mode();
-        let suggestion_align = if is_centered {
-            ratatui::layout::Alignment::Center
-        } else {
-            ratatui::layout::Alignment::Left
-        };
-        let mut wrapped_lines = header_prepared.wrapped_lines.clone();
-
-        if !suggestions.is_empty() {
-            wrapped_lines.push(Line::from(""));
-            for (i, (label, prompt)) in suggestions.iter().enumerate() {
-                let is_login = prompt.starts_with('/');
-                let pad = if is_centered { "" } else { "  " };
-                let spans = if is_login {
-                    vec![
-                        Span::styled(
-                            format!("{}{} ", pad, label),
-                            Style::default()
-                                .fg(rgb(138, 180, 248))
-                                .add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(
-                            format!("(type {})", prompt),
-                            Style::default().fg(dim_color()),
-                        ),
-                    ]
-                } else {
-                    vec![
-                        Span::styled(
-                            format!("{}[{}] ", pad, i + 1),
-                            Style::default().fg(rgb(138, 180, 248)),
-                        ),
-                        Span::styled(label.clone(), Style::default().fg(rgb(200, 200, 200))),
-                    ]
-                };
-                wrapped_lines.push(Line::from(spans).alignment(suggestion_align));
-            }
-            if suggestions.len() > 1 {
-                wrapped_lines.push(Line::from(""));
-                wrapped_lines.push(
-                    Line::from(Span::styled(
-                        if is_centered {
-                            "Press 1-3 or type anything to start"
-                        } else {
-                            "  Press 1-3 or type anything to start"
-                        },
-                        Style::default().fg(dim_color()),
-                    ))
-                    .alignment(suggestion_align),
-                );
-            }
-        }
-
-        let content_height = wrapped_lines.len();
-        let input_reserve = 4;
-        let available = (height as usize).saturating_sub(input_reserve);
-        let pad_top = available.saturating_sub(content_height) / 2;
-        let mut centered = Vec::with_capacity(pad_top + content_height);
-        for _ in 0..pad_top {
-            centered.push(Line::from(""));
-        }
-        centered.extend(wrapped_lines);
-        let wrapped_lines = centered;
-        let wrapped_line_count = wrapped_lines.len();
-        let wrapped_plain_lines = Arc::new(wrapped_lines.iter().map(ui::line_plain_text).collect());
-        let prepared = Arc::new(PreparedMessages {
-            wrapped_lines,
-            wrapped_plain_lines,
-            wrapped_copy_offsets: Arc::new(vec![0; wrapped_line_count]),
-            raw_plain_lines: Arc::new(Vec::new()),
-            wrapped_line_map: Arc::new(Vec::new()),
-            wrapped_user_indices: Vec::new(),
-            wrapped_user_prompt_starts: Vec::new(),
-            wrapped_user_prompt_ends: Vec::new(),
-            user_prompt_texts: Vec::new(),
-            image_regions: Vec::new(),
-            edit_tool_ranges: Vec::new(),
-            copy_targets: Vec::new(),
-        });
-        return PreparedChatFrame::from_single(prepared);
-    }
 
     PreparedChatFrame::from_sections(vec![
         (PreparedSectionKind::Header, header_prepared),

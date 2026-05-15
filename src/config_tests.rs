@@ -50,6 +50,39 @@ fn test_display_alignment_defaults_to_left() {
 }
 
 #[test]
+fn test_display_animation_defaults_are_disabled_for_saitec_product_mode() {
+    let display = DisplayConfig::default();
+    assert!(!display.idle_animation);
+    assert!(!display.prompt_entry_animation);
+}
+
+#[test]
+fn test_generated_default_config_disables_decorative_animations_for_saitec_product_mode() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    crate::env::set_var("JCODE_HOME", dir.path());
+
+    let path = Config::create_default_config_file().expect("create default config file");
+    let content = std::fs::read_to_string(path).expect("read default config file");
+
+    assert!(
+        content.contains("idle_animation = false"),
+        "generated default config should disable idle animation"
+    );
+    assert!(
+        content.contains("prompt_entry_animation = false"),
+        "generated default config should disable prompt entry animation"
+    );
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[test]
 fn test_provider_failover_defaults_match_new_behavior() {
     let provider = Config::default().provider;
     assert_eq!(

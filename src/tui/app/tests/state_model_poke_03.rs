@@ -617,7 +617,7 @@ fn test_model_picker_filter_text_includes_provider_and_method() {
 fn test_login_picker_preview_stays_open_and_updates_filter() {
     let mut app = create_test_app();
 
-    for c in "/login za".chars() {
+    for c in "/login jc".chars() {
         app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
             .unwrap();
     }
@@ -628,21 +628,21 @@ fn test_login_picker_preview_stays_open_and_updates_filter() {
         .expect("login picker preview should be open");
     assert!(picker.preview);
     assert_eq!(picker.kind, crate::tui::PickerKind::Login);
-    assert_eq!(picker.filter, "za");
+    assert_eq!(picker.filter, "jc");
     assert!(
         picker
             .filtered
             .iter()
-            .any(|&i| picker.entries[i].name == "Z.AI")
+            .any(|&i| picker.entries[i].name == "Saitec Subscription")
     );
-    assert_eq!(app.input(), "/login za");
+    assert_eq!(app.input(), "/login jc");
 }
 
 #[test]
 fn test_login_picker_preview_enter_starts_login_flow() {
     let mut app = create_test_app();
 
-    for c in "/login zai".chars() {
+    for c in "/login jcode".chars() {
         app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
             .unwrap();
     }
@@ -651,14 +651,7 @@ fn test_login_picker_preview_enter_starts_login_flow() {
 
     assert!(app.inline_interactive_state.is_none());
     match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
-            provider,
-            openai_compatible_profile: Some(profile),
-            ..
-        }) => {
-            assert_eq!(provider, "Z.AI");
-            assert_eq!(profile.id, crate::provider_catalog::ZAI_PROFILE.id);
-        }
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { .. }) => {}
         ref other => panic!("unexpected pending login state: {other:?}"),
     }
 }

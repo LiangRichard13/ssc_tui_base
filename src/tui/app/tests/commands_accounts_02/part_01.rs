@@ -196,18 +196,6 @@ fn test_account_openai_command_opens_account_picker() {
             picker
                 .entries
                 .iter()
-                .any(|entry| entry.name == "new account")
-        );
-        assert!(
-            picker
-                .entries
-                .iter()
-                .any(|entry| entry.name == "replace account")
-        );
-        assert!(
-            picker
-                .entries
-                .iter()
                 .any(|entry| entry.name == "account center")
         );
     });
@@ -267,18 +255,6 @@ fn test_account_command_opens_account_picker() {
                 }) if provider_id == "openai"
             )
         }));
-        assert!(
-            picker
-                .entries
-                .iter()
-                .any(|entry| entry.name == "new Claude account")
-        );
-        assert!(
-            picker
-                .entries
-                .iter()
-                .any(|entry| entry.name == "new OpenAI account")
-        );
         assert!(
             picker
                 .entries
@@ -554,33 +530,611 @@ fn test_account_picker_prompt_new_openai_label_cancel_clears_prompt() {
 }
 
 #[test]
-fn test_login_command_opens_inline_login_picker() {
+fn test_login_command_opens_login_mode_selector_overlay() {
     let mut app = create_test_app();
     app.input = "/login".to_string();
     app.submit_input();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("/login should open inline login picker");
-    assert_eq!(picker.kind, crate::tui::PickerKind::Login);
-    assert!(app.pending_login.is_none());
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "/login should open the top-level login mode selector"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "/login should no longer jump directly into the Saitec form"
+    );
 }
 
 #[test]
-fn test_account_openai_compatible_settings_renders_provider_settings() {
+fn test_login_mode_selector_uses_simple_two_option_dialog() {
     let mut app = create_test_app();
-    app.input = "/account openai-compatible settings".to_string();
+    app.input = "/login".to_string();
     app.submit_input();
 
-    let msg = app
-        .display_messages()
-        .last()
-        .expect("missing settings output");
-    assert_eq!(msg.role, "system");
-    assert!(msg.content.contains("OpenAI-compatible"));
-    assert!(msg.content.contains("API base"));
-    assert!(msg.content.contains("default-model"));
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("SAITEC"), "rendered selector:\n{text}");
+    assert!(text.contains("Base models"), "rendered selector:\n{text}");
+    assert!(
+        text.contains("sign in to SAITEC and unlock the TUI"),
+        "rendered selector:\n{text}"
+    );
+    assert!(
+        text.contains("open the filtered base-model login picker"),
+        "rendered selector:\n{text}"
+    );
+    assert!(!text.contains("Overview"), "rendered selector:\n{text}");
+    assert!(
+        !text.contains("Providers & Quick Actions"),
+        "rendered selector:\n{text}"
+    );
+    assert!(
+        !text.contains("saved accounts stay surfaced here"),
+        "rendered selector:\n{text}"
+    );
+}
+
+#[test]
+fn test_enter_on_login_preview_submits_login_command_and_opens_selector() {
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.sync_model_picker_preview_from_input();
+    assert!(
+        app.inline_interactive_state
+            .as_ref()
+            .is_some_and(|picker| picker.preview),
+        "login preview should be open before pressing Enter"
+    );
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should submit login command");
+
+    assert!(
+        app.account_picker_overlay.is_some() || app.pending_login.is_some(),
+        "enter on /login preview should submit the command instead of doing nothing"
+    );
+    assert!(app.inline_interactive_state.is_none());
+
+    if app.pending_login.is_none() {
+        assert!(app.account_picker_overlay.is_some());
+        assert_eq!(app.input(), "");
+        assert_eq!(app.cursor_pos, 0);
+    }
+}
+
+#[test]
+fn test_login_mode_selector_enter_defaults_to_saitec_form() {
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the default login mode");
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state after Enter on selector: {other:?}"),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_clears_stale_saitec_form_before_entering_saitec_branch() {
+    let mut app = create_test_app();
+    app.set_pending_saitec_login_for_tests();
+    app.open_login_mode_selector();
+
+    assert!(
+        app.pending_login.is_none(),
+        "opening the top-level login selector should dismiss the stale pending login form"
+    );
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the default login mode");
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!(
+            "unexpected pending login state after Enter on selector with stale form: {other:?}"
+        ),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_up_recalls_last_submitted_command() {
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("up should recall the previous input from the login selector");
+
+    assert!(app.account_picker_overlay.is_none());
+    assert_eq!(app.input(), "/login");
+    assert_eq!(app.cursor_pos, app.input().len());
+}
+
+#[test]
+fn test_login_mode_selector_mouse_click_opens_saitec_form() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+
+    let click_row = 15;
+    let click_col = 32;
+    let handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: click_col,
+        row: click_row,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!handled, "clicks should request an immediate redraw");
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state after mouse click on SAITEC: {other:?}"),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_mouse_click_opens_base_models_picker() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+
+    let handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 32,
+        row: 18,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!handled, "clicks should request an immediate redraw");
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "clicking Base models should open the filtered login picker"
+    );
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_mouse_up_opens_saitec_form() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+
+    let handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Up(MouseButton::Left),
+        column: 32,
+        row: 15,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!handled, "clicks should request an immediate redraw");
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state after mouse up on SAITEC: {other:?}"),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_mouse_click_on_blank_separator_still_opens_saitec_form() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+
+    let handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 32,
+        row: 17,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!handled, "clicks should request an immediate redraw");
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!(
+            "unexpected pending login state after blank-separator click on SAITEC: {other:?}"
+        ),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_login_mode_selector_routes_base_models_to_filtered_login_picker() {
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move login mode selection");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the selected login mode");
+
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "base-model branch should open the login picker overlay"
+    );
+    assert!(
+        app.account_picker_overlay.is_none(),
+        "base-model branch should not reopen the account picker overlay"
+    );
+}
+
+#[test]
+fn test_login_mode_selector_clears_stale_saitec_form_before_entering_base_models_branch() {
+    let mut app = create_test_app();
+    app.set_pending_saitec_login_for_tests();
+    app.open_login_mode_selector();
+
+    assert!(app.pending_login.is_none());
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move login mode selection");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the selected login mode");
+
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "base-model branch should open the login picker overlay even if a stale saitec form existed"
+    );
+    assert!(app.pending_login.is_none());
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move login mode selection");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the selected login mode");
+
+    let picker_cell = app
+        .login_picker_overlay
+        .as_ref()
+        .expect("login picker overlay should open");
+    let picker = picker_cell.borrow();
+    let profile = picker.debug_memory_profile();
+
+    assert_eq!(profile["items_count"], 5);
+    assert_eq!(profile["filtered_count"], 5);
+    drop(picker);
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("filtered login picker draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("OpenAI"), "rendered picker:\n{text}");
+    assert!(text.contains("Claude"), "rendered picker:\n{text}");
+    assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
+    assert!(text.contains("Kimi"), "rendered picker:\n{text}");
+    assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(!text.contains("Google"), "rendered picker:\n{text}");
+    assert!(!text.contains("Bedrock"), "rendered picker:\n{text}");
+    assert!(!text.contains("Azure"), "rendered picker:\n{text}");
+}
+
+#[test]
+fn test_login_base_models_command_opens_filtered_login_picker() {
+    let mut app = create_test_app();
+    app.input = "/login base-models".to_string();
+    app.submit_input();
+
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "/login base-models should open the filtered login picker"
+    );
+    assert!(
+        app.account_picker_overlay.is_none(),
+        "/login base-models should not open the account center"
+    );
+}
+
+#[test]
+fn test_login_openai_starts_allowed_base_model_login() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/login openai".to_string();
+        app.submit_input();
+    });
+
+    assert!(app.account_picker_overlay.is_none());
+    assert!(app.login_picker_overlay.is_none());
+    assert!(
+        app.pending_login.is_some() || app.display_messages().iter().any(|msg| {
+            msg.content.contains("OpenAI")
+        }),
+        "/login openai should start the allowlisted provider flow"
+    );
+}
+
+#[test]
+fn test_login_openrouter_is_rejected_by_saitec_allowlist() {
+    let mut app = create_test_app();
+    app.input = "/login openrouter".to_string();
+    app.submit_input();
+
+    assert!(app.pending_login.is_none());
+    let last = app.display_messages().last().expect("missing response");
+    assert_eq!(last.role, "error");
+    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+}
+
+#[test]
+fn test_set_pending_saitec_login_for_tests_uses_form_variant() {
+    let mut app = create_test_app();
+    app.set_pending_saitec_login_for_tests();
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.form.email, "");
+            assert_eq!(form.form.phone, "");
+            assert_eq!(form.form.password, "");
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state: {other:?}"),
+    }
+}
+
+#[test]
+fn test_logout_command_clears_saitec_auth_file() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
+        auth_token: None,
+        api_key: "sk-live-test".to_string(),
+        token_type: "Bearer".to_string(),
+        user_id: Some("mock-user".to_string()),
+        email: None,
+        phone: None,
+        display_name: None,
+        api_key_id: None,
+        api_key_name: None,
+        api_key_created_at: None,
+        api_key_expires_at: None,
+        last_validated_at: None,
+    })
+    .expect("save auth");
+
+    let mut app = create_test_app();
+    app.input = "/logout".to_string();
+    app.submit_input();
+
+    assert!(crate::saitec::auth::load_session().expect("load").is_none());
+    assert_eq!(crate::subscription_catalog::configured_api_key(), None);
+    assert!(
+        app.display_messages()
+            .iter()
+            .any(|msg| msg.role == "system"
+                && msg.content.contains("Logged out from Saitec")),
+        "logout confirmation should be present in system messages"
+    );
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+            assert_eq!(form.form.email, "");
+            assert_eq!(form.form.phone, "");
+            assert_eq!(form.form.password, "");
+        }
+        ref other => panic!("logout should reopen the saitec login form: {other:?}"),
+    }
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_api_key) = prev_api_key {
+        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_api_key);
+    } else {
+        crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    }
+}
+
+#[test]
+fn test_pending_saitec_form_empty_submit_sets_validation_error() {
+    let mut app = create_test_app();
+    app.set_pending_saitec_login_for_tests();
+
+    app.submit_input();
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            let error = form.error.as_deref().expect("validation error");
+            assert!(error.contains("password"), "unexpected error: {error}");
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Submit
+            );
+            assert!(!form.submitting);
+        }
+        ref other => panic!("login form should stay pending on validation failure: {other:?}"),
+    }
+}
+
+#[test]
+fn test_start_jcode_login_uses_saitec_pending_state() {
+    let mut app = create_test_app();
+    app.input = "/login jcode".to_string();
+    app.submit_input();
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.form.email, "");
+            assert_eq!(form.form.phone, "");
+            assert_eq!(form.form.password, "");
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state: {other:?}"),
+    }
+}
+
+#[test]
+fn test_account_jcode_login_uses_saitec_pending_state() {
+    let mut app = create_test_app();
+    app.input = "/account jcode login".to_string();
+    app.submit_input();
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.form.email, "");
+            assert_eq!(form.form.phone, "");
+            assert_eq!(form.form.password, "");
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state: {other:?}"),
+    }
+}
+
+#[test]
+fn test_account_openai_login_starts_allowed_base_model_login() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/account openai login".to_string();
+        app.submit_input();
+    });
+
+    assert!(app.pending_login.is_some() || app.display_messages().iter().any(|msg| {
+        msg.content.contains("OpenAI")
+    }));
+}
+
+#[test]
+fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
+    let mut app = create_test_app();
+    app.input = "/account openrouter add".to_string();
+    app.submit_input();
+
+    assert!(app.pending_login.is_none());
+    let last = app.display_messages().last().expect("missing response");
+    assert_eq!(last.role, "error");
+    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+}
+
+#[test]
+fn test_account_openrouter_settings_is_rejected_by_saitec_allowlist() {
+    let mut app = create_test_app();
+    app.input = "/account openrouter settings".to_string();
+    app.submit_input();
+
+    let last = app.display_messages().last().expect("missing response");
+    assert_eq!(last.role, "error");
+    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+}
+
+#[test]
+fn test_auth_status_lists_only_saitec_allowlisted_base_model_providers() {
+    let mut app = create_test_app();
+    app.input = "/auth".to_string();
+    app.submit_input();
+
+    let msg = app.display_messages().last().expect("missing auth status");
+    assert!(msg.content.contains("Saitec Subscription"));
+    assert!(msg.content.contains("OpenAI"));
+    assert!(msg.content.contains("Anthropic/Claude"));
+    assert!(msg.content.contains("Z.AI"));
+    assert!(msg.content.contains("Kimi"));
+    assert!(msg.content.contains("Alibaba Cloud Coding"));
+    assert!(!msg.content.contains("GitHub Copilot"));
+    assert!(!msg.content.contains("Google"));
 }
 
 #[test]
@@ -604,6 +1158,73 @@ fn test_commands_alias_shows_help() {
         app.help_scroll.is_some(),
         "/commands should open help overlay"
     );
+}
+
+#[test]
+fn test_help_overlay_hides_git_and_skills_in_saitec_product_mode() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let jcode_home = temp.path().join("jcode-home");
+    std::fs::create_dir_all(&jcode_home).expect("create jcode home");
+    std::fs::create_dir_all(temp.path().join(".jcode").join("skills").join("alpha"))
+        .expect("create local skill dir");
+    std::fs::write(
+        temp.path()
+            .join(".jcode")
+            .join("skills")
+            .join("alpha")
+            .join("SKILL.md"),
+        "---\nname: alpha\ndescription: Test skill\n---\n",
+    )
+    .expect("write local test skill");
+
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_cwd = std::env::current_dir().expect("current dir");
+    crate::env::set_var("JCODE_HOME", &jcode_home);
+    std::env::set_current_dir(temp.path()).expect("set current dir");
+
+    let mut app = create_test_app();
+    app.input = "/help".to_string();
+    app.submit_input();
+    assert!(app.help_scroll.is_some(), "help overlay should be open");
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("help overlay draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    std::env::set_current_dir(prev_cwd).expect("restore current dir");
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+
+    assert!(!text.contains("/git"), "rendered help:\n{text}");
+    assert!(!text.contains("Skills"), "rendered help:\n{text}");
+    assert!(!text.contains("/alpha"), "rendered help:\n{text}");
+}
+
+#[test]
+fn test_help_overlay_keeps_login_logout_and_model_commands() {
+    let mut app = create_test_app();
+    app.input = "/help".to_string();
+    app.submit_input();
+    assert!(app.help_scroll.is_some(), "help overlay should be open");
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("help overlay draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("/login"), "rendered help:\n{text}");
+    assert!(text.contains("/logout"), "rendered help:\n{text}");
+    assert!(text.contains("/model"), "rendered help:\n{text}");
+    assert!(text.contains("/quit"), "rendered help:\n{text}");
 }
 
 #[test]

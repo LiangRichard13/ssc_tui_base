@@ -1,9 +1,14 @@
 use super::*;
+use crate::tui::TuiState;
 
 impl App {
     /// Run the TUI application
     /// Returns Some(session_id) if hot-reload was requested
-    pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<RunResult> {
+    pub async fn run(
+        mut self,
+        mut terminal: DefaultTerminal,
+        tui_runtime: &mut crate::cli::terminal::TuiRuntimeState,
+    ) -> Result<RunResult> {
         let mut event_stream = EventStream::new();
         let mut redraw_period = crate::tui::redraw_interval(&self);
         let mut redraw_interval = interval(redraw_period);
@@ -13,6 +18,31 @@ impl App {
         // Subscribe to bus for background task completion notifications
         let mut bus_receiver = Bus::global().subscribe();
 
+        if !self.is_remote
+            && !self.is_replay
+            && self.display_messages.is_empty()
+            && self.pending_login.is_none()
+        {
+            let startup_auth_error = match crate::saitec::auth::load_session() {
+                Ok(Some(_)) => crate::saitec::auth::refresh_saved_session_if_present()
+                    .await
+                    .err()
+                    .map(|err| err.to_string()),
+                Ok(None) => crate::saitec::auth::ensure_logged_in()
+                    .err()
+                    .map(|err| err.to_string()),
+                Err(err) => Some(err.to_string()),
+            };
+
+            if let Some(err) = startup_auth_error {
+                self.push_display_message(DisplayMessage::system(format!(
+                    "Saitec login is required before using this TUI. Opening the login form now.\n\n{}",
+                    err
+                )));
+                self.start_jcode_login();
+            }
+        }
+
         loop {
             let desired_redraw = crate::tui::redraw_interval(&self);
             if desired_redraw != redraw_period {
@@ -21,6 +51,10 @@ impl App {
             }
 
             if needs_redraw {
+                crate::cli::terminal::sync_tui_runtime_mouse_capture(
+                    tui_runtime,
+                    self.pending_saitec_login_form().is_some(),
+                )?;
                 if self.force_full_redraw {
                     terminal.clear()?;
                     self.force_full_redraw = false;
@@ -93,7 +127,11 @@ impl App {
     }
 
     /// Run the TUI in remote mode, connecting to a server
-    pub async fn run_remote(mut self, mut terminal: DefaultTerminal) -> Result<RunResult> {
+    pub async fn run_remote(
+        mut self,
+        mut terminal: DefaultTerminal,
+        tui_runtime: &mut crate::cli::terminal::TuiRuntimeState,
+    ) -> Result<RunResult> {
         let mut event_stream = EventStream::new();
         let mut redraw_period = crate::tui::redraw_interval(&self);
         let mut redraw_interval = interval(redraw_period);
@@ -111,6 +149,10 @@ impl App {
                 }
             }
             if needs_redraw {
+                crate::cli::terminal::sync_tui_runtime_mouse_capture(
+                    tui_runtime,
+                    self.pending_saitec_login_form().is_some(),
+                )?;
                 if self.force_full_redraw {
                     terminal.clear()?;
                     self.force_full_redraw = false;
@@ -159,6 +201,10 @@ impl App {
                 }
 
                 if needs_redraw {
+                    crate::cli::terminal::sync_tui_runtime_mouse_capture(
+                        tui_runtime,
+                        self.pending_saitec_login_form().is_some(),
+                    )?;
                     if self.force_full_redraw {
                         terminal.clear()?;
                         self.force_full_redraw = false;

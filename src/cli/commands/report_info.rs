@@ -448,8 +448,8 @@ pub(super) async fn run_usage_command(emit_json: bool) -> Result<()> {
         println!("No connected providers");
         println!();
         println!("Next steps:");
-        println!("- Use `jcode login --provider claude` to connect Claude OAuth.");
-        println!("- Use `jcode login --provider openai` to connect ChatGPT / Codex OAuth.");
+        println!("- Use `jcode login --provider jcode` or `/login` to connect Saitec.");
+        println!("- Use `/account` to review provider-specific auth and settings.");
         return Ok(());
     }
 

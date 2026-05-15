@@ -1020,6 +1020,216 @@ pub fn last_layout_snapshot() -> Option<LayoutSnapshot> {
     }
 }
 
+pub(super) fn should_show_startup_splash(app: &dyn TuiState) -> bool {
+    let no_streaming_output = app.streaming_text().is_empty();
+    let is_initial_empty =
+        app.display_messages().is_empty() && !app.is_processing() && no_streaming_output;
+    let preserve_branded_startup_surface = app.preserve_branded_startup_surface();
+    let is_remote_preconversation_startup =
+        app.is_remote_mode() && app.display_user_message_count() == 0 && no_streaming_output;
+
+    is_initial_empty
+        || preserve_branded_startup_surface
+        || app.remote_startup_phase_active()
+        || is_remote_preconversation_startup
+}
+
+fn startup_logo_asset_path() -> Option<std::path::PathBuf> {
+    const EMBEDDED_STARTUP_LOGO_BYTES: &[u8] = include_bytes!("../../SAITEC_logo.png");
+    static EMBEDDED_STARTUP_LOGO_PATH: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
+
+    fn materialized_embedded_logo_path() -> Option<std::path::PathBuf> {
+        EMBEDDED_STARTUP_LOGO_PATH
+            .get_or_init(|| {
+                let path = std::env::temp_dir()
+                    .join("saitec-tui")
+                    .join("SAITEC_logo.png");
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).ok()?;
+                }
+
+                let needs_write = std::fs::metadata(&path)
+                    .map(|metadata| metadata.len() != EMBEDDED_STARTUP_LOGO_BYTES.len() as u64)
+                    .unwrap_or(true);
+                if needs_write {
+                    std::fs::write(&path, EMBEDDED_STARTUP_LOGO_BYTES).ok()?;
+                }
+
+                Some(path)
+            })
+            .clone()
+    }
+
+    let mut candidates = Vec::new();
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(exe_dir) = exe.parent()
+    {
+        candidates.push(exe_dir.to_path_buf());
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.clone());
+        if let Some(parent) = cwd.parent() {
+            candidates.push(parent.to_path_buf());
+        }
+    }
+
+    for base in candidates {
+        let candidate = base.join("SAITEC_logo.png");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    materialized_embedded_logo_path()
+}
+
+fn startup_logo_region(width: u16) -> Option<ImageRegion> {
+    if crate::saitec::product_profile::prefer_text_startup_logo() {
+        return None;
+    }
+
+    let path = startup_logo_asset_path()?;
+    let (img_width, img_height) = image::image_dimensions(&path).ok()?;
+    let hash = crate::tui::mermaid::register_external_image(&path, img_width, img_height);
+    let estimated_height =
+        crate::tui::mermaid::estimate_image_height(img_width, img_height, width).max(4);
+    Some(ImageRegion {
+        abs_line_idx: 0,
+        end_line: estimated_height as usize,
+        hash,
+        height: estimated_height,
+    })
+}
+
+fn draw_startup_logo(
+    frame: &mut Frame,
+    area: Rect,
+    debug_capture: &mut Option<FrameCaptureBuilder>,
+) -> Option<u16> {
+    if area.width == 0 || area.height == 0 {
+        return None;
+    }
+
+    let Some(region) = startup_logo_region(area.width) else {
+        return None;
+    };
+
+    let render_height = region.height.min(area.height);
+    if render_height == 0 {
+        return None;
+    }
+
+    let image_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: render_height,
+    };
+
+    if let Some(capture) = debug_capture {
+        capture.image_regions.push(ImageRegionCapture {
+            hash: format!("{:016x}", region.hash),
+            abs_line_idx: 0,
+            height: render_height,
+        });
+    }
+
+    crate::tui::mermaid::init_picker();
+    let rows = crate::tui::mermaid::render_image_widget_fit(
+        region.hash,
+        image_area,
+        frame.buffer_mut(),
+        false,
+        false,
+    );
+    if rows > 0 { Some(render_height) } else { None }
+}
+
+fn draw_startup_text_logo(frame: &mut Frame, area: Rect, app: &dyn TuiState) -> u16 {
+    let lines = header::animated_startup_logo_lines(area.width as usize, app.animation_elapsed());
+    let height = lines.len().min(area.height as usize) as u16;
+    if height > 0 {
+        frame.render_widget(
+            Paragraph::new(lines.into_iter().take(height as usize).collect::<Vec<_>>()),
+            Rect {
+                x: area.x,
+                y: area.y,
+                width: area.width,
+                height,
+            },
+        );
+    }
+    height
+}
+
+fn draw_fixed_saitec_shell(
+    frame: &mut Frame,
+    area: Rect,
+    app: &dyn TuiState,
+    debug_capture: &mut Option<FrameCaptureBuilder>,
+) -> (Rect, Rect, Rect) {
+    const FOOTER_HEIGHT: u16 = 2;
+    let logo_height = startup_logo_region(area.width)
+        .map(|region| region.height)
+        .unwrap_or_else(|| header::startup_logo_lines(area.width as usize).len() as u16)
+        .max(1)
+        .min(area.height.saturating_sub(FOOTER_HEIGHT + 3).max(1));
+    let shell_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(logo_height),
+            Constraint::Min(3),
+            Constraint::Length(FOOTER_HEIGHT),
+        ])
+        .split(area);
+
+    let logo_area = shell_chunks[0];
+    let body_area = shell_chunks[1];
+    let footer_area = shell_chunks[2];
+
+    if let Some(capture) = debug_capture.as_mut() {
+        capture.render_order.push("draw_shell_logo".to_string());
+    }
+    let _ = draw_startup_logo(frame, logo_area, debug_capture)
+        .unwrap_or_else(|| draw_startup_text_logo(frame, logo_area, app));
+
+    let (working_dir, model_login, login_status, version) = header::startup_footer_segments(app);
+    let auth = app.auth_status();
+    let working_dir_line =
+        header::startup_working_dir_line(footer_area.width as usize, &working_dir);
+    let footer = header::startup_status_line(
+        footer_area.width as usize,
+        &model_login,
+        header::startup_model_login_state(&auth),
+        &login_status,
+        auth.jcode,
+        &version,
+    );
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(Span::styled(
+                working_dir_line,
+                Style::default().fg(dim_color()),
+            )),
+            footer,
+        ]),
+        footer_area,
+    );
+    if let Some(capture) = debug_capture.as_mut() {
+        capture.render_order.push("draw_shell_footer".to_string());
+        capture.layout.status_area = Some(footer_area.into());
+    }
+
+    let snapshot_area = Rect {
+        x: body_area.x,
+        y: body_area.y,
+        width: body_area.width,
+        height: body_area.height.saturating_add(footer_area.height),
+    };
+
+    (body_area, footer_area, snapshot_area)
+}
+
 #[cfg(test)]
 pub(crate) fn clear_test_render_state_for_tests() {
     set_last_max_scroll(0);
@@ -1642,6 +1852,70 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         None
     };
 
+    let use_fixed_shell_layout = crate::saitec::product_profile::use_fixed_shell_layout();
+    let (shell_content_area, shell_footer_area, shell_snapshot_area) = if use_fixed_shell_layout {
+        let (content_area, footer_area, snapshot_area) =
+            draw_fixed_saitec_shell(frame, area, app, &mut debug_capture);
+        (content_area, Some(footer_area), Some(snapshot_area))
+    } else {
+        (area, None, None)
+    };
+
+    if should_show_startup_splash(app) {
+        let base_prompt_height =
+            input_ui::wrapped_input_line_count(app, shell_content_area.width, 0).min(6) as u16;
+        let prompt_height = base_prompt_height + input_ui::input_hint_line_height(app);
+        let prompt_height = prompt_height.max(1);
+        let prompt_area = Rect {
+            x: shell_content_area.x,
+            y: shell_content_area.y,
+            width: shell_content_area.width,
+            height: prompt_height,
+        };
+
+        if let Some(capture) = debug_capture.as_mut() {
+            capture.layout.use_packed = true;
+            capture.layout.estimated_content_height = prompt_height as usize;
+            capture.layout.messages_area =
+                Some(shell_snapshot_area.unwrap_or(shell_content_area).into());
+            if let Some(footer_area) = shell_footer_area {
+                capture.layout.status_area = Some(footer_area.into());
+            }
+            capture.layout.input_area = Some(prompt_area.into());
+            capture.layout.input_lines_raw = app.input().lines().count().max(1);
+            capture.layout.input_lines_wrapped = prompt_height as usize;
+            capture.render_order.push("draw_startup_input".to_string());
+            capture.rendered_text.input_area = app.input().to_string();
+        }
+
+        input_ui::draw_startup_input(frame, app, prompt_area, &mut debug_capture);
+        if let Some(form) = app.pending_saitec_login_form() {
+            overlays::draw_saitec_login_overlay(
+                frame,
+                shell_content_area,
+                form,
+                app.input(),
+                app.cursor_pos(),
+            );
+        }
+        record_layout_snapshot(
+            shell_snapshot_area.unwrap_or(shell_content_area),
+            None,
+            None,
+            Some(prompt_area),
+        );
+        finalize_frame_metrics(
+            app,
+            total_start,
+            Duration::ZERO,
+            total_start.elapsed(),
+            None,
+        );
+        return;
+    }
+
+    let area = shell_content_area;
+
     // Check diagram display mode and get active diagrams early so we can
     // determine the horizontal split before computing input width etc.
     let diagram_mode = app.diagram_mode();
@@ -1874,9 +2148,10 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     }
     let prep_elapsed = prep_start.elapsed();
     let content_height = prepared.total_wrapped_lines().max(1) as u16;
+    let show_startup_splash = should_show_startup_splash(app);
 
     // Use packed layout when content fits, scrolling layout otherwise
-    let use_packed = content_height + fixed_height <= available_height;
+    let use_packed = !show_startup_splash && content_height + fixed_height <= available_height;
 
     // Layout: messages (includes header), queued, status, notification, inline UI, gap, input, donut
     // All vertical chunks are within the chat_area (left column).
@@ -1992,7 +2267,12 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         capture.layout.messages_area = Some(messages_area.into());
         capture.layout.diagram_area = diagram_area.map(|r| r.into());
     }
-    record_layout_snapshot(messages_area, diagram_area, diff_pane_area, Some(chunks[6]));
+    record_layout_snapshot(
+        shell_snapshot_area.unwrap_or(messages_area),
+        diagram_area,
+        diff_pane_area,
+        Some(chunks[6]),
+    );
 
     let margins = draw_messages(
         frame,
@@ -2104,6 +2384,9 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         user_count + pending_count + 1,
         &mut debug_capture,
     );
+    if let Some(form) = app.pending_saitec_login_form() {
+        overlays::draw_saitec_login_overlay(frame, chat_area, form, app.input(), app.cursor_pos());
+    }
 
     if donut_height > 0 {
         animations::draw_idle_animation(frame, app, chunks[7]);

@@ -104,7 +104,8 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit jcode"),
     RegisteredCommand::public("/auth", "Show authentication status"),
-    RegisteredCommand::public("/login", "Login to a provider"),
+    RegisteredCommand::public("/login", "Choose SAITEC login or base-model configuration"),
+    RegisteredCommand::public("/logout", "Logout from Saitec and clear local auth"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
     RegisteredCommand::public("/accounts", "Alias for /account"),
     RegisteredCommand::public("/cache", "Show cache stats or set cache TTL"),
@@ -268,26 +269,34 @@ impl App {
             .iter()
             .filter(|command| command.autocomplete)
             .filter(|command| !command.remote_only || self.is_remote)
+            .filter(|command| {
+                matches!(
+                    crate::saitec::product_profile::command_visibility(command.name),
+                    crate::saitec::product_profile::CommandVisibility::Public
+                )
+            })
             .filter_map(|command| {
                 let name = command.name.to_string();
                 seen.insert(name.clone()).then_some((name, command.help))
             })
             .collect();
 
-        let skills = self.current_skills_snapshot();
-        push_skill_commands(&mut commands, &mut seen, &skills);
+        if crate::saitec::product_profile::show_skills_in_ui() {
+            let skills = self.current_skills_snapshot();
+            push_skill_commands(&mut commands, &mut seen, &skills);
 
-        // Remote/minimal TUI clients can start with an empty local skill registry,
-        // while direct slash invocation reloads on miss. Mirror that behavior for
-        // autocomplete so project-local skills like `/optimization` are suggested
-        // before the user has activated them once.
-        let working_dir = self
-            .session
-            .working_dir
-            .as_deref()
-            .map(std::path::Path::new);
-        if let Ok(reloaded) = crate::skill::SkillRegistry::load_for_working_dir(working_dir) {
-            push_skill_commands(&mut commands, &mut seen, &reloaded);
+            // Remote/minimal TUI clients can start with an empty local skill registry,
+            // while direct slash invocation reloads on miss. Mirror that behavior for
+            // autocomplete so project-local skills like `/optimization` are suggested
+            // before the user has activated them once.
+            let working_dir = self
+                .session
+                .working_dir
+                .as_deref()
+                .map(std::path::Path::new);
+            if let Ok(reloaded) = crate::skill::SkillRegistry::load_for_working_dir(working_dir) {
+                push_skill_commands(&mut commands, &mut seen, &reloaded);
+            }
         }
 
         commands
@@ -714,11 +723,19 @@ impl App {
             if base == "/auth" {
                 suggestions.push(("/auth doctor".into(), "Diagnose provider auth issues"));
             }
-            suggestions.extend(
-                crate::provider_catalog::tui_login_providers()
-                    .iter()
-                    .map(|provider| (format!("{} {}", base, provider.id), provider.menu_detail)),
-            );
+            suggestions.push((
+                format!("{} jcode", base),
+                crate::provider_catalog::JCODE_LOGIN_PROVIDER.menu_detail,
+            ));
+            if base == "/login" {
+                suggestions.push((
+                    "/login base-models".into(),
+                    "Open the filtered base-model provider picker",
+                ));
+            }
+            for provider in crate::provider_catalog::saitec_visible_base_model_providers() {
+                suggestions.push((format!("{} {}", base, provider.id), provider.menu_detail));
+            }
             return self.rank_suggestions(input, suggestions);
         }
 
@@ -734,16 +751,8 @@ impl App {
                     "/account default-model".into(),
                     "Set preferred default model",
                 ),
-                (
-                    "/account openai-compatible settings".into(),
-                    "Inspect custom OpenAI-compatible settings",
-                ),
-                (
-                    "/account openai-compatible api-base".into(),
-                    "Set custom OpenAI-compatible API base",
-                ),
             ];
-            for provider in crate::provider_catalog::login_providers() {
+            for provider in crate::provider_catalog::saitec_account_providers() {
                 suggestions.push((
                     format!("/account {}", provider.id),
                     "Open this provider's account/settings actions",
@@ -757,8 +766,7 @@ impl App {
                     "Start or refresh login for this provider",
                 ));
             }
-            suggestions.push(("/account claude add".into(), "Add a new Claude account"));
-            suggestions.push(("/account openai add".into(), "Add a new OpenAI account"));
+            suggestions.push(("/account jcode login".into(), "Start the Saitec login flow"));
             suggestions.push((
                 "/account openai transport".into(),
                 "Set OpenAI transport preference",
@@ -766,6 +774,10 @@ impl App {
             suggestions.push((
                 "/account openai effort".into(),
                 "Set OpenAI reasoning effort preference",
+            ));
+            suggestions.push((
+                "/account openai fast".into(),
+                "Set OpenAI fast mode preference",
             ));
             if let Ok(accounts) = crate::auth::claude::list_accounts() {
                 for account in accounts {
@@ -1010,7 +1022,7 @@ impl App {
         }
 
         let auth = crate::auth::AuthStatus::check_fast();
-        if !auth.has_any_available() {
+        if auth.jcode != crate::auth::AuthState::Available {
             return vec![("Log in to get started".to_string(), "/login".to_string())];
         }
 
@@ -1145,6 +1157,7 @@ impl App {
                 | "/?"
                 | "/btw"
                 | "/git"
+                | "/selfdev"
                 | "/transcript"
                 | "/observe"
                 | "/todos"
@@ -1161,7 +1174,9 @@ impl App {
                 | "/account claude"
                 | "/account switch"
                 | "/account openai"
-                | "/account openai-compatible"
+                | "/account zai"
+                | "/account kimi"
+                | "/account alibaba-coding-plan"
                 | "/account default-provider"
                 | "/account default-model"
                 | "/account claude switch"

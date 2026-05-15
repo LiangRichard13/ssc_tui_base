@@ -113,6 +113,172 @@ fn process_remote_followups_respects_disabled_auto_server_reload() {
 }
 
 #[test]
+fn remote_login_form_up_down_moves_between_saitec_fields() {
+    let mut app = create_test_app();
+    app.set_pending_saitec_login_for_tests();
+    app.input = "user@example.com".to_string();
+    app.cursor_pos = app.input.len();
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Down,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("down should move focus to phone");
+
+    match app.pending_login {
+        Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Phone);
+            assert_eq!(form.form.email, "user@example.com");
+            assert_eq!(app.input, "");
+        }
+        ref other => panic!("expected saitec form after remote down navigation: {other:?}"),
+    }
+
+    app.input = "13900139000".to_string();
+    app.cursor_pos = app.input.len();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Up,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("up should move focus back to email");
+
+    match app.pending_login {
+        Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
+            assert_eq!(form.form.email, "user@example.com");
+            assert_eq!(form.form.phone, "13900139000");
+            assert_eq!(app.input, "user@example.com");
+        }
+        ref other => panic!("expected saitec form after remote up navigation: {other:?}"),
+    }
+}
+
+#[test]
+fn remote_login_mode_selector_enter_defaults_to_saitec_form() {
+    let mut app = create_test_app();
+    app.open_login_mode_selector();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("enter should activate the selected login mode");
+
+    match app.pending_login {
+        Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
+        }
+        ref other => panic!("expected Saitec form after remote selector Enter: {other:?}"),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
+fn remote_typed_login_command_opens_login_mode_selector() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    for ch in "/login".chars() {
+        rt.block_on(crate::tui::app::remote::handle_remote_key(
+            &mut app,
+            crossterm::event::KeyCode::Char(ch),
+            crossterm::event::KeyModifiers::empty(),
+            &mut remote,
+        ))
+        .expect("typed login character should be accepted");
+    }
+
+    assert_eq!(app.input(), "/login");
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("enter should handle typed login command");
+
+    assert!(app.is_login_mode_selector_open());
+    assert!(app.input().is_empty());
+}
+
+#[test]
+fn remote_up_recalls_message_that_failed_before_send() {
+    let mut app = create_test_app();
+    app.input = "hello gated remote send".to_string();
+    app.cursor_pos = app.input.len();
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("enter should handle the remote input path");
+
+    assert_eq!(app.input(), "");
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Up,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("up should handle the remote input path");
+
+    assert_eq!(app.input(), "hello gated remote send");
+}
+
+#[test]
+fn disconnected_up_recalls_message_queued_for_reconnect() {
+    let mut app = create_test_app();
+    app.input = "hello reconnect queue".to_string();
+    app.cursor_pos = app.input.len();
+
+    crate::tui::app::remote::handle_disconnected_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+    )
+    .expect("enter should queue input while disconnected");
+
+    assert_eq!(app.input(), "");
+    assert_eq!(app.queued_count(), 1);
+
+    crate::tui::app::remote::handle_disconnected_key(
+        &mut app,
+        crossterm::event::KeyCode::Up,
+        crossterm::event::KeyModifiers::empty(),
+    )
+    .expect("up should recall queued input while disconnected");
+
+    assert_eq!(app.input(), "hello reconnect queue");
+}
+
+#[test]
 fn handle_post_connect_dispatches_reload_followup_even_if_history_snapshot_looks_busy() {
     let _guard = crate::storage::lock_test_env();
     let temp_home = tempfile::TempDir::new().expect("create temp home");

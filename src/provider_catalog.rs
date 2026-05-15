@@ -133,6 +133,33 @@ pub fn active_openai_compatible_display_name() -> Option<String> {
     None
 }
 
+pub fn saitec_visible_base_model_providers() -> Vec<LoginProviderDescriptor> {
+    tui_login_providers()
+        .into_iter()
+        .filter(|provider| {
+            crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
+        })
+        .collect()
+}
+
+pub fn saitec_auth_status_login_providers() -> Vec<LoginProviderDescriptor> {
+    let mut providers = vec![JCODE_LOGIN_PROVIDER];
+    providers.extend(
+        auth_status_login_providers()
+            .into_iter()
+            .filter(|provider| {
+                crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
+            }),
+    );
+    providers
+}
+
+pub fn saitec_account_providers() -> Vec<LoginProviderDescriptor> {
+    let mut providers = vec![JCODE_LOGIN_PROVIDER];
+    providers.extend(saitec_visible_base_model_providers());
+    providers
+}
+
 pub fn runtime_provider_display_name(provider_name: &str) -> String {
     if provider_name.eq_ignore_ascii_case("openrouter") {
         active_openai_compatible_display_name().unwrap_or_else(|| "OpenRouter".to_string())

@@ -1,6 +1,20 @@
 use super::*;
 
 impl App {
+    pub(crate) fn handle_login_command_local(&mut self, input: &str) -> bool {
+        let trimmed = input.trim();
+        if trimmed == "/login"
+            || trimmed.starts_with("/login ")
+            || trimmed == "/auth"
+            || trimmed.starts_with("/auth ")
+            || trimmed == "/logout"
+        {
+            return super::handle_auth_command(self, trimmed);
+        }
+
+        false
+    }
+
     pub(crate) fn open_account_center(&mut self, provider_filter: Option<&str>) {
         use crate::tui::account_picker::{AccountPicker, AccountPickerCommand, AccountPickerItem};
 
@@ -21,7 +35,7 @@ impl App {
                     return;
                 }
             },
-            None => crate::provider_catalog::login_providers().to_vec(),
+            None => crate::provider_catalog::saitec_account_providers(),
         };
 
         let mut items = Vec::new();
@@ -35,37 +49,6 @@ impl App {
         let provider_scope = provider_filter.map(|value| value.to_string());
         let claude_accounts = crate::auth::claude::list_accounts().unwrap_or_default();
         let openai_accounts = crate::auth::codex::list_accounts().unwrap_or_default();
-        let add_replace_scope_supports_multi_account = match provider_scope.as_deref() {
-            None => true,
-            Some("claude" | "anthropic" | "openai") => true,
-            Some(_) => false,
-        };
-
-        if add_replace_scope_supports_multi_account {
-            let scoped_saved_accounts = match provider_scope.as_deref() {
-                Some("claude" | "anthropic") => claude_accounts.len(),
-                Some("openai") => openai_accounts.len(),
-                _ => claude_accounts.len() + openai_accounts.len(),
-            };
-            let detail = if scoped_saved_accounts == 0 {
-                "choose provider, add a new account, or replace an existing saved one".to_string()
-            } else {
-                format!(
-                    "choose provider; {} Claude and {} OpenAI account(s) available",
-                    claude_accounts.len(),
-                    openai_accounts.len()
-                )
-            };
-            items.push(AccountPickerItem::action(
-                "account-flow",
-                "Add / Replace",
-                "Add or replace account",
-                detail,
-                AccountPickerCommand::OpenAddReplaceFlow {
-                    provider_filter: provider_scope.clone(),
-                },
-            ));
-        }
 
         items.push(AccountPickerItem::action(
             provider_scope.as_deref().unwrap_or("auth-doctor"),
@@ -136,13 +119,15 @@ impl App {
                 ),
                 AccountPickerCommand::SubmitInput(format!("/account {} settings", provider.id)),
             ));
-            items.push(AccountPickerItem::action(
-                provider.id,
-                provider.display_name,
-                "Login / refresh",
-                provider.menu_detail,
-                AccountPickerCommand::SubmitInput(format!("/account {} login", provider.id)),
-            ));
+            if provider.id == "jcode" {
+                items.push(AccountPickerItem::action(
+                    provider.id,
+                    provider.display_name,
+                    "Login",
+                    provider.menu_detail,
+                    AccountPickerCommand::SubmitInput("/login jcode".to_string()),
+                ));
+            }
             items.push(AccountPickerItem::action(
                 provider.id,
                 provider.display_name,
@@ -281,7 +266,7 @@ impl App {
             "Default provider",
             cfg.provider.default_provider.as_deref().unwrap_or("auto"),
             AccountPickerCommand::PromptValue {
-                prompt: "Enter the default provider: claude, openai, copilot, gemini, openrouter, or auto.".to_string(),
+                prompt: "Enter the default provider: claude, openai, zai, kimi, alibaba-coding-plan, or auto.".to_string(),
                 command_prefix: "/account default-provider".to_string(),
                 empty_value: Some("auto".to_string()),
                 status_notice: "Account: editing default provider...".to_string(),
@@ -314,73 +299,6 @@ impl App {
         self.input.clear();
         self.cursor_pos = 0;
         self.set_status_notice("Account center: choose an action");
-    }
-
-    pub(crate) fn open_account_add_replace_flow(&mut self, provider_filter: Option<&str>) {
-        use crate::tui::account_picker::{AccountPicker, AccountPickerCommand, AccountPickerItem};
-
-        let mut items = vec![AccountPickerItem::action(
-            "account-flow",
-            "Add / Replace",
-            "Back to account center",
-            "Return to the full provider/auth account center",
-            AccountPickerCommand::OpenAccountCenter {
-                provider_filter: provider_filter.map(|value| value.to_string()),
-            },
-        )];
-
-        let include_claude = provider_filter.is_none()
-            || matches!(provider_filter, Some("claude") | Some("anthropic"));
-        let include_openai = provider_filter.is_none() || matches!(provider_filter, Some("openai"));
-
-        if include_claude {
-            items.push(AccountPickerItem::action(
-                "claude",
-                "Claude",
-                "Add new account",
-                "Create the next numbered Claude account",
-                AccountPickerCommand::SubmitInput("/account claude add".to_string()),
-            ));
-            for account in crate::auth::claude::list_accounts().unwrap_or_default() {
-                let label = account.label.clone();
-                items.push(AccountPickerItem::action(
-                    "claude",
-                    "Claude",
-                    format!("Replace account `{label}`"),
-                    "Refresh this saved Claude account in place",
-                    AccountPickerCommand::SubmitInput(format!("/account claude add {}", label)),
-                ));
-            }
-        }
-
-        if include_openai {
-            items.push(AccountPickerItem::action(
-                "openai",
-                "OpenAI",
-                "Add new account",
-                "Create the next numbered OpenAI account",
-                AccountPickerCommand::SubmitInput("/account openai add".to_string()),
-            ));
-            for account in crate::auth::codex::list_accounts().unwrap_or_default() {
-                let label = account.label.clone();
-                items.push(AccountPickerItem::action(
-                    "openai",
-                    "OpenAI",
-                    format!("Replace account `{label}`"),
-                    "Refresh this saved OpenAI account in place",
-                    AccountPickerCommand::SubmitInput(format!("/account openai add {}", label)),
-                ));
-            }
-        }
-
-        self.account_picker_overlay = Some(std::cell::RefCell::new(AccountPicker::new(
-            " Add / Replace Account ",
-            items,
-        )));
-        self.inline_interactive_state = None;
-        self.input.clear();
-        self.cursor_pos = 0;
-        self.set_status_notice("Account center: choose add/replace target");
     }
 
     pub(crate) fn open_account_picker(&mut self, provider_filter: Option<&str>) {
@@ -474,10 +392,6 @@ impl App {
             .unwrap_or_else(crate::auth::claude::primary_account_label);
         let openai_active = crate::auth::codex::active_account_label()
             .unwrap_or_else(crate::auth::codex::primary_account_label);
-        let next_claude = crate::auth::claude::next_account_label()
-            .unwrap_or_else(|_| crate::auth::claude::primary_account_label());
-        let next_openai = crate::auth::codex::next_account_label()
-            .unwrap_or_else(|_| crate::auth::codex::primary_account_label());
         let now_ms = chrono::Utc::now().timestamp_millis();
         let current_provider = if self.is_remote {
             self.remote_provider_name.clone()
@@ -487,7 +401,7 @@ impl App {
         .unwrap_or_default()
         .to_ascii_lowercase();
 
-        let mut models = Vec::with_capacity(claude_accounts.len() + openai_accounts.len() + 4);
+        let mut models = Vec::with_capacity(claude_accounts.len() + openai_accounts.len() + 1);
         let mut selected = 0usize;
 
         for account in &claude_accounts {
@@ -587,116 +501,6 @@ impl App {
         }
 
         models.push(crate::tui::PickerEntry {
-            name: "new Claude account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "Claude".to_string(),
-                api_method: "new".to_string(),
-                available: true,
-                detail: format!("create {}", next_claude),
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-                provider_id: "claude".to_string(),
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        models.push(crate::tui::PickerEntry {
-            name: "new OpenAI account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "OpenAI".to_string(),
-                api_method: "new".to_string(),
-                available: true,
-                detail: format!("create {}", next_openai),
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-                provider_id: "openai".to_string(),
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        let replace_claude = claude_accounts
-            .iter()
-            .find(|account| account.label == claude_active)
-            .map(|account| account.label.clone())
-            .or_else(|| claude_accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::claude::primary_account_label);
-        models.push(crate::tui::PickerEntry {
-            name: "replace Claude account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "Claude".to_string(),
-                api_method: "replace".to_string(),
-                available: !claude_accounts.is_empty(),
-                detail: if claude_accounts.is_empty() {
-                    "no saved accounts yet".to_string()
-                } else {
-                    format!("refresh {}", replace_claude)
-                },
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-                provider_id: "claude".to_string(),
-                label: replace_claude,
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        let replace_openai = openai_accounts
-            .iter()
-            .find(|account| account.label == openai_active)
-            .map(|account| account.label.clone())
-            .or_else(|| openai_accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::codex::primary_account_label);
-        models.push(crate::tui::PickerEntry {
-            name: "replace OpenAI account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "OpenAI".to_string(),
-                api_method: "replace".to_string(),
-                available: !openai_accounts.is_empty(),
-                detail: if openai_accounts.is_empty() {
-                    "no saved accounts yet".to_string()
-                } else {
-                    format!("refresh {}", replace_openai)
-                },
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-                provider_id: "openai".to_string(),
-                label: replace_openai,
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        models.push(crate::tui::PickerEntry {
             name: "account center".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "Accounts".to_string(),
@@ -730,11 +534,9 @@ impl App {
         let accounts = crate::auth::claude::list_accounts().unwrap_or_default();
         let active_label = crate::auth::claude::active_account_label()
             .unwrap_or_else(crate::auth::claude::primary_account_label);
-        let next_label = crate::auth::claude::next_account_label()
-            .unwrap_or_else(|_| crate::auth::claude::primary_account_label());
         let now_ms = chrono::Utc::now().timestamp_millis();
 
-        let mut models = Vec::with_capacity(accounts.len() + 2);
+        let mut models = Vec::with_capacity(accounts.len() + 1);
         let mut selected = 0usize;
 
         for (index, account) in accounts.iter().enumerate() {
@@ -784,61 +586,6 @@ impl App {
         }
 
         models.push(crate::tui::PickerEntry {
-            name: "new account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "Claude".to_string(),
-                api_method: "new".to_string(),
-                available: true,
-                detail: format!("create {}", next_label),
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-                provider_id: "claude".to_string(),
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        let replace_target = accounts
-            .iter()
-            .find(|account| account.label == active_label)
-            .map(|account| account.label.clone())
-            .or_else(|| accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::claude::primary_account_label);
-        models.push(crate::tui::PickerEntry {
-            name: "replace account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "Claude".to_string(),
-                api_method: "replace".to_string(),
-                available: !accounts.is_empty(),
-                detail: if accounts.is_empty() {
-                    "no saved accounts yet".to_string()
-                } else {
-                    format!("refresh {}", replace_target)
-                },
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-                provider_id: "claude".to_string(),
-                label: replace_target,
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        models.push(crate::tui::PickerEntry {
             name: "account center".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "Claude".to_string(),
@@ -872,11 +619,9 @@ impl App {
         let accounts = crate::auth::codex::list_accounts().unwrap_or_default();
         let active_label = crate::auth::codex::active_account_label()
             .unwrap_or_else(crate::auth::codex::primary_account_label);
-        let next_label = crate::auth::codex::next_account_label()
-            .unwrap_or_else(|_| crate::auth::codex::primary_account_label());
         let now_ms = chrono::Utc::now().timestamp_millis();
 
-        let mut models = Vec::with_capacity(accounts.len() + 2);
+        let mut models = Vec::with_capacity(accounts.len() + 1);
         let mut selected = 0usize;
 
         for (index, account) in accounts.iter().enumerate() {
@@ -926,61 +671,6 @@ impl App {
         }
 
         models.push(crate::tui::PickerEntry {
-            name: "new account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "OpenAI".to_string(),
-                api_method: "new".to_string(),
-                available: true,
-                detail: format!("create {}", next_label),
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Add {
-                provider_id: "openai".to_string(),
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        let replace_target = accounts
-            .iter()
-            .find(|account| account.label == active_label)
-            .map(|account| account.label.clone())
-            .or_else(|| accounts.first().map(|account| account.label.clone()))
-            .unwrap_or_else(crate::auth::codex::primary_account_label);
-        models.push(crate::tui::PickerEntry {
-            name: "replace account".to_string(),
-            options: vec![crate::tui::PickerOption {
-                provider: "OpenAI".to_string(),
-                api_method: "replace".to_string(),
-                available: !accounts.is_empty(),
-                detail: if accounts.is_empty() {
-                    "no saved accounts yet".to_string()
-                } else {
-                    format!("refresh {}", replace_target)
-                },
-                estimated_reference_cost_micros: None,
-            }],
-            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Replace {
-                provider_id: "openai".to_string(),
-                label: replace_target,
-            }),
-            selected_option: 0,
-            is_current: false,
-            is_default: false,
-            recommended: false,
-            recommendation_rank: usize::MAX,
-            old: false,
-            created_date: None,
-            effort: None,
-        });
-
-        models.push(crate::tui::PickerEntry {
             name: "account center".to_string(),
             options: vec![crate::tui::PickerOption {
                 provider: "OpenAI".to_string(),
@@ -1018,13 +708,12 @@ impl App {
             crate::tui::account_picker::AccountPickerCommand::OpenAccountCenter {
                 provider_filter,
             } => self.open_account_center(provider_filter.as_deref()),
-            crate::tui::account_picker::AccountPickerCommand::OpenAddReplaceFlow {
-                provider_filter,
-            } => self.open_account_add_replace_flow(provider_filter.as_deref()),
             crate::tui::account_picker::AccountPickerCommand::SubmitInput(input) => {
-                self.input = input;
-                self.cursor_pos = self.input.len();
-                self.submit_input();
+                if !self.handle_login_command_local(&input) {
+                    self.input = input;
+                    self.cursor_pos = self.input.len();
+                    self.submit_input();
+                }
             }
             crate::tui::account_picker::AccountPickerCommand::PromptValue {
                 prompt,
@@ -1032,25 +721,13 @@ impl App {
                 empty_value,
                 status_notice,
             } => self.prompt_account_value(prompt, command_prefix, empty_value, status_notice),
-            crate::tui::account_picker::AccountPickerCommand::PromptNew { provider } => {
-                match provider {
-                    crate::tui::account_picker::AccountProviderKind::Anthropic => {
-                        self.input = "/account claude add".to_string();
-                        self.cursor_pos = self.input.len();
-                        self.submit_input();
-                    }
-                    crate::tui::account_picker::AccountProviderKind::OpenAi => {
-                        self.input = "/account openai add".to_string();
-                        self.cursor_pos = self.input.len();
-                        self.submit_input();
-                    }
-                }
-            }
             other => {
                 if let Some(input) = Self::account_command_for_picker(&other) {
-                    self.input = input;
-                    self.cursor_pos = self.input.len();
-                    self.submit_input();
+                    if !self.handle_login_command_local(&input) {
+                        self.input = input;
+                        self.cursor_pos = self.input.len();
+                        self.submit_input();
+                    }
                 }
             }
         }
@@ -1086,16 +763,13 @@ impl App {
             AccountPickerCommand::SubmitInput(input) => Some(input.clone()),
             AccountPickerCommand::OpenAccountCenter { .. }
             | AccountPickerCommand::OpenAddReplaceFlow { .. }
-            | AccountPickerCommand::PromptValue { .. }
-            | AccountPickerCommand::PromptNew { .. } => None,
+            | AccountPickerCommand::PromptValue { .. } => None,
+            AccountPickerCommand::PromptNew { .. } => None,
             AccountPickerCommand::Switch { provider, label } => Some(match provider {
                 AccountProviderKind::Anthropic => format!("/account switch {}", label),
                 AccountProviderKind::OpenAi => format!("/account openai switch {}", label),
             }),
-            AccountPickerCommand::Login { provider, label } => Some(match provider {
-                AccountProviderKind::Anthropic => format!("/account claude add {}", label),
-                AccountProviderKind::OpenAi => format!("/account openai add {}", label),
-            }),
+            AccountPickerCommand::Login { .. } => None,
             AccountPickerCommand::Remove { provider, label } => Some(match provider {
                 AccountProviderKind::Anthropic => format!("/account claude remove {}", label),
                 AccountProviderKind::OpenAi => format!("/account openai remove {}", label),

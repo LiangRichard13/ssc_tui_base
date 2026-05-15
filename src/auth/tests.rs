@@ -462,3 +462,44 @@ fn configured_api_key_source_rejects_invalid_values() {
         crate::env::remove_var(file_var);
     }
 }
+
+#[test]
+fn saitec_save_session_syncs_business_api_key_into_env_bridge() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
+        auth_token: None,
+        api_key: "sk-live-test".to_string(),
+        token_type: "Bearer".to_string(),
+        user_id: Some("mock-user".to_string()),
+        email: None,
+        phone: None,
+        display_name: None,
+        api_key_id: None,
+        api_key_name: None,
+        api_key_created_at: None,
+        api_key_expires_at: None,
+        last_validated_at: None,
+    })
+    .expect("save auth");
+
+    assert_eq!(
+        crate::subscription_catalog::configured_api_key().as_deref(),
+        Some("sk-live-test")
+    );
+    assert_eq!(
+        crate::provider_catalog::load_api_key_from_env_or_config(
+            crate::subscription_catalog::JCODE_API_KEY_ENV,
+            crate::subscription_catalog::JCODE_ENV_FILE,
+        )
+        .as_deref(),
+        Some("sk-live-test")
+    );
+
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_api_key);
+}

@@ -797,7 +797,7 @@ impl App {
         } else if reports.is_empty() {
             lines.push("# No connected providers".to_string());
             lines.push(
-                "Use `/login claude` or `/login openai`, then run `/usage` again.".to_string(),
+                "Use `/login` for Saitec access or `/account` to review provider auth, then run `/usage` again.".to_string(),
             );
             return lines.join("\n");
         } else {

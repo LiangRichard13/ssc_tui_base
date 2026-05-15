@@ -7,10 +7,12 @@ use std::time::{Duration, SystemTime};
 
 fn main() {
     let pkg_version = env!("CARGO_PKG_VERSION");
+    let normalized_pkg_version = normalize_semver_string(pkg_version)
+        .unwrap_or_else(|| pkg_version.trim().trim_start_matches('v').to_string());
     let base_version = parse_semver(pkg_version).unwrap_or((0, 0, 0));
-    let build_semver = resolve_build_semver(base_version).unwrap_or_else(|err| {
+    let build_semver = resolve_build_semver(pkg_version, base_version).unwrap_or_else(|err| {
         eprintln!("cargo:warning=failed to resolve auto build semver: {err}");
-        pkg_version.to_string()
+        normalized_pkg_version.clone()
     });
     let (major, minor, patch) = parse_semver(&build_semver).unwrap_or(base_version);
     let base_semver = format!("{}.{}.{}", base_version.0, base_version.1, base_version.2);
@@ -101,7 +103,13 @@ fn main() {
     //   Dirty:   v0.2.17-dev (abc1234, dirty)
     let is_release = std::env::var("JCODE_RELEASE_BUILD").is_ok();
     let version = if is_release {
-        format!("v{}.{}.{} ({})", major, minor, patch, git_hash)
+        format!("v{} ({})", build_semver, git_hash)
+    } else if semver_has_prerelease(&build_semver) {
+        if dirty {
+            format!("v{} ({}, dirty)", build_semver, git_hash)
+        } else {
+            format!("v{} ({})", build_semver, git_hash)
+        }
     } else if dirty {
         format!("v{}.{}.{}-dev ({}, dirty)", major, minor, patch, git_hash)
     } else {
@@ -133,23 +141,50 @@ fn main() {
 
 fn parse_semver(value: &str) -> Option<(u32, u32, u32)> {
     let trimmed = value.trim().trim_start_matches('v');
-    let mut parts = trimmed.split('.');
+    let core = trimmed
+        .split_once('+')
+        .map(|(left, _)| left)
+        .unwrap_or(trimmed);
+    let core = core.split_once('-').map(|(left, _)| left).unwrap_or(core);
+    let mut parts = core.split('.');
     let major = parts.next()?.parse().ok()?;
     let minor = parts.next()?.parse().ok()?;
     let patch = parts.next()?.parse().ok()?;
     Some((major, minor, patch))
 }
 
+fn normalize_semver_string(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_start_matches('v');
+    parse_semver(trimmed)?;
+    Some(trimmed.to_string())
+}
+
+fn semver_has_prerelease(value: &str) -> bool {
+    let trimmed = value.trim().trim_start_matches('v');
+    let core_without_build = trimmed
+        .split_once('+')
+        .map(|(left, _)| left)
+        .unwrap_or(trimmed);
+    core_without_build.contains('-')
+}
+
 fn explicit_build_semver_override() -> Option<String> {
     std::env::var("JCODE_BUILD_SEMVER")
         .ok()
-        .map(|value| value.trim().trim_start_matches('v').to_string())
-        .filter(|value| parse_semver(value).is_some())
+        .and_then(|value| normalize_semver_string(&value))
 }
 
-fn resolve_build_semver(base_version: (u32, u32, u32)) -> Result<String, String> {
+fn resolve_build_semver(
+    pkg_version: &str,
+    base_version: (u32, u32, u32),
+) -> Result<String, String> {
     if let Some(explicit) = explicit_build_semver_override() {
         return Ok(explicit);
+    }
+
+    if semver_has_prerelease(pkg_version) {
+        return normalize_semver_string(pkg_version)
+            .ok_or_else(|| format!("invalid package semver: {pkg_version}"));
     }
 
     let next_patch = next_build_patch(base_version)?;
@@ -327,4 +362,43 @@ fn metadata_value(key: &str) -> Option<String> {
             None
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        normalize_semver_string, parse_semver, resolve_build_semver, semver_has_prerelease,
+    };
+
+    #[test]
+    fn parse_semver_accepts_prerelease_versions() {
+        assert_eq!(parse_semver("1.0.1-alpha"), Some((1, 0, 1)));
+    }
+
+    #[test]
+    fn parse_semver_accepts_build_metadata_versions() {
+        assert_eq!(parse_semver("v1.0.1+build.7"), Some((1, 0, 1)));
+    }
+
+    #[test]
+    fn normalize_semver_preserves_prerelease_label() {
+        assert_eq!(
+            normalize_semver_string("v1.0.1-alpha+build.7"),
+            Some("1.0.1-alpha+build.7".to_string())
+        );
+    }
+
+    #[test]
+    fn prerelease_detection_matches_semver_strings() {
+        assert!(semver_has_prerelease("1.0.1-alpha"));
+        assert!(!semver_has_prerelease("1.0.1+build.7"));
+    }
+
+    #[test]
+    fn resolve_build_semver_keeps_explicit_prerelease_package_version() {
+        assert_eq!(
+            resolve_build_semver("1.0.1-alpha", (1, 0, 1)).ok(),
+            Some("1.0.1-alpha".to_string())
+        );
+    }
 }

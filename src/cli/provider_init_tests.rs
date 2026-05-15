@@ -62,28 +62,9 @@ fn test_server_bootstrap_login_selection_preserves_order() {
     let providers = provider_catalog::server_bootstrap_login_providers();
     assert_eq!(
         resolve_login_selection("1", &providers).map(|provider| provider.id),
-        Some("claude")
-    );
-    assert_eq!(
-        resolve_login_selection("3", &providers).map(|provider| provider.id),
         Some("jcode")
     );
-    assert_eq!(
-        resolve_login_selection("4", &providers).map(|provider| provider.id),
-        Some("copilot")
-    );
-    assert_eq!(
-        resolve_login_selection("10", &providers).map(|provider| provider.id),
-        Some("chutes")
-    );
-    assert_eq!(
-        resolve_login_selection("11", &providers).map(|provider| provider.id),
-        Some("cerebras")
-    );
-    assert_eq!(
-        resolve_login_selection("12", &providers).map(|provider| provider.id),
-        Some("alibaba-coding-plan")
-    );
+    assert!(resolve_login_selection("claude", &providers).is_none());
 }
 
 #[test]
@@ -91,28 +72,9 @@ fn test_auto_init_login_selection_preserves_order() {
     let providers = provider_catalog::auto_init_login_providers();
     assert_eq!(
         resolve_login_selection("1", &providers).map(|provider| provider.id),
-        Some("claude")
+        Some("jcode")
     );
-    assert_eq!(
-        resolve_login_selection("10", &providers).map(|provider| provider.id),
-        Some("alibaba-coding-plan")
-    );
-    assert_eq!(
-        resolve_login_selection("11", &providers).map(|provider| provider.id),
-        Some("cursor")
-    );
-    assert_eq!(
-        resolve_login_selection("12", &providers).map(|provider| provider.id),
-        Some("copilot")
-    );
-    assert_eq!(
-        resolve_login_selection("13", &providers).map(|provider| provider.id),
-        Some("gemini")
-    );
-    assert_eq!(
-        resolve_login_selection("14", &providers).map(|provider| provider.id),
-        Some("antigravity")
-    );
+    assert!(resolve_login_selection("cursor", &providers).is_none());
 }
 
 #[test]
@@ -129,7 +91,7 @@ fn test_init_provider_jcode_delegates_runtime_profile_to_wrapper() {
         .block_on(init_provider(&ProviderChoice::Jcode, None))
         .expect("init jcode provider");
 
-    assert_eq!(provider.name(), "Jcode Subscription");
+    assert_eq!(provider.name(), "Saitec Subscription");
     assert!(crate::subscription_catalog::is_runtime_mode_enabled());
     assert_eq!(
         std::env::var("JCODE_OPENROUTER_MODEL").ok().as_deref(),
@@ -263,10 +225,10 @@ fn parse_login_provider_selection_supports_skip_and_names() {
             .is_none()
     );
     assert_eq!(
-        parse_login_provider_selection_input("claude", &providers)
+        parse_login_provider_selection_input("jcode", &providers)
             .unwrap()
             .map(|provider| provider.id),
-        Some("claude")
+        Some("jcode")
     );
     let first_provider = providers[0].id;
     assert_eq!(
@@ -280,24 +242,16 @@ fn parse_login_provider_selection_supports_skip_and_names() {
 
 #[test]
 fn login_provider_menu_shows_autodetected_auth_and_skip() {
-    let providers = vec![
-        provider_catalog::CLAUDE_LOGIN_PROVIDER,
-        provider_catalog::OPENAI_LOGIN_PROVIDER,
-    ];
+    let providers = vec![provider_catalog::JCODE_LOGIN_PROVIDER];
     let status = auth::AuthStatus {
-        anthropic: auth::ProviderAuth {
-            state: auth::AuthState::Available,
-            has_oauth: true,
-            has_api_key: false,
-        },
+        jcode: auth::AuthState::Available,
         ..Default::default()
     };
 
     let menu = render_login_provider_selection_menu("Choose a provider:", &providers, &status);
     assert!(menu.contains("Autodetected auth:"));
-    assert!(menu.contains("Anthropic/Claude: configured: OAuth"));
+    assert!(menu.contains("Saitec Subscription: configured"));
     assert!(menu.contains("[configured"));
-    assert!(menu.contains("[not configured"));
     assert!(menu.contains("Skip: press Enter"));
 }
 

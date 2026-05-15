@@ -74,7 +74,7 @@ pub(super) fn account_is_active(item: &AccountPickerItem) -> bool {
 }
 
 fn extract_account_label(title: &str) -> Option<String> {
-    let prefixes = ["Switch account `", "Re-login account `", "Remove account `"];
+    let prefixes = ["Switch account `", "Remove account `"];
     for prefix in prefixes {
         if let Some(rest) = title.strip_prefix(prefix)
             && let Some(label) = rest.strip_suffix('`')
@@ -91,9 +91,7 @@ pub(super) fn compact_item_title(item: &AccountPickerItem) -> String {
             extract_account_label(&item.title).unwrap_or_else(|| item.title.clone())
         }
         ActionSection::Add => item.title.clone(),
-        ActionSection::Login => extract_account_label(&item.title)
-            .map(|label| format!("Refresh {label}"))
-            .unwrap_or_else(|| "Login / refresh".to_string()),
+        ActionSection::Login => item.title.clone(),
         ActionSection::Overview => "Provider settings".to_string(),
         ActionSection::Remove => extract_account_label(&item.title)
             .map(|label| format!("Remove {label}"))
@@ -150,7 +148,7 @@ pub(super) fn action_kind_help(command: &AccountPickerCommand) -> &'static str {
             "Returns to the main account center with all provider and saved-auth actions."
         }
         AccountPickerCommand::OpenAddReplaceFlow { .. } => {
-            "Opens a focused chooser where you pick whether to add a new Claude/OpenAI account or replace an existing saved one."
+            "Opens a focused account-management chooser."
         }
         AccountPickerCommand::SubmitInput(input) if input.ends_with(" settings") => {
             "Opens a detailed text summary for this provider, including the exact commands you can run manually."
@@ -159,10 +157,10 @@ pub(super) fn action_kind_help(command: &AccountPickerCommand) -> &'static str {
             "Removes saved credentials for the selected account. Use this when an account is stale or should no longer be available in jcode."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" login") => {
-            "Starts or refreshes authentication for this provider so it becomes usable again."
+            "Starts Saitec login for this build."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" add") => {
-            "Starts the flow for adding the next numbered account, so you can keep multiple identities side by side."
+            "Adds a saved account entry."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" switch ") => {
             "Makes this account active so future requests use it immediately."
@@ -173,9 +171,7 @@ pub(super) fn action_kind_help(command: &AccountPickerCommand) -> &'static str {
         AccountPickerCommand::Switch { .. } => {
             "Switches the active saved account for this provider."
         }
-        AccountPickerCommand::Login { .. } => {
-            "Refreshes the selected account by starting the provider login flow again."
-        }
+        AccountPickerCommand::Login { .. } => "Starts the selected login action.",
         AccountPickerCommand::Remove { .. } => {
             "Deletes the saved account credentials from local storage."
         }
@@ -211,18 +207,12 @@ pub(super) fn command_preview(command: &AccountPickerCommand) -> String {
             AccountProviderKind::Anthropic => format!("/account switch {}", label),
             AccountProviderKind::OpenAi => format!("/account openai switch {}", label),
         },
-        AccountPickerCommand::Login { provider, label } => match provider {
-            AccountProviderKind::Anthropic => format!("/account claude add {}", label),
-            AccountProviderKind::OpenAi => format!("/account openai add {}", label),
-        },
+        AccountPickerCommand::Login { .. } => "Starts login".to_string(),
         AccountPickerCommand::Remove { provider, label } => match provider {
             AccountProviderKind::Anthropic => format!("/account claude remove {}", label),
             AccountProviderKind::OpenAi => format!("/account openai remove {}", label),
         },
-        AccountPickerCommand::PromptNew { provider } => match provider {
-            AccountProviderKind::Anthropic => "/account claude add".to_string(),
-            AccountProviderKind::OpenAi => "/account openai add".to_string(),
-        },
+        AccountPickerCommand::PromptNew { .. } => "Prompt for new account".to_string(),
     }
 }
 

@@ -5,9 +5,17 @@ use std::panic;
 use crate::{id, session, telemetry, tui};
 
 pub struct TuiRuntimeState {
-    mouse_capture: bool,
+    mouse_capture_configured: bool,
+    mouse_capture_enabled: bool,
     keyboard_enhanced: bool,
     focus_change: bool,
+}
+
+fn should_enable_mouse_capture(
+    mouse_capture_configured: bool,
+    saitec_login_overlay_visible: bool,
+) -> bool {
+    mouse_capture_configured && !saitec_login_overlay_visible
 }
 
 pub fn set_current_session(session_id: &str) {
@@ -112,7 +120,7 @@ pub fn init_tui_runtime() -> Result<(ratatui::DefaultTerminal, TuiRuntimeState)>
     crate::tui::mermaid::init_picker();
 
     let perf_policy = crate::perf::tui_policy();
-    let mouse_capture = perf_policy.enable_mouse_capture;
+    let mouse_capture_configured = perf_policy.enable_mouse_capture;
     let focus_change = perf_policy.enable_focus_change;
     let keyboard_enhanced = if perf_policy.enable_keyboard_enhancement {
         tui::enable_keyboard_enhancement()
@@ -124,18 +132,38 @@ pub fn init_tui_runtime() -> Result<(ratatui::DefaultTerminal, TuiRuntimeState)>
     if focus_change {
         crossterm::execute!(std::io::stdout(), crossterm::event::EnableFocusChange)?;
     }
-    if mouse_capture {
+    if mouse_capture_configured {
         crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
     }
 
     Ok((
         terminal,
         TuiRuntimeState {
-            mouse_capture,
+            mouse_capture_configured,
+            mouse_capture_enabled: mouse_capture_configured,
             keyboard_enhanced,
             focus_change,
         },
     ))
+}
+
+pub fn sync_tui_runtime_mouse_capture(
+    state: &mut TuiRuntimeState,
+    saitec_login_overlay_visible: bool,
+) -> Result<()> {
+    let desired =
+        should_enable_mouse_capture(state.mouse_capture_configured, saitec_login_overlay_visible);
+    if desired == state.mouse_capture_enabled {
+        return Ok(());
+    }
+
+    if desired {
+        crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+    } else {
+        crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
+    }
+    state.mouse_capture_enabled = desired;
+    Ok(())
 }
 
 pub fn cleanup_tui_runtime(state: &TuiRuntimeState, restore_terminal: bool) {
@@ -144,7 +172,7 @@ pub fn cleanup_tui_runtime(state: &TuiRuntimeState, restore_terminal: bool) {
         if state.focus_change {
             let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableFocusChange);
         }
-        if state.mouse_capture {
+        if state.mouse_capture_enabled {
             let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
         }
         if state.keyboard_enhanced {
@@ -309,5 +337,20 @@ mod tests {
         } else {
             panic!("Session ID should be set");
         }
+    }
+
+    #[test]
+    fn test_saitec_login_overlay_disables_mouse_capture_even_when_configured() {
+        assert!(!should_enable_mouse_capture(true, true));
+    }
+
+    #[test]
+    fn test_mouse_capture_stays_enabled_without_saitec_login_overlay() {
+        assert!(should_enable_mouse_capture(true, false));
+    }
+
+    #[test]
+    fn test_mouse_capture_stays_disabled_when_config_turns_it_off() {
+        assert!(!should_enable_mouse_capture(false, false));
     }
 }

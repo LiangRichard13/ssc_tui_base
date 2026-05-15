@@ -498,6 +498,45 @@ fn test_centered_mode_centers_rules_as_blocks() {
 }
 
 #[test]
+fn test_render_table_with_width_pads_missing_trailing_cells_to_preserve_alignment() {
+    let rows = vec![
+        vec![
+            "NAME".to_string(),
+            "STATUS".to_string(),
+            "COUNT".to_string(),
+        ],
+        vec!["alpha".to_string(), "running".to_string()],
+        vec!["beta-longer".to_string(), "idle".to_string(), "3".to_string()],
+    ];
+
+    let lines = render_table_with_width(&rows, 60);
+    let rendered: Vec<String> = lines.iter().map(line_to_string).collect();
+    let non_empty: Vec<&String> = rendered.iter().filter(|line| !line.is_empty()).collect();
+
+    assert!(
+        non_empty.len() >= 4,
+        "expected header, separator, and data rows: {:?}",
+        rendered
+    );
+
+    let widths: Vec<usize> = non_empty
+        .iter()
+        .map(|line| UnicodeWidthStr::width(line.as_str()))
+        .collect();
+    assert!(
+        widths.windows(2).all(|pair| pair[0] == pair[1]),
+        "expected all rendered table rows to share the same width, got {:?} for {:?}",
+        widths,
+        rendered
+    );
+    assert!(
+        non_empty[2].contains("running"),
+        "expected first data row to remain readable: {:?}",
+        rendered
+    );
+}
+
+#[test]
 fn test_centered_mode_keeps_lists_left_aligned() {
     let saved = center_code_blocks();
     set_center_code_blocks(true);

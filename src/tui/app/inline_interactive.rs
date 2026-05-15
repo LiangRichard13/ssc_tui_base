@@ -1120,6 +1120,15 @@ impl App {
             return Ok(false);
         }
         match code {
+            KeyCode::Enter
+                if self
+                    .inline_interactive_state
+                    .as_ref()
+                    .is_some_and(|picker| picker.kind == PickerKind::Login)
+                    && self.input.trim() == "/login" =>
+            {
+                Ok(false)
+            }
             KeyCode::Down => {
                 if let Some(picker) = self.inline_interactive_state.as_mut() {
                     let max = picker.filtered.len().saturating_sub(1);
