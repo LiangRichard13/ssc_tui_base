@@ -914,6 +914,56 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     assert!(!text.contains("Azure"), "rendered picker:\n{text}");
 }
 
+#[test]
+fn test_filtered_login_picker_mouse_click_starts_selected_provider_login() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/login base-models".to_string();
+        app.submit_input();
+    });
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("filtered login picker draw should succeed");
+
+    let picker_cell = app
+        .login_picker_overlay
+        .as_ref()
+        .expect("login picker overlay should be open");
+    let picker = picker_cell.borrow();
+    let list_area = picker
+        .debug_provider_list_area_for_tests()
+        .expect("render should record provider list area");
+    drop(picker);
+
+    let handled = rt.block_on(async {
+        app.handle_mouse_event(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: list_area.x + 1,
+            row: list_area.y + 1,
+            modifiers: KeyModifiers::empty(),
+        })
+    });
+
+    assert!(!handled, "clicks should request an immediate redraw");
+    assert!(
+        app.login_picker_overlay.is_none(),
+        "clicking a provider should close the picker and start its login flow"
+    );
+    assert!(
+        app.pending_login.is_some()
+            || app
+                .display_messages()
+                .iter()
+                .any(|msg| msg.content.contains("OpenAI")),
+        "clicking the first provider should start the OpenAI login flow"
+    );
+}
 
 #[test]
 fn test_login_base_models_command_opens_filtered_login_picker() {

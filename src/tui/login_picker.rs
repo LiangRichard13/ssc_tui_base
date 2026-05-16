@@ -164,6 +164,11 @@ impl LoginPicker {
         })
     }
 
+    #[cfg(test)]
+    pub fn debug_provider_list_area_for_tests(&self) -> Option<Rect> {
+        self.last_provider_list_area
+    }
+
     fn selected_item(&self) -> Option<&LoginPickerItem> {
         self.filtered
             .get(self.selected)
@@ -260,9 +265,9 @@ impl LoginPicker {
         Ok(OverlayAction::Continue)
     }
 
-    pub fn handle_overlay_mouse(&mut self, mouse: MouseEvent) {
+    pub fn handle_overlay_mouse(&mut self, mouse: MouseEvent) -> OverlayAction {
         let Some(list_inner) = self.last_provider_list_area else {
-            return;
+            return OverlayAction::Continue;
         };
         let inside_list = mouse.column >= list_inner.x
             && mouse.column < list_inner.x.saturating_add(list_inner.width)
@@ -272,18 +277,26 @@ impl LoginPicker {
         match mouse.kind {
             MouseEventKind::ScrollUp if inside_list => {
                 self.selected = self.selected.saturating_sub(1);
+                OverlayAction::Continue
             }
             MouseEventKind::ScrollDown if inside_list => {
                 let max = self.filtered.len().saturating_sub(1);
                 self.selected = (self.selected + 1).min(max);
+                OverlayAction::Continue
             }
-            MouseEventKind::Down(MouseButton::Left) if inside_list => {
+            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Up(MouseButton::Left)
+                if inside_list =>
+            {
                 let row = mouse.row.saturating_sub(list_inner.y);
                 if let Some(visible_idx) = self.visible_index_for_list_row(row, list_inner.height) {
                     self.selected = visible_idx;
+                    if let Some(item) = self.selected_item() {
+                        return OverlayAction::Execute(item.provider);
+                    }
                 }
+                OverlayAction::Continue
             }
-            _ => {}
+            _ => OverlayAction::Continue,
         }
     }
 
@@ -957,13 +970,14 @@ mod tests {
         let list_area = picker
             .last_provider_list_area
             .expect("render should record provider list area");
-        picker.handle_overlay_mouse(MouseEvent {
+        let action = picker.handle_overlay_mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: list_area.x + 1,
             row: list_area.y + 1,
             modifiers: KeyModifiers::empty(),
         });
 
+        assert!(matches!(action, OverlayAction::Execute(provider) if provider.id == "claude"));
         assert_eq!(
             picker.selected_item().map(|item| item.provider.id),
             Some("claude")

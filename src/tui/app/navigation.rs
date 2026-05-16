@@ -747,7 +747,17 @@ impl App {
             return false;
         }
         if let Some(ref picker_cell) = self.login_picker_overlay {
-            picker_cell.borrow_mut().handle_overlay_mouse(mouse);
+            let action = picker_cell.borrow_mut().handle_overlay_mouse(mouse);
+            match action {
+                crate::tui::login_picker::OverlayAction::Continue => {}
+                crate::tui::login_picker::OverlayAction::Close => {
+                    self.login_picker_overlay = None;
+                }
+                crate::tui::login_picker::OverlayAction::Execute(provider) => {
+                    self.login_picker_overlay = None;
+                    self.start_login_provider(provider);
+                }
+            }
             return false;
         }
         if let Some(ref picker_cell) = self.account_picker_overlay {
