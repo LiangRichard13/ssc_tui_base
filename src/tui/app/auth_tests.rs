@@ -418,6 +418,31 @@ fn api_key_login_escape_closes_text_entry_overlay() {
 }
 
 #[test]
+fn kimi_api_key_login_success_keeps_chat_input_available() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let mut app = create_test_app();
+
+    app.start_login_provider(crate::provider_catalog::KIMI_LOGIN_PROVIDER);
+    let pending = app.pending_login.take().expect("pending Kimi login");
+    app.handle_login_input(pending, "kimi-test-key".to_string());
+
+    assert!(
+        app.pending_login.is_none(),
+        "successful Kimi login should finish the pending login flow"
+    );
+    assert!(
+        app.inline_interactive_state.is_none(),
+        "successful Kimi login should not trap the user inside the model picker"
+    );
+
+    app.handle_key(KeyCode::Char('h'), KeyModifiers::empty())
+        .expect("typing should still reach the chat input");
+    assert_eq!(app.input(), "h");
+}
+
+#[test]
 fn login_jcode_command_shows_visible_saitec_login_prompt_message() {
     let mut app = create_test_app();
     app.input = "/login jcode".to_string();

@@ -1841,10 +1841,10 @@ impl App {
                             )
                         } else if let Some(resolved) = resolved_openai_compatible.as_ref() {
                             if resolved.requires_api_key {
-                                "Fetching models now. Jcode will switch to an accessible model and open `/model` when the catalog is ready. If the model list looks stale, run `/refresh-model-list`.".to_string()
+                                "Fetching models now. Jcode will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.".to_string()
                             } else {
                                 format!(
-                                    "Local endpoint configured at `{}`. Fetching models now; Jcode will switch to an accessible model and open `/model` when the catalog is ready. If the model list looks stale, run `/refresh-model-list`.",
+                                    "Local endpoint configured at `{}`. Fetching models now; Jcode will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.",
                                     endpoint.as_deref().unwrap_or(resolved.api_base.as_str()),
                                 )
                             }
@@ -2040,7 +2040,6 @@ impl App {
     fn start_openai_compatible_post_login_activation(&mut self, provider_label: String) {
         self.set_status_notice(format!("{}: fetching models...", provider_label));
         self.invalidate_model_picker_cache();
-        self.open_model_picker();
 
         // Make the newly saved OpenAI-compatible credentials usable in this
         // session immediately. The normal LoginCompleted path also calls this,
@@ -2089,14 +2088,14 @@ impl App {
                                             session_id,
                                             model: model.clone(),
                                             message: format!(
-                                                "**{} is ready.**\n\nFetched model catalog: +{} models, +{} routes, ~{} changed.\nSwitched to `{}`. The model picker is open so you can choose another accessible model.\n\nIf the model list ever looks stale, run `/refresh-model-list`.",
+                                                "**{} is ready.**\n\nFetched model catalog: +{} models, +{} routes, ~{} changed.\nSwitched to `{}`.\n\nIf you want to browse other accessible models, open `/model`. If the model list ever looks stale, run `/refresh-model-list`.",
                                                 provider_label,
                                                 summary.models_added,
                                                 summary.routes_added,
                                                 summary.routes_changed,
                                                 model
                                             ),
-                                            open_picker: true,
+                                            open_picker: false,
                                         },
                                     );
                                 }
@@ -2132,11 +2131,11 @@ impl App {
                                             session_id,
                                             model: default_model.clone(),
                                             message: format!(
-                                                "**{} is ready.**\n\nThe live model catalog did not produce a selectable route yet, so Jcode selected the documented default `{}`. Run `/refresh-model-list` later to retry live discovery.",
+                                                "**{} is ready.**\n\nThe live model catalog did not produce a selectable route yet, so Jcode selected the documented default `{}`. Open `/model` if you want to inspect the current choices, or run `/refresh-model-list` later to retry live discovery.",
                                                 provider_label,
                                                 default_model
                                             ),
-                                            open_picker: true,
+                                            open_picker: false,
                                         },
                                     );
                                 }
