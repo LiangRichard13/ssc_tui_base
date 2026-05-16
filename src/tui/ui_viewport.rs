@@ -613,7 +613,7 @@ pub(super) fn draw_messages(
                     vec![
                         Line::from(vec![
                             Span::styled(num_str.clone(), dim_style.fg(dim_color()).bg(user_bg())),
-                            Span::styled("› ", dim_style.fg(user_color()).bg(user_bg())),
+                            Span::styled("> ", dim_style.fg(user_color()).bg(user_bg())),
                             Span::styled(text_flat, dim_style.fg(user_text()).bg(user_bg())),
                         ])
                         .alignment(align),
@@ -626,7 +626,7 @@ pub(super) fn draw_messages(
 
                     let first = Line::from(vec![
                         Span::styled(num_str.clone(), dim_style.fg(dim_color()).bg(user_bg())),
-                        Span::styled("› ", dim_style.fg(user_color()).bg(user_bg())),
+                        Span::styled("> ", dim_style.fg(user_color()).bg(user_bg())),
                         Span::styled(
                             format!("{} ...", head.trim_end()),
                             dim_style.fg(user_text()).bg(user_bg()),

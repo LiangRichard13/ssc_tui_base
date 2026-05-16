@@ -259,6 +259,10 @@ fn startup_splash_shows_login_tab_completion_hint_before_first_message() {
         rendered.contains("Tab: +2 more"),
         "startup splash should show the Tab cycling hint for additional /login completions: {rendered}"
     );
+    assert!(
+        !rendered.contains('›'),
+        "startup splash should avoid the Windows-hostile prompt glyph: {rendered}"
+    );
 }
 
 #[test]

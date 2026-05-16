@@ -78,9 +78,9 @@ fn test_scroll_render_bottom() {
         "expected filler content at bottom position"
     );
     // Should have scroll indicator or prompt preview since content extends above viewport.
-    // The prompt preview (N›) renders on top of the ↑ indicator, so check for either.
+    // The prompt preview (N>) renders on top of the ↑ indicator, so check for either.
     assert!(
-        text.contains('↑') || text.contains('›'),
+        text.contains('↑') || text.contains('>'),
         "expected ↑ indicator or prompt preview when content extends above viewport"
     );
 }
@@ -141,8 +141,13 @@ fn test_prompt_preview_reserves_rows_without_overwriting_visible_history() {
     let text = render_and_snap(&app, &mut terminal);
 
     assert!(
-        text.contains("1›"),
+        text.contains("1>"),
         "expected sticky prompt preview, got:\n{}",
+        text
+    );
+    assert!(
+        !text.contains('›'),
+        "prompt preview should avoid the Windows-hostile prompt glyph, got:\n{}",
         text
     );
     assert!(
@@ -151,8 +156,8 @@ fn test_prompt_preview_reserves_rows_without_overwriting_visible_history() {
         text
     );
     assert!(
-        text.contains("Intro line 20"),
-        "latest visible content should remain visible below preview, got:\n{}",
+        text.contains("lazy dog."),
+        "history body should remain visible below preview, got:\n{}",
         text
     );
 }

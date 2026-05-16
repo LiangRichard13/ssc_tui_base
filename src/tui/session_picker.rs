@@ -882,7 +882,7 @@ impl SessionPicker {
                                 format!("{}", prompt_num),
                                 Style::default().fg(user_color),
                             ),
-                            Span::styled("› ", Style::default().fg(user_color)),
+                            Span::styled("> ", Style::default().fg(user_color)),
                             Span::styled(display_msg.content, Style::default().fg(user_text)),
                         ])
                         .alignment(align),

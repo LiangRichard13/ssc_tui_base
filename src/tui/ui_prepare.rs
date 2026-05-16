@@ -71,6 +71,8 @@ fn user_prompt_text_style() -> Style {
     Style::default().fg(user_text()).bg(user_bg())
 }
 
+const USER_PROMPT_PREFIX: &str = "> ";
+
 fn default_message_alignment(role: &str, centered: bool) -> ratatui::layout::Alignment {
     if centered
         && !matches!(
@@ -558,11 +560,11 @@ pub(super) fn prepare_body_incremental(
                 let prompt_width = unicode_width::UnicodeWidthStr::width(msg.content.as_str());
                 let prefix_width =
                     unicode_width::UnicodeWidthStr::width(prompt_num.to_string().as_str())
-                        + unicode_width::UnicodeWidthStr::width("› ");
+                        + unicode_width::UnicodeWidthStr::width(USER_PROMPT_PREFIX);
                 new_lines.push(
                     Line::from(vec![
                         Span::styled(format!("{}", prompt_num), Style::default().fg(num_color)),
-                        Span::styled("› ", Style::default().fg(user_color())),
+                        Span::styled(USER_PROMPT_PREFIX, Style::default().fg(user_color())),
                         Span::styled(msg.content.clone(), Style::default().fg(user_text())),
                     ])
                     .alignment(align),
@@ -1002,14 +1004,14 @@ pub(super) fn prepare_body(
                 let prompt_width = unicode_width::UnicodeWidthStr::width(msg.content.as_str());
                 let prefix_width =
                     unicode_width::UnicodeWidthStr::width(prompt_num.to_string().as_str())
-                        + unicode_width::UnicodeWidthStr::width("› ");
+                        + unicode_width::UnicodeWidthStr::width(USER_PROMPT_PREFIX);
                 lines.push(
                     Line::from(vec![
                         Span::styled(
                             format!("{}", prompt_num),
                             user_prompt_number_style(num_color),
                         ),
-                        Span::styled("› ", user_prompt_accent_style()),
+                        Span::styled(USER_PROMPT_PREFIX, user_prompt_accent_style()),
                         Span::styled(msg.content.clone(), user_prompt_text_style()),
                     ])
                     .alignment(align),
