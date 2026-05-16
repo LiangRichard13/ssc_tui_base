@@ -238,7 +238,7 @@ async fn handle_remote_key_internal(
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
 
-    if input::handle_pending_saitec_login_key(app, code, modifiers) {
+    if input::handle_pending_login_key(app, code, modifiers) {
         return Ok(());
     }
 

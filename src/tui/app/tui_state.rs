@@ -632,10 +632,11 @@ impl crate::tui::TuiState for App {
                     },
                     detail_lines,
                     footer_hint: if *api_key_optional {
-                        "Enter saves the key, or saves an empty value to skip. Type /cancel to abort."
+                        "Enter saves the key, or saves an empty value to skip. Press Esc or type /cancel to abort."
                             .to_string()
                     } else {
-                        "Enter saves the key securely. Type /cancel to abort.".to_string()
+                        "Enter saves the key securely. Press Esc or type /cancel to abort."
+                            .to_string()
                     },
                     mask_input: true,
                 })
@@ -650,7 +651,7 @@ impl crate::tui::TuiState for App {
                         format!("Current API base: `{}`", resolved.api_base),
                     ],
                     footer_hint:
-                        "Enter keeps the current value when empty, or saves the pasted base. Type /cancel to abort."
+                        "Enter keeps the current value when empty, or saves the pasted base. Press Esc or type /cancel to abort."
                             .to_string(),
                     mask_input: false,
                 })
@@ -662,7 +663,9 @@ impl crate::tui::TuiState for App {
                     "Setup docs: https://cursor.com/settings".to_string(),
                     "Dashboard > Integrations > User API Keys".to_string(),
                 ],
-                footer_hint: "Enter saves the key securely. Type /cancel to abort.".to_string(),
+                footer_hint:
+                    "Enter saves the key securely. Press Esc or type /cancel to abort."
+                        .to_string(),
                 mask_input: true,
             }),
             _ => None,

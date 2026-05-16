@@ -64,3 +64,56 @@ fn test_local_bus_dictation_completion_applies_transcript() {
     assert_eq!(app.input, "draft dictated text");
     assert_eq!(app.status_notice(), Some("Transcript appended".to_string()));
 }
+
+#[test]
+fn test_remote_api_key_login_escape_closes_text_entry_overlay() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    app.set_pending_api_key_login_for_tests("kimi", "Kimi", "KIMI_API_KEY");
+    app.input = "secret-api-key".to_string();
+    app.cursor_pos = app.input.len();
+
+    rt.block_on(app.handle_remote_key(KeyCode::Esc, KeyModifiers::empty(), &mut remote))
+        .expect("esc should close the remote API-key login overlay");
+
+    assert!(
+        app.pending_login.is_none(),
+        "remote API-key login should be dismissed by esc"
+    );
+    assert_eq!(app.input(), "");
+    let last = app
+        .display_messages()
+        .last()
+        .expect("missing cancellation message");
+    assert!(last.content.contains("Login cancelled."));
+}
+
+#[test]
+fn test_remote_up_arrow_walks_back_through_multiple_history_entries() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    app.input = "first prompt".to_string();
+    app.submit_input();
+    app.input = "second prompt".to_string();
+    app.submit_input();
+    app.input = "third prompt".to_string();
+    app.submit_input();
+
+    rt.block_on(app.handle_remote_key(KeyCode::Up, KeyModifiers::empty(), &mut remote))
+        .expect("first up should recall the newest history entry in remote mode");
+    assert_eq!(app.input(), "third prompt");
+
+    rt.block_on(app.handle_remote_key(KeyCode::Up, KeyModifiers::empty(), &mut remote))
+        .expect("second up should continue walking backward in remote mode");
+    assert_eq!(app.input(), "second prompt");
+
+    rt.block_on(app.handle_remote_key(KeyCode::Up, KeyModifiers::empty(), &mut remote))
+        .expect("third up should reach the oldest entry in remote mode");
+    assert_eq!(app.input(), "first prompt");
+}

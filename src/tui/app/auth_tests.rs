@@ -376,6 +376,48 @@ fn recalled_failed_plain_message_returns_to_fresh_input_on_down_arrow() {
 }
 
 #[test]
+fn repeated_up_arrow_walks_back_through_multiple_history_entries() {
+    let mut app = create_test_app();
+    app.input = "first prompt".to_string();
+    app.submit_input();
+    app.input = "second prompt".to_string();
+    app.submit_input();
+    app.input = "third prompt".to_string();
+    app.submit_input();
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("first up should recall the newest history entry");
+    assert_eq!(app.input(), "third prompt");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("second up should continue walking backward");
+    assert_eq!(app.input(), "second prompt");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("third up should reach the oldest entry");
+    assert_eq!(app.input(), "first prompt");
+}
+
+#[test]
+fn api_key_login_escape_closes_text_entry_overlay() {
+    let mut app = create_test_app();
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+    app.input = "secret-api-key".to_string();
+    app.cursor_pos = app.input.len();
+
+    app.handle_key(KeyCode::Esc, KeyModifiers::empty())
+        .expect("esc should close the API-key login overlay");
+
+    assert!(app.pending_login.is_none(), "API-key login should be dismissed by esc");
+    assert_eq!(app.input(), "");
+    let last = app
+        .display_messages()
+        .last()
+        .expect("missing cancellation message");
+    assert!(last.content.contains("Login cancelled."));
+}
+
+#[test]
 fn login_jcode_command_shows_visible_saitec_login_prompt_message() {
     let mut app = create_test_app();
     app.input = "/login jcode".to_string();

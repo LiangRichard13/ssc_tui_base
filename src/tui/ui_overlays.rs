@@ -303,7 +303,7 @@ pub(super) fn draw_pending_text_entry_overlay(
                 .add_modifier(Modifier::BOLD),
         ))
         .title_bottom(Line::from(Span::styled(
-            " Enter submits · /cancel aborts ",
+            " Enter submits · Esc or /cancel aborts ",
             Style::default().fg(dim_color()),
         )))
         .borders(Borders::ALL)

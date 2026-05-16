@@ -738,7 +738,11 @@ pub(super) fn handle_submitted_input_recall_key(
     }
 
     match code {
-        KeyCode::Up if app.input.is_empty() => recall_submitted_input(app, true),
+        KeyCode::Up
+            if app.input.is_empty() || app.submitted_input_history.recall_index.is_some() =>
+        {
+            recall_submitted_input(app, true)
+        }
         KeyCode::Down if app.submitted_input_history.recall_index.is_some() => {
             recall_submitted_input(app, false)
         }
@@ -1271,7 +1275,7 @@ pub(super) fn handle_modal_key(
     modifiers: KeyModifiers,
 ) -> Result<bool> {
     if app.pending_login.is_some() {
-        return Ok(handle_pending_saitec_login_key(app, code, modifiers));
+        return Ok(handle_pending_login_key(app, code, modifiers));
     }
 
     if app.changelog_scroll.is_some() {
@@ -1325,6 +1329,55 @@ pub(super) fn handle_modal_key(
     }
 
     Ok(false)
+}
+
+pub(super) fn handle_pending_login_key(
+    app: &mut App,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    if handle_pending_saitec_login_key(app, code, modifiers) {
+        return true;
+    }
+
+    let has_text_entry_login = matches!(
+        app.pending_login.as_ref(),
+        Some(
+            super::auth::PendingLogin::ApiKeyProfile { .. }
+                | super::auth::PendingLogin::OpenAiCompatibleApiBase { .. }
+                | super::auth::PendingLogin::CursorApiKey
+        )
+    );
+    if !has_text_entry_login {
+        return false;
+    }
+
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+
+    match code {
+        KeyCode::Esc => {
+            if let Some(pending) = app.pending_login.take()
+                && let Some((provider, method)) = pending.telemetry_context()
+            {
+                crate::telemetry::record_auth_cancelled(&provider, &method);
+            }
+            app.input.clear();
+            app.cursor_pos = 0;
+            app.clear_input_undo_history();
+            app.reset_tab_completion();
+            app.sync_model_picker_preview_from_input();
+            app.push_display_message(DisplayMessage::system("Login cancelled.".to_string()));
+            app.set_status_notice("Login cancelled");
+            true
+        }
+        KeyCode::Enter => {
+            app.submit_input();
+            true
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn handle_pending_saitec_login_key(
