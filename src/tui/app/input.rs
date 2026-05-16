@@ -1295,16 +1295,6 @@ pub(super) fn handle_modal_key(
     }
 
     if app.account_picker_overlay.is_some() {
-        if code == KeyCode::Up
-            && !modifiers.contains(KeyModifiers::CONTROL)
-            && !modifiers.contains(KeyModifiers::ALT)
-            && app.input.is_empty()
-            && app.is_login_mode_selector_open()
-            && recall_submitted_input(app, true)
-        {
-            app.account_picker_overlay = None;
-            return Ok(true);
-        }
         if let Some(command) = app.next_account_picker_action(code, modifiers)? {
             app.handle_account_picker_command(command);
         }

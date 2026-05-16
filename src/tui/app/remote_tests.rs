@@ -191,6 +191,57 @@ fn remote_login_mode_selector_enter_defaults_to_saitec_form() {
 }
 
 #[test]
+fn remote_login_mode_selector_up_after_down_returns_to_saitec_without_closing_selector() {
+    let mut app = create_test_app();
+    app.open_login_mode_selector();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Down,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("down should move the selector to Base models");
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Up,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("up should move back to SAITEC inside the selector");
+
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "up navigation should keep the login mode selector open remotely"
+    );
+    assert!(app.pending_login.is_none());
+    assert_eq!(app.input(), "");
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("enter should activate SAITEC after navigating back up");
+
+    match app.pending_login {
+        Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
+        }
+        ref other => panic!("unexpected pending login state after remote selector up/down navigation: {other:?}"),
+    }
+    assert!(app.account_picker_overlay.is_none());
+}
+
+#[test]
 fn remote_typed_login_command_opens_login_mode_selector() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().expect("runtime");

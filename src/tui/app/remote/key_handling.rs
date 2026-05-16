@@ -259,13 +259,6 @@ async fn handle_remote_key_internal(
     }
 
     if app.account_picker_overlay.is_some() {
-        if app.input.is_empty()
-            && app.is_login_mode_selector_open()
-            && input::handle_submitted_input_recall_key(app, code, modifiers)
-        {
-            app.account_picker_overlay = None;
-            return Ok(());
-        }
         if let Some(command) = app.next_account_picker_action(code, modifiers)? {
             app.handle_account_picker_command_remote(remote, command)
                 .await?;

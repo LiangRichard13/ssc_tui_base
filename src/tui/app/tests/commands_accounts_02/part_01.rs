@@ -660,19 +660,39 @@ fn test_login_mode_selector_clears_stale_saitec_form_before_entering_saitec_bran
 }
 
 #[test]
-fn test_login_mode_selector_up_recalls_last_submitted_command() {
+fn test_login_mode_selector_up_after_down_returns_to_saitec_without_closing_selector() {
     let mut app = create_test_app();
     app.input = "/login".to_string();
     app.submit_input();
 
     assert!(app.account_picker_overlay.is_some());
 
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move the selector to Base models");
     app.handle_key(KeyCode::Up, KeyModifiers::empty())
-        .expect("up should recall the previous input from the login selector");
+        .expect("up should move back to SAITEC inside the selector");
 
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "up navigation should keep the login mode selector open"
+    );
+    assert!(app.pending_login.is_none());
+    assert_eq!(app.input(), "");
+    assert_eq!(app.cursor_pos, 0);
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate SAITEC after navigating back up");
+
+    match app.pending_login {
+        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
+            assert_eq!(
+                form.focus,
+                crate::tui::app::auth::SaitecLoginField::Email
+            );
+        }
+        ref other => panic!("unexpected pending login state after selector up/down navigation: {other:?}"),
+    }
     assert!(app.account_picker_overlay.is_none());
-    assert_eq!(app.input(), "/login");
-    assert_eq!(app.cursor_pos, app.input().len());
 }
 
 #[test]
@@ -893,6 +913,7 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     assert!(!text.contains("Bedrock"), "rendered picker:\n{text}");
     assert!(!text.contains("Azure"), "rendered picker:\n{text}");
 }
+
 
 #[test]
 fn test_login_base_models_command_opens_filtered_login_picker() {
