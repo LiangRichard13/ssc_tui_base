@@ -570,7 +570,15 @@ impl crate::tui::TuiState for App {
     }
 
     fn preserve_branded_startup_surface(&self) -> bool {
-        matches!(self.pending_login, Some(PendingLogin::SaitecForm { .. }))
+        matches!(
+            self.pending_login,
+            Some(
+                PendingLogin::SaitecForm { .. }
+                    | PendingLogin::ApiKeyProfile { .. }
+                    | PendingLogin::OpenAiCompatibleApiBase { .. }
+                    | PendingLogin::CursorApiKey
+            )
+        )
             && self.display_user_message_count == 0
             && self.streaming_text.is_empty()
             && self
@@ -582,6 +590,81 @@ impl crate::tui::TuiState for App {
     fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
         match self.pending_login.as_ref() {
             Some(PendingLogin::SaitecForm { form }) => Some(form),
+            _ => None,
+        }
+    }
+
+    fn pending_text_entry_overlay(&self) -> Option<crate::tui::PendingTextEntryOverlay> {
+        match self.pending_login.as_ref()? {
+            PendingLogin::ApiKeyProfile {
+                provider,
+                docs_url,
+                key_name,
+                default_model,
+                endpoint,
+                api_key_optional,
+                ..
+            } => {
+                let mut detail_lines = vec![
+                    format!("Setup docs: {}", docs_url),
+                    format!("Stored variable: `{}`", key_name),
+                ];
+                if let Some(endpoint) = endpoint {
+                    detail_lines.push(format!("Endpoint: `{}`", endpoint));
+                }
+                if let Some(default_model) = default_model {
+                    detail_lines.push(format!("Suggested default model: `{}`", default_model));
+                }
+                Some(crate::tui::PendingTextEntryOverlay {
+                    title: format!(
+                        "{} {}",
+                        provider,
+                        if *api_key_optional {
+                            "Local Endpoint"
+                        } else {
+                            "API Key"
+                        }
+                    ),
+                    field_label: if *api_key_optional {
+                        "API Key (optional)".to_string()
+                    } else {
+                        "API Key".to_string()
+                    },
+                    detail_lines,
+                    footer_hint: if *api_key_optional {
+                        "Enter saves the key, or saves an empty value to skip. Type /cancel to abort."
+                            .to_string()
+                    } else {
+                        "Enter saves the key securely. Type /cancel to abort.".to_string()
+                    },
+                    mask_input: true,
+                })
+            }
+            PendingLogin::OpenAiCompatibleApiBase { profile } => {
+                let resolved = crate::provider_catalog::resolve_openai_compatible_profile(*profile);
+                Some(crate::tui::PendingTextEntryOverlay {
+                    title: format!("{} Endpoint", resolved.display_name),
+                    field_label: "API Base".to_string(),
+                    detail_lines: vec![
+                        format!("Setup docs: {}", resolved.setup_url),
+                        format!("Current API base: `{}`", resolved.api_base),
+                    ],
+                    footer_hint:
+                        "Enter keeps the current value when empty, or saves the pasted base. Type /cancel to abort."
+                            .to_string(),
+                    mask_input: false,
+                })
+            }
+            PendingLogin::CursorApiKey => Some(crate::tui::PendingTextEntryOverlay {
+                title: "Cursor API Key".to_string(),
+                field_label: "API Key".to_string(),
+                detail_lines: vec![
+                    "Setup docs: https://cursor.com/settings".to_string(),
+                    "Dashboard > Integrations > User API Keys".to_string(),
+                ],
+                footer_hint: "Enter saves the key securely. Type /cancel to abort.".to_string(),
+                mask_input: true,
+            }),
             _ => None,
         }
     }

@@ -110,6 +110,27 @@ impl App {
         });
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_pending_api_key_login_for_tests(
+        &mut self,
+        provider_id: &str,
+        provider: &str,
+        key_name: &str,
+    ) {
+        self.pending_login = Some(super::auth::PendingLogin::ApiKeyProfile {
+            provider_id: provider_id.to_string(),
+            provider: provider.to_string(),
+            auth_method: "api_key".to_string(),
+            docs_url: "https://example.com/docs".to_string(),
+            env_file: "test.env".to_string(),
+            key_name: key_name.to_string(),
+            default_model: None,
+            endpoint: Some("https://example.com/v1".to_string()),
+            api_key_optional: false,
+            openai_compatible_profile: None,
+        });
+    }
+
     fn new_for_replay_with_title(session: crate::session::Session, set_title: bool) -> Self {
         let provider: Arc<dyn Provider> =
             Arc::new(InertRuntimeProvider::new(AppRuntimeMode::Replay));

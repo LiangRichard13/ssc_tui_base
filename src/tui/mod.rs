@@ -56,6 +56,15 @@ pub(crate) fn scheduled_notification_text(
     Some(format!("⏰ next scheduled task {}{}", next, suffix))
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PendingTextEntryOverlay {
+    pub title: String,
+    pub field_label: String,
+    pub detail_lines: Vec<String>,
+    pub footer_hint: String,
+    pub mask_input: bool,
+}
+
 pub(crate) use self::core::DisplayMessageRoleExt;
 pub use jcode_tui_core::{
     CopySelectionPane, CopySelectionPoint, CopySelectionRange, CopySelectionStatus,
@@ -186,6 +195,13 @@ pub trait TuiState {
     /// Pending SAITEC business-login form state when the login overlay should render.
     fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
         None
+    }
+    /// Pending text-entry login flow (API key, API base, etc.) rendered as a modal overlay.
+    fn pending_text_entry_overlay(&self) -> Option<PendingTextEntryOverlay> {
+        None
+    }
+    fn input_hidden_for_login(&self) -> bool {
+        self.pending_saitec_login_form().is_some() || self.pending_text_entry_overlay().is_some()
     }
     /// Whether mouse-wheel smoothing has queued lines to animate.
     fn has_pending_mouse_scroll_animation(&self) -> bool {

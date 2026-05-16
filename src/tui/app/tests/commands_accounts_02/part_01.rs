@@ -761,6 +761,63 @@ fn test_login_mode_selector_mouse_click_opens_base_models_picker() {
 }
 
 #[test]
+fn test_login_mode_selector_click_does_not_immediately_activate_base_model_provider_on_mouse_up() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    app.input = "/login".to_string();
+    app.submit_input();
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("login selector draw should succeed");
+
+    let down_handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 32,
+        row: 18,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!down_handled, "clicks should request an immediate redraw");
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "mouse down should open the filtered base-model login picker"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "opening the base-model picker should not already start a provider login flow"
+    );
+
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("base-model picker draw should succeed");
+
+    let up_handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Up(MouseButton::Left),
+        column: 32,
+        row: 18,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!up_handled, "mouse up should request an immediate redraw");
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "the mouse-up event from the original click should not immediately close the new picker"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "the original click should not leak into the provider picker and start a login flow"
+    );
+    assert!(
+        !app.should_quit,
+        "opening the second-level login picker should never trigger app exit"
+    );
+}
+
+#[test]
 fn test_login_mode_selector_mouse_up_opens_saitec_form() {
     use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
@@ -966,6 +1023,90 @@ fn test_filtered_login_picker_mouse_click_starts_selected_provider_login() {
 }
 
 #[test]
+fn test_filtered_login_picker_mouse_up_after_click_keeps_zai_api_key_login_open() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/login base-models".to_string();
+        app.submit_input();
+    });
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("filtered login picker draw should succeed");
+
+    let picker_cell = app
+        .login_picker_overlay
+        .as_ref()
+        .expect("login picker overlay should be open");
+    let picker = picker_cell.borrow();
+    let list_area = picker
+        .debug_provider_list_area_for_tests()
+        .expect("render should record provider list area");
+    drop(picker);
+
+    let zai_row = list_area.y + 2;
+    let click_col = list_area.x + 1;
+
+    let handled_down = rt.block_on(async {
+        app.handle_mouse_event(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: click_col,
+            row: zai_row,
+            modifiers: KeyModifiers::empty(),
+        })
+    });
+
+    assert!(!handled_down, "clicks should request an immediate redraw");
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider,
+            provider_id,
+            ..
+        }) => {
+            assert_eq!(provider, "Z.AI");
+            assert_eq!(provider_id, "zai");
+        }
+        other => panic!("expected Z.AI API-key login after mouse down, got: {other:?}"),
+    }
+    assert!(app.login_picker_overlay.is_none());
+
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let handled_up = rt.block_on(async {
+        app.handle_mouse_event(MouseEvent {
+            kind: MouseEventKind::Up(MouseButton::Left),
+            column: click_col,
+            row: zai_row,
+            modifiers: KeyModifiers::empty(),
+        })
+    });
+
+    assert!(!handled_up, "mouse up should request an immediate redraw");
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider,
+            provider_id,
+            ..
+        }) => {
+            assert_eq!(provider, "Z.AI");
+            assert_eq!(provider_id, "zai");
+        }
+        other => panic!("Z.AI API-key login should remain open after mouse up, got: {other:?}"),
+    }
+    assert!(
+        !app.should_quit,
+        "clicking into Z.AI login should not trigger app exit"
+    );
+}
+
+#[test]
 fn test_login_base_models_command_opens_filtered_login_picker() {
     let mut app = create_test_app();
     app.input = "/login base-models".to_string();
@@ -1166,6 +1307,113 @@ fn test_account_openai_login_starts_allowed_base_model_login() {
     assert!(app.pending_login.is_some() || app.display_messages().iter().any(|msg| {
         msg.content.contains("OpenAI")
     }));
+}
+
+#[test]
+fn test_account_zai_login_starts_allowed_base_model_login() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/account zai login".to_string();
+        app.submit_input();
+    });
+
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider,
+            provider_id,
+            ..
+        }) => {
+            assert_eq!(provider, "Z.AI");
+            assert_eq!(provider_id, "zai");
+        }
+        other => panic!("expected Z.AI login flow, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_account_kimi_login_starts_allowed_base_model_login() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/account kimi login".to_string();
+        app.submit_input();
+    });
+
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider,
+            provider_id,
+            ..
+        }) => {
+            assert_eq!(provider, "Kimi Code");
+            assert_eq!(provider_id, "kimi");
+        }
+        other => panic!("expected Kimi login flow, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_account_alibaba_login_starts_allowed_base_model_login() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        app.input = "/account alibaba-coding-plan login".to_string();
+        app.submit_input();
+    });
+
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider,
+            provider_id,
+            ..
+        }) => {
+            assert_eq!(provider, "Alibaba Cloud Coding Plan");
+            assert_eq!(provider_id, "alibaba-coding-plan");
+        }
+        other => panic!("expected Alibaba login flow, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_api_key_login_overlay_keeps_zai_login_visible_and_masks_live_input() {
+    let mut app = create_test_app();
+    let live_key = "secret-api-key";
+    app.input = live_key.to_string();
+    app.cursor_pos = live_key.len();
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+
+    let backend = ratatui::backend::TestBackend::new(100, 28);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let buf = terminal.backend().buffer();
+    let width = buf.area.width as usize;
+    let height = buf.area.height as usize;
+    let mut rendered_lines = Vec::with_capacity(height);
+    for y in 0..height {
+        let mut line = String::with_capacity(width);
+        for x in 0..width {
+            line.push_str(buf[(x as u16, y as u16)].symbol());
+        }
+        rendered_lines.push(line);
+    }
+    let rendered = rendered_lines.join("\n");
+
+    assert!(
+        rendered.contains("Z.AI API Key"),
+        "api-key login should stay visibly open instead of dropping back to chat: {rendered}"
+    );
+    assert!(
+        !rendered.contains(live_key),
+        "api-key login should not leak the live key into the normal composer: {rendered}"
+    );
+    assert!(
+        rendered.contains("**************"),
+        "api-key login overlay should mask the live key while typing: {rendered}"
+    );
 }
 
 #[test]

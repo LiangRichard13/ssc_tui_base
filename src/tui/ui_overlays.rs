@@ -224,6 +224,117 @@ pub(super) fn draw_saitec_login_overlay(
     }
 }
 
+pub(super) fn draw_pending_text_entry_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    overlay: &crate::tui::PendingTextEntryOverlay,
+    live_input: &str,
+    live_cursor_pos: usize,
+) {
+    let width = area.width.min(78).max(50);
+    let inner_width = width.saturating_sub(2) as usize;
+    let masked_input = if overlay.mask_input {
+        "*".repeat(live_input.chars().count())
+    } else {
+        live_input.to_string()
+    };
+
+    let mut lines: Vec<Line<'static>> = overlay
+        .detail_lines
+        .iter()
+        .flat_map(|line| {
+            markdown::wrap_line(
+                Line::from(Span::styled(
+                    format!(" {}", line),
+                    Style::default().fg(rgb(180, 185, 195)),
+                )),
+                inner_width.max(1),
+            )
+        })
+        .collect();
+
+    if !lines.is_empty() {
+        lines.push(Line::from(""));
+    }
+
+    let field_row = lines.len() as u16;
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!(" {} ", overlay.field_label),
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            if masked_input.is_empty() {
+                " ".to_string()
+            } else {
+                masked_input.clone()
+            },
+            Style::default().fg(rgb(235, 235, 245)),
+        ),
+    ]));
+    lines.push(Line::from(""));
+    lines.extend(markdown::wrap_line(
+        Line::from(Span::styled(
+            format!(" {}", overlay.footer_hint),
+            Style::default().fg(dim_color()),
+        )),
+        inner_width.max(1),
+    ));
+    let cursor_row = popup_cursor_row(field_row);
+
+    let desired_height =
+        (6usize + lines.len()).min(area.height.saturating_sub(2).max(8) as usize);
+    let height = desired_height.max(8) as u16;
+    let popup = Rect {
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    clear_area(frame, popup);
+
+    let block = Block::default()
+        .title(Span::styled(
+            format!(" {} ", overlay.title),
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ))
+        .title_bottom(Line::from(Span::styled(
+            " Enter submits · /cancel aborts ",
+            Style::default().fg(dim_color()),
+        )))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(rgb(90, 120, 110)));
+
+    frame.render_widget(
+        Paragraph::new(lines).block(block).wrap(Wrap { trim: false }),
+        popup,
+    );
+
+    let cursor_char_pos = crate::tui::core::byte_offset_to_char_index(live_input, live_cursor_pos);
+    let cursor_prefix = masked_input
+        .chars()
+        .take(cursor_char_pos)
+        .collect::<String>();
+    let label = format!(" {} ", overlay.field_label);
+    let cursor_x = popup.x
+        + 1
+        + UnicodeWidthStr::width(label.as_str()) as u16
+        + UnicodeWidthStr::width(cursor_prefix.as_str()) as u16;
+    let cursor_y = popup.y + 1 + cursor_row;
+    frame.set_cursor_position(Position::new(
+        cursor_x.min(popup.x + popup.width.saturating_sub(2)),
+        cursor_y.min(popup.y + popup.height.saturating_sub(2)),
+    ));
+}
+
+fn popup_cursor_row(field_row: u16) -> u16 {
+    field_row
+}
+
 pub(super) fn draw_changelog_overlay(frame: &mut Frame, area: Rect, scroll: usize) {
     clear_area(frame, area);
 

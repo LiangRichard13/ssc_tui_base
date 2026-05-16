@@ -1336,7 +1336,7 @@ pub(super) fn draw_input(
     next_prompt: usize,
     debug_capture: &mut Option<FrameCaptureBuilder>,
 ) {
-    let input_hidden_for_login = app.pending_saitec_login_form().is_some();
+    let input_hidden_for_login = app.input_hidden_for_login();
     let input_text = if input_hidden_for_login {
         ""
     } else {
@@ -1531,7 +1531,7 @@ pub(super) fn draw_startup_input(
     area: Rect,
     debug_capture: &mut Option<FrameCaptureBuilder>,
 ) {
-    let input_hidden_for_login = app.pending_saitec_login_form().is_some();
+    let input_hidden_for_login = app.input_hidden_for_login();
     let input_text = if input_hidden_for_login {
         ""
     } else {

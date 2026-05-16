@@ -1897,6 +1897,14 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
                 app.input(),
                 app.cursor_pos(),
             );
+        } else if let Some(overlay) = app.pending_text_entry_overlay() {
+            overlays::draw_pending_text_entry_overlay(
+                frame,
+                shell_content_area,
+                &overlay,
+                app.input(),
+                app.cursor_pos(),
+            );
         }
         record_layout_snapshot(
             shell_snapshot_area.unwrap_or(shell_content_area),
@@ -2386,6 +2394,14 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
     );
     if let Some(form) = app.pending_saitec_login_form() {
         overlays::draw_saitec_login_overlay(frame, chat_area, form, app.input(), app.cursor_pos());
+    } else if let Some(overlay) = app.pending_text_entry_overlay() {
+        overlays::draw_pending_text_entry_overlay(
+            frame,
+            chat_area,
+            &overlay,
+            app.input(),
+            app.cursor_pos(),
+        );
     }
 
     if donut_height > 0 {
