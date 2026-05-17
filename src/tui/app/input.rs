@@ -1412,26 +1412,20 @@ pub(super) fn handle_pending_saitec_login_key(
             true
         }
         KeyCode::Up => {
-            if app.input.is_empty()
-                && matches!(
-                    app.pending_login.as_ref(),
-                    Some(super::auth::PendingLogin::SaitecForm { form })
-                        if form.focus == super::auth::SaitecLoginField::Email
-                )
-                && recall_submitted_input(app, true)
-            {
-                return true;
-            }
-            if app.input.is_empty()
-                && matches!(
-                    app.pending_login.as_ref(),
-                    Some(super::auth::PendingLogin::SaitecForm { form })
-                        if form.focus == super::auth::SaitecLoginField::Email
-                )
-            {
-                crate::logging::info(
-                    "login-debug: Up on empty Email field did not recall history; falling back to field navigation",
-                );
+            let recall_allowed = matches!(
+                app.pending_login.as_ref(),
+                Some(super::auth::PendingLogin::SaitecForm { form })
+                    if form.focus == super::auth::SaitecLoginField::Email
+            ) && (app.input.is_empty() || app.submitted_input_history.recall_index.is_some());
+            if recall_allowed {
+                if recall_submitted_input(app, true) {
+                    return true;
+                }
+                if app.input.is_empty() {
+                    crate::logging::info(
+                        "login-debug: Up on empty Email field did not recall history; falling back to field navigation",
+                    );
+                }
             }
             if app.commit_input_to_pending_saitec_form()
                 && let Some(super::auth::PendingLogin::SaitecForm { form }) =
@@ -1445,6 +1439,14 @@ pub(super) fn handle_pending_saitec_login_key(
             true
         }
         KeyCode::Down => {
+            let recall_allowed = matches!(
+                app.pending_login.as_ref(),
+                Some(super::auth::PendingLogin::SaitecForm { form })
+                    if form.focus == super::auth::SaitecLoginField::Email
+            ) && app.submitted_input_history.recall_index.is_some();
+            if recall_allowed && recall_submitted_input(app, false) {
+                return true;
+            }
             if app.commit_input_to_pending_saitec_form()
                 && let Some(super::auth::PendingLogin::SaitecForm { form }) =
                     app.pending_login.as_mut()

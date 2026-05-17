@@ -340,6 +340,26 @@ fn saitec_pending_login_up_recalls_last_submitted_login_command_when_form_is_emp
 }
 
 #[test]
+fn saitec_pending_login_repeated_up_continues_history_recall_after_first_match() {
+    let mut app = create_test_app();
+    app.input = "first prompt".to_string();
+    app.submit_input();
+    app.input = "/login jcode".to_string();
+    app.submit_input();
+
+    app.input.clear();
+    app.cursor_pos = 0;
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("first up should recall the newest history entry");
+    assert_eq!(app.input(), "/login jcode");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("second up should continue walking backward inside the login form");
+    assert_eq!(app.input(), "first prompt");
+}
+
+#[test]
 fn failed_plain_message_submission_can_be_recalled_with_up_arrow() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
