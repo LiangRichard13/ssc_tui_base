@@ -585,10 +585,8 @@ fn test_enter_on_login_preview_submits_login_command_and_opens_selector() {
     app.input = "/login".to_string();
     app.sync_model_picker_preview_from_input();
     assert!(
-        app.inline_interactive_state
-            .as_ref()
-            .is_some_and(|picker| picker.preview),
-        "login preview should be open before pressing Enter"
+        app.inline_interactive_state.is_none(),
+        "exact /login should not open the inline login preview"
     );
 
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
@@ -596,7 +594,7 @@ fn test_enter_on_login_preview_submits_login_command_and_opens_selector() {
 
     assert!(
         app.account_picker_overlay.is_some() || app.pending_login.is_some(),
-        "enter on /login preview should submit the command instead of doing nothing"
+        "enter on exact /login should submit the command"
     );
     assert!(app.inline_interactive_state.is_none());
 
@@ -605,6 +603,22 @@ fn test_enter_on_login_preview_submits_login_command_and_opens_selector() {
         assert_eq!(app.input(), "");
         assert_eq!(app.cursor_pos, 0);
     }
+}
+
+#[test]
+fn test_exact_login_typing_keeps_inline_login_preview_closed() {
+    let mut app = create_test_app();
+
+    for c in "/login".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+            .expect("type /login");
+    }
+
+    assert!(
+        app.inline_interactive_state.is_none(),
+        "typing exact /login should not show the ITEM/PROVIDER/ACTION preview"
+    );
+    assert_eq!(app.input(), "/login");
 }
 
 #[test]

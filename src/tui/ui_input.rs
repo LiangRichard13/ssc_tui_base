@@ -115,7 +115,7 @@ fn build_input_hint_lines(
             let mut spans = vec![Span::styled("  Tab: ", Style::default().fg(dim_color()))];
             for (i, (cmd, desc)) in limited.iter().enumerate() {
                 if i > 0 {
-                    spans.push(Span::styled(" 鈹?", Style::default().fg(dim_color())));
+                    spans.push(Span::styled(" | ", Style::default().fg(dim_color())));
                 }
                 spans.push(Span::styled(
                     cmd.to_string(),
@@ -145,7 +145,7 @@ fn build_input_hint_lines(
         )));
     } else if app.next_prompt_new_session_armed() {
         hint_shown = true;
-        let hint = "  鈫?Next prompt opens a new session";
+        let hint = "  -> Next prompt opens a new session";
         hint_line = Some(hint.trim().to_string());
         lines.push(Line::from(Span::styled(
             hint,

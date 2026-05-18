@@ -858,10 +858,8 @@ fn test_model_picker_preview_filter_parsing() {
 
 #[test]
 fn test_login_picker_preview_filter_parsing() {
-    assert_eq!(
-        App::login_picker_preview_filter("/login"),
-        Some(String::new())
-    );
+    assert_eq!(App::login_picker_preview_filter("/login"), None);
+    assert_eq!(App::login_picker_preview_filter("/login   "), None);
     assert_eq!(
         App::login_picker_preview_filter("/login   jcode"),
         Some("jcode".to_string())

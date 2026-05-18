@@ -266,6 +266,70 @@ fn startup_splash_shows_login_tab_completion_hint_before_first_message() {
 }
 
 #[test]
+fn startup_splash_multiple_suggestions_use_ascii_separator() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "/lo".to_string(),
+        cursor_pos: "/lo".len(),
+        command_suggestions: vec![
+            ("/login".to_string(), "Login"),
+            ("/logout".to_string(), "Logout"),
+            ("/logs".to_string(), "Logs"),
+        ],
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("/login (Login)"),
+        "startup splash should show the first suggestion, got: {rendered}"
+    );
+    assert!(
+        rendered.contains(" | /logout"),
+        "startup splash should use an ASCII separator between suggestions, got: {rendered}"
+    );
+    assert!(
+        !rendered.contains("鈹?"),
+        "startup splash should not show corrupted separator text, got: {rendered}"
+    );
+}
+
+#[test]
+fn startup_splash_new_session_hint_uses_ascii_arrow() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        input: "draft prompt".to_string(),
+        cursor_pos: "draft prompt".len(),
+        next_prompt_new_session_armed: true,
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("startup splash draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("-> Next prompt opens a new session"),
+        "startup splash should show the ASCII new-session hint, got: {rendered}"
+    );
+    assert!(
+        !rendered.contains("鈫?"),
+        "startup splash should not show corrupted arrow text, got: {rendered}"
+    );
+}
+
+#[test]
 fn startup_splash_renders_png_logo_without_external_asset_file() {
     let _guard = viewport_snapshot_test_lock();
     let _env_guard = crate::storage::lock_test_env();
@@ -663,6 +727,7 @@ struct TestState {
     auth_status: crate::auth::AuthStatus,
     pending_saitec_login_form: Option<crate::tui::app::SaitecPendingForm>,
     command_suggestions: Vec<(String, &'static str)>,
+    next_prompt_new_session_armed: bool,
 }
 
 impl crate::tui::TuiState for TestState {
@@ -826,7 +891,7 @@ impl crate::tui::TuiState for TestState {
         self.queue_mode
     }
     fn next_prompt_new_session_armed(&self) -> bool {
-        false
+        self.next_prompt_new_session_armed
     }
     fn has_stashed_input(&self) -> bool {
         false

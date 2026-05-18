@@ -10,7 +10,8 @@ impl App {
     }
 
     pub(crate) fn login_picker_preview_filter(input: &str) -> Option<String> {
-        slash_command_preview_filter(input, &["/login"])
+        let filter = slash_command_preview_filter(input, &["/login"])?;
+        (!filter.is_empty()).then_some(filter)
     }
 
     fn account_picker_preview_request(&self, input: &str) -> Option<InlinePickerPreviewRequest> {
