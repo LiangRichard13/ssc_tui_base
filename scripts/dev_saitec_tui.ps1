@@ -16,6 +16,7 @@ function Write-Info([string]$Message) {
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $SupportScriptPath = Join-Path $PSScriptRoot "dev_saitec_tui_support.ps1"
 . $SupportScriptPath
+$cargoCommand = Resolve-DevCargoCommand
 
 $buildArtifacts = Get-DevBuildArtifactPaths `
     -RepoRootPath $RepoRoot `
@@ -68,8 +69,8 @@ if (-not $NoBuild) {
     }
     $cargoArgs += @("-p", "jcode", "--bin", "jcode")
 
-    Write-Info ("Building SAITEC dev runtime with: cargo " + ($cargoArgs -join " "))
-    & cargo @cargoArgs
+    Write-Info ("Building SAITEC dev runtime with: " + $cargoCommand + " " + ($cargoArgs -join " "))
+    & $cargoCommand @cargoArgs
     if ($LASTEXITCODE -ne 0) {
         throw "cargo build failed with exit code $LASTEXITCODE"
     }

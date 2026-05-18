@@ -1,5 +1,29 @@
 Set-StrictMode -Version Latest
 
+function Resolve-DevCargoCommand {
+    $cargoCommand = Get-Command cargo -ErrorAction SilentlyContinue
+    if ($null -ne $cargoCommand -and -not [string]::IsNullOrWhiteSpace($cargoCommand.Source)) {
+        return $cargoCommand.Source
+    }
+
+    $candidatePaths = @(
+        (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"),
+        (Join-Path $env:HOME ".cargo\bin\cargo.exe")
+    )
+
+    foreach ($candidate in $candidatePaths) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "cargo was not found on PATH and no fallback cargo.exe was found under the current user's .cargo\bin directory."
+}
+
 function Get-DevBuildArtifactPaths {
     param(
         [string]$RepoRootPath,

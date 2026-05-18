@@ -45,6 +45,37 @@ Describe "Get-DevBuildArtifactPaths" {
     }
 }
 
+Describe "Resolve-DevCargoCommand" {
+    It "falls back to the user's cargo.exe when cargo is not on PATH" {
+        $originalPath = $env:Path
+        $fallbackRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("saitec-cargo-fallback-test-" + [guid]::NewGuid().ToString("N"))
+        $fallbackHome = Join-Path $fallbackRoot "home"
+        $fallbackCargoDir = Join-Path $fallbackHome ".cargo\bin"
+        $fallbackCargoExe = Join-Path $fallbackCargoDir "cargo.exe"
+        $originalUserProfile = $env:USERPROFILE
+        $originalHome = $env:HOME
+
+        try {
+            New-Item -ItemType Directory -Path $fallbackCargoDir -Force | Out-Null
+            New-Item -ItemType File -Path $fallbackCargoExe -Force | Out-Null
+
+            $env:Path = "C:\definitely-missing-from-path"
+            $env:USERPROFILE = $fallbackHome
+            $env:HOME = $fallbackHome
+
+            Resolve-DevCargoCommand | Should Be $fallbackCargoExe
+        } finally {
+            $env:Path = $originalPath
+            $env:USERPROFILE = $originalUserProfile
+            $env:HOME = $originalHome
+
+            if (Test-Path -LiteralPath $fallbackRoot) {
+                Remove-Item -LiteralPath $fallbackRoot -Recurse -Force
+            }
+        }
+    }
+}
+
 Describe "Write-DevRuntimeState" {
     It "persists runtime metadata without colliding with PowerShell built-in variables" {
         $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("saitec-dev-runtime-test-" + [guid]::NewGuid().ToString("N"))
