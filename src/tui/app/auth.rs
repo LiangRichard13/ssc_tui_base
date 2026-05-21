@@ -2143,10 +2143,15 @@ impl App {
                                         && crate::provider::is_listable_model_name(&route.model)
                                 })
                             })
-                            .map(|route| route.model.clone());
+                            .map(|route| {
+                                (
+                                    route.model.clone(),
+                                    Self::post_login_model_spec_for_route(route, &provider_label),
+                                )
+                            });
 
-                        if let Some(model) = selected {
-                            match provider.set_model(&model) {
+                        if let Some((model, model_spec)) = selected {
+                            match provider.set_model(&model_spec) {
                                 Ok(()) => {
                                     if let Some(provider_descriptor) = provider_descriptor
                                         && let Err(error) = crate::cli::auth_test::run_post_login_validation_quiet(provider_descriptor).await
@@ -2201,7 +2206,10 @@ impl App {
                             })
                             .and_then(|profile| crate::provider_catalog::resolve_openai_compatible_profile(profile).default_model)
                         {
-                            match provider.set_model(&default_model) {
+                            let default_spec = crate::provider_catalog::openai_compatible_profile_id_for_display_name(&provider_label)
+                                .map(|profile_id| format!("{profile_id}:{default_model}"))
+                                .unwrap_or_else(|| default_model.clone());
+                            match provider.set_model(&default_spec) {
                                 Ok(()) => {
                                     crate::bus::Bus::global().publish_models_updated();
                                     crate::bus::Bus::global().publish(
@@ -2261,6 +2269,40 @@ impl App {
                 }
             });
         }
+    }
+
+    fn post_login_model_spec_for_route(
+        route: &crate::provider::ModelRoute,
+        provider_label: &str,
+    ) -> String {
+        let model = route.model.trim();
+        if model.is_empty() {
+            return String::new();
+        }
+
+        if route.api_method == "openrouter" {
+            if let Some(normalized) = crate::provider::openrouter_catalog_model_id(model) {
+                if route.provider.eq_ignore_ascii_case("OpenAI") {
+                    return format!("{normalized}@OpenAI");
+                }
+                return normalized;
+            }
+        }
+
+        if let Some(profile_id) = route.api_method.strip_prefix("openai-compatible:") {
+            let profile_id = profile_id.trim();
+            if !profile_id.is_empty() {
+                return format!("{profile_id}:{model}");
+            }
+        }
+
+        if let Some(profile_id) =
+            crate::provider_catalog::openai_compatible_profile_id_for_display_name(provider_label)
+        {
+            return format!("{profile_id}:{model}");
+        }
+
+        model.to_string()
     }
 
     pub(super) fn handle_login_completed(&mut self, login: LoginCompleted) {

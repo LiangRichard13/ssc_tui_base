@@ -35,6 +35,7 @@ struct RefreshSummaryProvider {
 #[derive(Clone)]
 struct OpenRouterSpecCaptureProvider {
     set_model_calls: StdArc<StdMutex<Vec<String>>>,
+    routes: Vec<crate::provider::ModelRoute>,
 }
 
 #[async_trait::async_trait]
@@ -104,14 +105,7 @@ impl Provider for OpenRouterSpecCaptureProvider {
     }
 
     fn model_routes(&self) -> Vec<crate::provider::ModelRoute> {
-        vec![crate::provider::ModelRoute {
-            model: "gpt-5.4".to_string(),
-            provider: "OpenAI".to_string(),
-            api_method: "openrouter".to_string(),
-            available: true,
-            detail: "cached route".to_string(),
-            cheapness: None,
-        }]
+        self.routes.clone()
     }
 
     fn available_providers_for_model(&self, model: &str) -> Vec<String> {
@@ -185,6 +179,19 @@ fn create_refresh_summary_test_app(summary: crate::provider::ModelCatalogRefresh
 }
 
 fn create_openrouter_spec_capture_test_app() -> (App, StdArc<StdMutex<Vec<String>>>) {
+    create_openrouter_spec_capture_test_app_with_routes(vec![crate::provider::ModelRoute {
+        model: "gpt-5.4".to_string(),
+        provider: "OpenAI".to_string(),
+        api_method: "openrouter".to_string(),
+        available: true,
+        detail: "cached route".to_string(),
+        cheapness: None,
+    }])
+}
+
+fn create_openrouter_spec_capture_test_app_with_routes(
+    routes: Vec<crate::provider::ModelRoute>,
+) -> (App, StdArc<StdMutex<Vec<String>>>) {
     ensure_test_jcode_home_if_unset();
     clear_persisted_test_ui_state();
     crate::tui::ui::clear_test_render_state_for_tests();
@@ -192,6 +199,7 @@ fn create_openrouter_spec_capture_test_app() -> (App, StdArc<StdMutex<Vec<String
     let set_model_calls = StdArc::new(StdMutex::new(Vec::new()));
     let provider: Arc<dyn Provider> = Arc::new(OpenRouterSpecCaptureProvider {
         set_model_calls: set_model_calls.clone(),
+        routes,
     });
     let rt = tokio::runtime::Runtime::new().unwrap();
     let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));

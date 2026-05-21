@@ -7,9 +7,15 @@ use crate::tui::TuiState;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyModifiers};
 use std::ffi::OsString;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 struct MockProvider;
+
+#[derive(Clone)]
+struct ActivationSpecCaptureProvider {
+    set_model_calls: Arc<Mutex<Vec<String>>>,
+    routes: Vec<crate::provider::ModelRoute>,
+}
 
 struct EnvVarGuard {
     key: &'static str,
@@ -63,6 +69,54 @@ impl Provider for MockProvider {
     }
 }
 
+#[async_trait::async_trait]
+impl Provider for ActivationSpecCaptureProvider {
+    async fn complete(
+        &self,
+        _messages: &[crate::message::Message],
+        _tools: &[crate::message::ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<crate::provider::EventStream> {
+        Err(anyhow::anyhow!(
+            "ActivationSpecCaptureProvider should not stream completions in auth tests"
+        ))
+    }
+
+    fn name(&self) -> &str {
+        "activation-spec-capture"
+    }
+
+    fn model(&self) -> String {
+        self.set_model_calls
+            .lock()
+            .expect("set_model calls")
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "gpt-5.5".to_string())
+    }
+
+    fn model_routes(&self) -> Vec<crate::provider::ModelRoute> {
+        self.routes.clone()
+    }
+
+    async fn refresh_model_catalog(&self) -> Result<crate::provider::ModelCatalogRefreshSummary> {
+        Ok(crate::provider::ModelCatalogRefreshSummary::default())
+    }
+
+    fn set_model(&self, model: &str) -> Result<()> {
+        self.set_model_calls
+            .lock()
+            .expect("set_model calls")
+            .push(model.to_string());
+        Ok(())
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
+    }
+}
+
 fn create_test_app() -> App {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
     let rt = tokio::runtime::Runtime::new().expect("runtime");
@@ -81,6 +135,22 @@ fn create_isolated_test_app() -> App {
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
     app
+}
+
+fn create_activation_spec_capture_test_app(
+    routes: Vec<crate::provider::ModelRoute>,
+) -> (App, Arc<Mutex<Vec<String>>>) {
+    let set_model_calls = Arc::new(Mutex::new(Vec::new()));
+    let provider: Arc<dyn Provider> = Arc::new(ActivationSpecCaptureProvider {
+        set_model_calls: set_model_calls.clone(),
+        routes,
+    });
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let mut app = App::new_for_test_harness(provider, registry);
+    app.queue_mode = false;
+    app.diff_mode = crate::config::DiffDisplayMode::Inline;
+    (app, set_model_calls)
 }
 
 #[test]
@@ -268,6 +338,44 @@ fn provider_validation_completion_refreshes_open_login_picker_status() {
             .any(|message| message.role == "system"
                 && message.content.contains("Runtime validation passed for Z.AI")),
         "successful revalidation should be surfaced to the user"
+    );
+}
+
+#[test]
+fn openai_compatible_post_login_activation_uses_provider_prefixed_kimi_spec() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let (mut app, set_model_calls) = create_activation_spec_capture_test_app(vec![
+        crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible:kimi".to_string(),
+            available: true,
+            detail: "https://api.kimi.com/coding/v1".to_string(),
+            cheapness: None,
+        },
+    ]);
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let _enter = runtime.enter();
+
+    app.start_openai_compatible_post_login_activation("Kimi Code".to_string());
+
+    let start = std::time::Instant::now();
+    loop {
+        if !set_model_calls.lock().expect("set_model calls").is_empty() {
+            break;
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "timed out waiting for post-login activation to select a model"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        set_model_calls.lock().expect("set_model calls").as_slice(),
+        ["kimi:kimi-for-coding"]
     );
 }
 

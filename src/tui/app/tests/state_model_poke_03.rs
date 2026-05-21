@@ -428,6 +428,45 @@ fn test_local_model_picker_openrouter_bare_openai_route_uses_openai_catalog_pref
 }
 
 #[test]
+fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
+    let (mut app, set_model_calls) =
+        create_openrouter_spec_capture_test_app_with_routes(vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible:kimi".to_string(),
+            available: true,
+            detail: "https://api.kimi.com/coding/v1".to_string(),
+            cheapness: None,
+        }]);
+    app.open_model_picker();
+    wait_for_model_picker_load(&mut app);
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should be open");
+    let model_idx = picker
+        .entries
+        .iter()
+        .position(|entry| entry.name == "kimi-for-coding")
+        .expect("direct Kimi route should be in picker");
+    let filtered_pos = picker
+        .filtered
+        .iter()
+        .position(|&i| i == model_idx)
+        .expect("entry should be in filtered list");
+
+    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("model picker selection should succeed");
+
+    assert_eq!(
+        set_model_calls.lock().unwrap().as_slice(),
+        ["kimi:kimi-for-coding"]
+    );
+}
+
+#[test]
 fn test_agent_model_picker_openrouter_bare_openai_route_saves_openai_catalog_prefix() {
     let (mut app, _set_model_calls) = create_openrouter_spec_capture_test_app();
 
