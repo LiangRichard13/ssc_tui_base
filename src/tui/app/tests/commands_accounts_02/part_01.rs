@@ -986,6 +986,71 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
 }
 
 #[test]
+fn test_filtered_login_picker_uses_validation_results_for_provider_status_text() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let previous_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    crate::provider_catalog::save_env_value_to_env_file("ZHIPU_API_KEY", "zai.env", Some("zai-test-key"))
+        .expect("save Z.AI key");
+    crate::auth::validation::save(
+        "zai",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: false,
+            provider_smoke_ok: Some(false),
+            tool_smoke_ok: Some(false),
+            summary: "provider_smoke: unauthorized".to_string(),
+        },
+    )
+    .expect("save failed validation");
+    crate::auth::validation::save(
+        "kimi",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save passing validation");
+    crate::provider_catalog::save_env_value_to_env_file("KIMI_API_KEY", "kimi.env", Some("kimi-test-key"))
+        .expect("save Kimi key");
+
+    let mut app = create_test_app();
+    app.input = "/login base-models".to_string();
+    app.submit_input();
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("move selection to OpenAI");
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("move selection to Z.AI");
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("filtered login picker draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(
+        text.contains("needs attention"),
+        "providers with failed runtime validation should show attention status, got:\n{text}"
+    );
+    assert!(
+        text.contains("validation failed"),
+        "failed provider detail should surface the recorded validation failure, got:\n{text}"
+    );
+
+    if let Some(previous_home) = previous_home {
+        crate::env::set_var("JCODE_HOME", previous_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[test]
 fn test_filtered_login_picker_mouse_click_starts_selected_provider_login() {
     use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 

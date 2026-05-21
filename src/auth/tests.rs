@@ -313,6 +313,39 @@ fn openrouter_like_status_is_provider_specific() {
     AuthStatus::invalidate_cache();
 }
 
+#[test]
+fn openai_compatible_validation_failure_marks_provider_as_expired() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::TempDir::new().expect("create temp dir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_zai = std::env::var_os("ZHIPU_API_KEY");
+
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("ZHIPU_API_KEY", "zai-test-key");
+    crate::auth::validation::save(
+        "zai",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: false,
+            provider_smoke_ok: Some(false),
+            tool_smoke_ok: Some(false),
+            summary: "provider_smoke: unauthorized".to_string(),
+        },
+    )
+    .expect("save validation failure");
+    AuthStatus::invalidate_cache();
+
+    let status = AuthStatus::check_fast();
+    assert_eq!(
+        status.state_for_provider(crate::provider_catalog::ZAI_LOGIN_PROVIDER),
+        AuthState::Expired
+    );
+
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("ZHIPU_API_KEY", prev_zai);
+    AuthStatus::invalidate_cache();
+}
+
 #[cfg(unix)]
 #[test]
 fn cursor_status_is_available_when_api_key_exists_without_cli() {

@@ -148,6 +148,68 @@ fn tui_openai_compatible_local_key_save_allows_empty_key() -> anyhow::Result<()>
 }
 
 #[test]
+fn openai_compatible_key_save_does_not_mark_hosted_provider_validated_by_presence_only()
+-> anyhow::Result<()> {
+    let _env_guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+
+    let resolved = save_tui_openai_compatible_key(crate::provider_catalog::ZAI_PROFILE, "zai-test-key")?;
+    assert_eq!(resolved.id, "zai");
+    assert!(
+        crate::provider_catalog::openai_compatible_profile_is_configured(
+            crate::provider_catalog::ZAI_PROFILE
+        ),
+        "saving the key should still count as configured"
+    );
+    assert!(
+        crate::auth::validation::get("zai").is_none(),
+        "saving a hosted API key should not silently fabricate a successful validation record"
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_openai_compatible_validation_reopens_api_key_prompt_and_records_failure() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.start_login_provider(crate::provider_catalog::ZAI_LOGIN_PROVIDER);
+    let pending = app.pending_login.take().expect("pending Z.AI login");
+    app.handle_login_input(pending, "zai-test-key".to_string());
+
+    app.handle_login_completed(crate::bus::LoginCompleted {
+        provider: "zai".to_string(),
+        success: false,
+        message: "Post-login validation failed for Z.AI. Credentials were saved, but jcode could not verify runtime readiness.".to_string(),
+    });
+
+    match app.pending_login.as_ref() {
+        Some(super::auth::PendingLogin::ApiKeyProfile {
+            provider_id,
+            provider,
+            key_name,
+            ..
+        }) => {
+            assert_eq!(provider_id, "zai");
+            assert_eq!(provider, "Z.AI");
+            assert_eq!(key_name, "ZHIPU_API_KEY");
+        }
+        other => panic!("expected API-key prompt to reopen after failed validation, got: {other:?}"),
+    }
+    assert!(
+        app.display_messages()
+            .iter()
+            .any(|message| message.role == "error"
+                && message.content.contains("Post-login validation failed")),
+        "validation failure should be surfaced as an error message"
+    );
+}
+
+#[test]
 fn saitec_pending_login_empty_submit_keeps_form_and_shows_validation_error() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_for_tests();

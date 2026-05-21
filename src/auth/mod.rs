@@ -230,10 +230,15 @@ impl AuthStatus {
                 }
             }
             crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(profile) => {
-                if crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
-                    AuthState::Available
-                } else {
+                if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
                     AuthState::NotConfigured
+                } else if crate::auth::validation::get(provider.id)
+                    .as_ref()
+                    .is_some_and(|record| !record.success)
+                {
+                    AuthState::Expired
+                } else {
+                    AuthState::Available
                 }
             }
             _ => self.state_for_key(provider.auth_state_key),

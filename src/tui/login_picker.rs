@@ -21,6 +21,8 @@ pub struct LoginPickerItem {
     pub index: usize,
     pub provider: LoginProviderDescriptor,
     pub auth_state: AuthState,
+    pub validation_label: Option<String>,
+    pub validation_success: Option<bool>,
     pub method_detail: String,
 }
 
@@ -29,12 +31,16 @@ impl LoginPickerItem {
         index: usize,
         provider: LoginProviderDescriptor,
         auth_state: AuthState,
+        validation_label: Option<String>,
+        validation_success: Option<bool>,
         method_detail: impl Into<String>,
     ) -> Self {
         Self {
             index,
             provider,
             auth_state,
+            validation_label,
+            validation_success,
             method_detail: method_detail.into(),
         }
     }
@@ -73,25 +79,32 @@ impl LoginPickerItem {
     }
 
     fn status_label(&self) -> &'static str {
-        match self.auth_state {
-            AuthState::Available => "configured",
-            AuthState::Expired => "needs attention",
-            AuthState::NotConfigured => "not set up",
+        match (self.auth_state, self.validation_success) {
+            (AuthState::Available, Some(true)) => "validated",
+            (AuthState::Available, None) => "configured",
+            (AuthState::Expired, _) => "needs attention",
+            (AuthState::Available, Some(false)) => "needs attention",
+            (AuthState::NotConfigured, _) => "not set up",
         }
     }
 
     fn status_icon(&self) -> &'static str {
-        match self.auth_state {
-            AuthState::Available => "✓",
-            AuthState::Expired | AuthState::NotConfigured => "✕",
+        match (self.auth_state, self.validation_success) {
+            (AuthState::Available, Some(true)) => "●",
+            (AuthState::Available, None) => "●",
+            (AuthState::Expired, _) => "●",
+            (AuthState::Available, Some(false)) => "●",
+            (AuthState::NotConfigured, _) => "●",
         }
     }
 
     fn status_color(&self) -> Color {
-        match self.auth_state {
-            AuthState::Available => Color::Rgb(111, 214, 181),
-            AuthState::Expired => Color::Rgb(255, 196, 112),
-            AuthState::NotConfigured => Color::Rgb(232, 134, 134),
+        match (self.auth_state, self.validation_success) {
+            (AuthState::Available, Some(true)) => Color::Rgb(111, 214, 181),
+            (AuthState::Available, None) => Color::Rgb(255, 196, 112),
+            (AuthState::Expired, _) => Color::Rgb(232, 134, 134),
+            (AuthState::Available, Some(false)) => Color::Rgb(232, 134, 134),
+            (AuthState::NotConfigured, _) => Color::Rgb(232, 134, 134),
         }
     }
 }
@@ -565,6 +578,21 @@ impl LoginPicker {
             )]),
             Line::from(""),
             Line::from(vec![Span::styled(
+                "Runtime validation",
+                Style::default().fg(MUTED_DARK).bold(),
+            )]),
+            Line::from(vec![Span::styled(
+                item.validation_label
+                    .clone()
+                    .unwrap_or_else(|| "not validated yet".to_string()),
+                Style::default().fg(match item.validation_success {
+                    Some(true) => Color::Rgb(111, 214, 181),
+                    Some(false) => Color::Rgb(232, 134, 134),
+                    None => Color::Rgb(255, 196, 112),
+                }),
+            )]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
                 "What you need",
                 Style::default().fg(MUTED_DARK).bold(),
             )]),
@@ -911,6 +939,8 @@ mod tests {
                 1,
                 crate::provider_catalog::OPENAI_LOGIN_PROVIDER,
                 AuthState::Available,
+                None,
+                None,
                 "OAuth credentials configured",
             )],
             LoginPickerSummary {
@@ -949,12 +979,16 @@ mod tests {
                     1,
                     crate::provider_catalog::OPENAI_LOGIN_PROVIDER,
                     AuthState::NotConfigured,
+                    None,
+                    None,
                     "not configured",
                 ),
                 LoginPickerItem::new(
                     2,
                     crate::provider_catalog::CLAUDE_LOGIN_PROVIDER,
                     AuthState::Available,
+                    None,
+                    None,
                     "OAuth configured",
                 ),
             ],

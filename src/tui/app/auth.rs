@@ -32,6 +32,7 @@ impl App {
         use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
 
         let status = crate::auth::AuthStatus::check_fast();
+        let validation = crate::auth::validation::load_all();
         let providers = crate::provider_catalog::saitec_visible_base_model_providers();
         let mut summary = LoginPickerSummary::default();
         let items = providers
@@ -39,6 +40,7 @@ impl App {
             .enumerate()
             .map(|(index, provider)| {
                 let auth_state = status.state_for_provider(provider);
+                let validation_record = validation.get(provider.id);
                 match auth_state {
                     crate::auth::AuthState::Available => summary.ready_count += 1,
                     crate::auth::AuthState::Expired => summary.attention_count += 1,
@@ -52,6 +54,8 @@ impl App {
                     index + 1,
                     provider,
                     auth_state,
+                    validation_record.map(crate::auth::validation::format_record_label),
+                    validation_record.map(|record| record.success),
                     status.method_detail_for_provider(provider),
                 )
             })
@@ -2049,6 +2053,9 @@ impl App {
 
         let provider = Arc::clone(&self.provider);
         let session_id = self.session.id.clone();
+        let provider_descriptor = crate::provider_catalog::saitec_auth_status_login_providers()
+            .into_iter()
+            .find(|candidate| candidate.display_name == provider_label);
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
                 let result = provider.refresh_model_catalog().await;
@@ -2082,6 +2089,18 @@ impl App {
                         if let Some(model) = selected {
                             match provider.set_model(&model) {
                                 Ok(()) => {
+                                    if let Some(provider_descriptor) = provider_descriptor
+                                        && let Err(error) = crate::cli::auth_test::run_post_login_validation_quiet(provider_descriptor).await
+                                    {
+                                        crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
+                                            crate::bus::LoginCompleted {
+                                                provider: provider_label.clone(),
+                                                success: false,
+                                                message: error.to_string(),
+                                            },
+                                        ));
+                                        return;
+                                    }
                                     crate::bus::Bus::global().publish_models_updated();
                                     crate::bus::Bus::global().publish(
                                         crate::bus::BusEvent::ProviderModelActivated {
@@ -2252,6 +2271,16 @@ impl App {
                         self.set_status_notice(format!("Login: {} failed", login.provider));
                     }
                 }
+            } else if let Some(provider_descriptor) =
+                crate::provider_catalog::resolve_login_provider(&login.provider)
+                && matches!(
+                    provider_descriptor.target,
+                    crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
+                )
+            {
+                self.push_display_message(DisplayMessage::error(message));
+                self.set_status_notice(format!("Login: {} failed", login.provider));
+                self.start_login_provider(provider_descriptor);
             } else {
                 self.push_display_message(DisplayMessage::error(message));
                 self.set_status_notice(format!("Login: {} failed", login.provider));
