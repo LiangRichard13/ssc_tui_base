@@ -1384,9 +1384,18 @@ pub(super) fn handle_pending_login_key(
             app.set_status_notice("Login cancelled");
             true
         }
-        KeyCode::Up | KeyCode::Down => {
+        KeyCode::Up => {
             app.pending_text_entry_focus = match app.pending_text_entry_focus {
                 super::PendingTextEntryFocus::Input => super::PendingTextEntryFocus::Cancel,
+                super::PendingTextEntryFocus::Validate => super::PendingTextEntryFocus::Input,
+                super::PendingTextEntryFocus::Cancel => super::PendingTextEntryFocus::Validate,
+            };
+            true
+        }
+        KeyCode::Down => {
+            app.pending_text_entry_focus = match app.pending_text_entry_focus {
+                super::PendingTextEntryFocus::Input => super::PendingTextEntryFocus::Validate,
+                super::PendingTextEntryFocus::Validate => super::PendingTextEntryFocus::Cancel,
                 super::PendingTextEntryFocus::Cancel => super::PendingTextEntryFocus::Input,
             };
             true
@@ -1407,6 +1416,9 @@ pub(super) fn handle_pending_login_key(
                 app.push_display_message(DisplayMessage::system("Login cancelled.".to_string()));
                 app.set_status_notice("Login cancelled");
                 return true;
+            }
+            if app.pending_text_entry_focus == super::PendingTextEntryFocus::Validate {
+                app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
             }
             app.submit_input();
             true

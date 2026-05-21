@@ -1158,7 +1158,7 @@ impl App {
                 "**{} Endpoint**\n\n\
                  Setup docs: {}\n\
                  Current API base: `{}`\n\n\
-                 **Paste the API base below**. Press Enter to keep the current value, or use Up/Down to select Cancel.",
+                 **Paste the API base below**. Press Enter to keep the current value, or use Up/Down to select Validate or Cancel.",
                 resolved.display_name, resolved.setup_url, resolved.api_base
             )));
             self.set_status_notice("Login: API base...");
@@ -1208,9 +1208,9 @@ impl App {
             .map(|endpoint| format!("Endpoint: `{}`\n", endpoint))
             .unwrap_or_default();
         let prompt = if api_key_optional {
-            "**Paste your API key below** if your endpoint requires one. Press Enter to skip, or use Up/Down to select Cancel."
+            "**Paste your API key below** if your endpoint requires one. Press Enter to skip, or use Up/Down to select Validate or Cancel."
         } else {
-            "**Paste your API key below** (it will be saved securely), or use Up/Down to select Cancel."
+            "**Paste your API key below** (it will be saved securely), or use Up/Down to select Validate or Cancel."
         };
         self.push_display_message(DisplayMessage::system(format!(
             "**{} {}**\n\n\
@@ -1270,7 +1270,7 @@ impl App {
              Get your API key from: https://cursor.com/settings\n\
              (Dashboard > Integrations > User API Keys)\n\n\
              jcode will save it securely and use the native Cursor HTTPS transport.\n\n\
-             **Paste your API key below**, or use Up/Down to select Cancel."
+             **Paste your API key below**, or use Up/Down to select Validate or Cancel."
                 .to_string(),
         ));
         self.set_status_notice("Login: paste cursor key...");

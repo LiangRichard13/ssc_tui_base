@@ -261,7 +261,7 @@ pub(super) fn draw_pending_text_entry_overlay(
     lines.push(Line::from(vec![
         Span::styled(
             format!(" {} ", overlay.field_label),
-            if overlay.cancel_focused {
+            if overlay.validate_focused || overlay.cancel_focused {
                 Style::default()
                     .fg(rgb(210, 210, 225))
             } else {
@@ -280,6 +280,16 @@ pub(super) fn draw_pending_text_entry_overlay(
         ),
     ]));
     lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "               [ Validate ]",
+        if overlay.validate_focused {
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(rgb(210, 210, 225))
+        },
+    )));
     lines.push(Line::from(Span::styled(
         "                [ Cancel ]",
         if overlay.cancel_focused {
@@ -336,7 +346,7 @@ pub(super) fn draw_pending_text_entry_overlay(
         .take(cursor_char_pos)
         .collect::<String>();
     let label = format!(" {} ", overlay.field_label);
-    if !overlay.cancel_focused {
+    if !overlay.validate_focused && !overlay.cancel_focused {
         let cursor_x = popup.x
             + 1
             + UnicodeWidthStr::width(label.as_str()) as u16

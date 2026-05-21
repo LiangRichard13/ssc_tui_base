@@ -143,6 +143,7 @@ struct PendingRemoteRewindNotice {
 enum PendingTextEntryFocus {
     #[default]
     Input,
+    Validate,
     Cancel,
 }
 

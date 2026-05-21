@@ -1510,6 +1510,10 @@ fn test_api_key_login_overlay_shows_cancel_button_instead_of_cancel_command() {
 
     let text = buffer_to_text(&terminal);
     assert!(
+        text.contains("[ Validate ]"),
+        "api-key overlay should render a visible validate button, got:\n{text}"
+    );
+    assert!(
         text.contains("[ Cancel ]"),
         "api-key overlay should render a visible cancel button, got:\n{text}"
     );
