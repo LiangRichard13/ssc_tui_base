@@ -139,6 +139,13 @@ struct PendingRemoteRewindNotice {
     changed_messages: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum PendingTextEntryFocus {
+    #[default]
+    Input,
+    Cancel,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct KvCacheRequestSignature {
     system_static_hash: u64,
@@ -947,6 +954,8 @@ pub struct App {
     ambient_system_prompt: Option<String>,
     /// Pending login flow: if set, next input is intercepted as OAuth code or API key
     pending_login: Option<PendingLogin>,
+    /// Focus for single-field pending login overlays such as API-key/API-base entry.
+    pending_text_entry_focus: PendingTextEntryFocus,
     /// Pending account picker follow-up input (new label or setting value)
     pending_account_input: Option<auth::PendingAccountInput>,
     /// One-shot flag: force the next paint to clear the terminal first.

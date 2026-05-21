@@ -505,6 +505,17 @@ pub(super) fn handle_text_input(app: &mut App, text: &str) -> bool {
         return false;
     }
 
+    if matches!(
+        app.pending_login,
+        Some(
+            super::auth::PendingLogin::ApiKeyProfile { .. }
+                | super::auth::PendingLogin::OpenAiCompatibleApiBase { .. }
+                | super::auth::PendingLogin::CursorApiKey
+        )
+    ) {
+        app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+    }
+
     if app.input.is_empty() && !app.is_processing && app.display_messages.is_empty() {
         let mut chars = text.chars();
         if let (Some(c), None) = (chars.next(), chars.next())
@@ -1363,6 +1374,7 @@ pub(super) fn handle_pending_login_key(
             {
                 crate::telemetry::record_auth_cancelled(&provider, &method);
             }
+            app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
             app.input.clear();
             app.cursor_pos = 0;
             app.clear_input_undo_history();
@@ -1372,7 +1384,30 @@ pub(super) fn handle_pending_login_key(
             app.set_status_notice("Login cancelled");
             true
         }
+        KeyCode::Up | KeyCode::Down => {
+            app.pending_text_entry_focus = match app.pending_text_entry_focus {
+                super::PendingTextEntryFocus::Input => super::PendingTextEntryFocus::Cancel,
+                super::PendingTextEntryFocus::Cancel => super::PendingTextEntryFocus::Input,
+            };
+            true
+        }
         KeyCode::Enter => {
+            if app.pending_text_entry_focus == super::PendingTextEntryFocus::Cancel {
+                if let Some(pending) = app.pending_login.take()
+                    && let Some((provider, method)) = pending.telemetry_context()
+                {
+                    crate::telemetry::record_auth_cancelled(&provider, &method);
+                }
+                app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+                app.input.clear();
+                app.cursor_pos = 0;
+                app.clear_input_undo_history();
+                app.reset_tab_completion();
+                app.sync_model_picker_preview_from_input();
+                app.push_display_message(DisplayMessage::system("Login cancelled.".to_string()));
+                app.set_status_notice("Login cancelled");
+                return true;
+            }
             app.submit_input();
             true
         }

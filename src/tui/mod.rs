@@ -63,6 +63,7 @@ pub struct PendingTextEntryOverlay {
     pub detail_lines: Vec<String>,
     pub footer_hint: String,
     pub mask_input: bool,
+    pub cancel_focused: bool,
 }
 
 pub(crate) use self::core::DisplayMessageRoleExt;

@@ -1498,6 +1498,28 @@ fn test_api_key_login_overlay_keeps_zai_login_visible_and_masks_live_input() {
 }
 
 #[test]
+fn test_api_key_login_overlay_shows_cancel_button_instead_of_cancel_command() {
+    let mut app = create_test_app();
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+
+    let backend = ratatui::backend::TestBackend::new(100, 28);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let text = buffer_to_text(&terminal);
+    assert!(
+        text.contains("[ Cancel ]"),
+        "api-key overlay should render a visible cancel button, got:\n{text}"
+    );
+    assert!(
+        !text.contains("/cancel"),
+        "api-key overlay should not instruct users to type /cancel anymore, got:\n{text}"
+    );
+}
+
+#[test]
 fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
     let mut app = create_test_app();
     app.input = "/account openrouter add".to_string();

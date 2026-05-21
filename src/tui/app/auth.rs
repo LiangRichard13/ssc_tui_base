@@ -34,6 +34,7 @@ impl App {
             crate::telemetry::record_auth_cancelled(&provider, &method);
         }
         self.pending_login = None;
+        self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
     }
 
     pub(crate) fn open_saitec_base_model_login_picker(&mut self) {
@@ -241,6 +242,7 @@ impl App {
             crate::telemetry::record_auth_cancelled(&provider, &method);
         }
         self.pending_login = None;
+        self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
         self.input.clear();
         self.cursor_pos = 0;
         self.clear_input_undo_history();
@@ -546,6 +548,7 @@ impl App {
             crate::telemetry::record_auth_started(&provider, &method);
         }
         self.pending_login = Some(pending);
+        self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
     }
 
     fn start_claude_login(&mut self) {
@@ -1155,7 +1158,7 @@ impl App {
                 "**{} Endpoint**\n\n\
                  Setup docs: {}\n\
                  Current API base: `{}`\n\n\
-                 **Paste the API base below**. Press Enter to keep the current value, or type `/cancel` to abort.",
+                 **Paste the API base below**. Press Enter to keep the current value, or use Up/Down to select Cancel.",
                 resolved.display_name, resolved.setup_url, resolved.api_base
             )));
             self.set_status_notice("Login: API base...");
@@ -1205,9 +1208,9 @@ impl App {
             .map(|endpoint| format!("Endpoint: `{}`\n", endpoint))
             .unwrap_or_default();
         let prompt = if api_key_optional {
-            "**Paste your API key below** if your endpoint requires one. Press Enter to skip, or type `/cancel` to abort."
+            "**Paste your API key below** if your endpoint requires one. Press Enter to skip, or use Up/Down to select Cancel."
         } else {
-            "**Paste your API key below** (it will be saved securely), or type `/cancel` to abort."
+            "**Paste your API key below** (it will be saved securely), or use Up/Down to select Cancel."
         };
         self.push_display_message(DisplayMessage::system(format!(
             "**{} {}**\n\n\
@@ -1267,7 +1270,7 @@ impl App {
              Get your API key from: https://cursor.com/settings\n\
              (Dashboard > Integrations > User API Keys)\n\n\
              jcode will save it securely and use the native Cursor HTTPS transport.\n\n\
-             **Paste your API key below**, or type `/cancel` to abort."
+             **Paste your API key below**, or use Up/Down to select Cancel."
                 .to_string(),
         ));
         self.set_status_notice("Login: paste cursor key...");

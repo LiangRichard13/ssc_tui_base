@@ -562,6 +562,30 @@ fn api_key_login_escape_closes_text_entry_overlay() {
 }
 
 #[test]
+fn api_key_login_down_then_enter_activates_cancel_button() {
+    let mut app = create_test_app();
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+    app.input = "secret-api-key".to_string();
+    app.cursor_pos = app.input.len();
+
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move focus to cancel");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter on cancel should dismiss the overlay");
+
+    assert!(
+        app.pending_login.is_none(),
+        "API-key login should be dismissed by the cancel button"
+    );
+    assert_eq!(app.input(), "");
+    let last = app
+        .display_messages()
+        .last()
+        .expect("missing cancellation message");
+    assert!(last.content.contains("Login cancelled."));
+}
+
+#[test]
 fn kimi_api_key_login_success_keeps_chat_input_available() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");

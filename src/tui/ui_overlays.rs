@@ -261,9 +261,14 @@ pub(super) fn draw_pending_text_entry_overlay(
     lines.push(Line::from(vec![
         Span::styled(
             format!(" {} ", overlay.field_label),
-            Style::default()
-                .fg(accent_color())
-                .add_modifier(Modifier::BOLD),
+            if overlay.cancel_focused {
+                Style::default()
+                    .fg(rgb(210, 210, 225))
+            } else {
+                Style::default()
+                    .fg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            },
         ),
         Span::styled(
             if masked_input.is_empty() {
@@ -274,6 +279,17 @@ pub(super) fn draw_pending_text_entry_overlay(
             Style::default().fg(rgb(235, 235, 245)),
         ),
     ]));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "                [ Cancel ]",
+        if overlay.cancel_focused {
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(rgb(210, 210, 225))
+        },
+    )));
     lines.push(Line::from(""));
     lines.extend(markdown::wrap_line(
         Line::from(Span::styled(
@@ -303,7 +319,7 @@ pub(super) fn draw_pending_text_entry_overlay(
                 .add_modifier(Modifier::BOLD),
         ))
         .title_bottom(Line::from(Span::styled(
-            " Enter submits · Esc or /cancel aborts ",
+            " Up/Down move · Enter submit/select ",
             Style::default().fg(dim_color()),
         )))
         .borders(Borders::ALL)
@@ -320,15 +336,17 @@ pub(super) fn draw_pending_text_entry_overlay(
         .take(cursor_char_pos)
         .collect::<String>();
     let label = format!(" {} ", overlay.field_label);
-    let cursor_x = popup.x
-        + 1
-        + UnicodeWidthStr::width(label.as_str()) as u16
-        + UnicodeWidthStr::width(cursor_prefix.as_str()) as u16;
-    let cursor_y = popup.y + 1 + cursor_row;
-    frame.set_cursor_position(Position::new(
-        cursor_x.min(popup.x + popup.width.saturating_sub(2)),
-        cursor_y.min(popup.y + popup.height.saturating_sub(2)),
-    ));
+    if !overlay.cancel_focused {
+        let cursor_x = popup.x
+            + 1
+            + UnicodeWidthStr::width(label.as_str()) as u16
+            + UnicodeWidthStr::width(cursor_prefix.as_str()) as u16;
+        let cursor_y = popup.y + 1 + cursor_row;
+        frame.set_cursor_position(Position::new(
+            cursor_x.min(popup.x + popup.width.saturating_sub(2)),
+            cursor_y.min(popup.y + popup.height.saturating_sub(2)),
+        ));
+    }
 }
 
 fn popup_cursor_row(field_row: u16) -> u16 {
