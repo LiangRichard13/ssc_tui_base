@@ -134,6 +134,14 @@ pub struct LoginCompleted {
 }
 
 #[derive(Clone, Debug)]
+pub struct ProviderValidationCompleted {
+    pub provider: String,
+    pub provider_display_name: String,
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Clone, Debug)]
 pub struct InputShellCompleted {
     pub session_id: String,
     pub result: crate::message::InputShellResult,
@@ -257,6 +265,8 @@ pub enum BusEvent {
     UsageReportProgress(crate::usage::ProviderUsageProgress),
     /// OAuth/login flow completed in the background
     LoginCompleted(LoginCompleted),
+    /// Provider runtime validation completed outside the login flow
+    ProviderValidationCompleted(ProviderValidationCompleted),
     /// Local `!cmd` shell command completed from the input line
     InputShellCompleted(InputShellCompleted),
     /// Clipboard paste/image URL work completed off the UI thread

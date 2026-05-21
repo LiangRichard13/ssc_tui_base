@@ -757,6 +757,9 @@ impl App {
                     self.login_picker_overlay = None;
                     self.start_login_provider(provider);
                 }
+                crate::tui::login_picker::OverlayAction::Revalidate(provider) => {
+                    self.start_login_picker_provider_validation(provider);
+                }
             }
             return false;
         }

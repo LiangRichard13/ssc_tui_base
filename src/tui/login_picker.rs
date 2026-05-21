@@ -128,6 +128,13 @@ pub struct LoginPicker {
     last_provider_list_area: Option<Rect>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LoginPickerSelectionSnapshot {
+    pub selected_provider_id: Option<String>,
+    pub filter: String,
+    pub selected: usize,
+}
+
 #[expect(
     clippy::large_enum_variant,
     reason = "execute action carries the selected provider descriptor directly for simple overlay handling"
@@ -136,6 +143,7 @@ pub enum OverlayAction {
     Continue,
     Close,
     Execute(LoginProviderDescriptor),
+    Revalidate(LoginProviderDescriptor),
 }
 
 impl LoginPicker {
@@ -180,6 +188,31 @@ impl LoginPicker {
     #[cfg(test)]
     pub fn debug_provider_list_area_for_tests(&self) -> Option<Rect> {
         self.last_provider_list_area
+    }
+
+    pub fn selection_snapshot(&self) -> LoginPickerSelectionSnapshot {
+        LoginPickerSelectionSnapshot {
+            selected_provider_id: self.selected_item().map(|item| item.provider.id.to_string()),
+            filter: self.filter.clone(),
+            selected: self.selected,
+        }
+    }
+
+    pub fn restore_selection(&mut self, snapshot: &LoginPickerSelectionSnapshot) {
+        self.filter = snapshot.filter.clone();
+        self.apply_filter();
+        if let Some(selected_provider_id) = snapshot.selected_provider_id.as_deref()
+            && let Some(pos) = self.filtered.iter().position(|idx| {
+                self.items
+                    .get(*idx)
+                    .map(|item| item.provider.id == selected_provider_id)
+                    .unwrap_or(false)
+            })
+        {
+            self.selected = pos;
+        } else {
+            self.selected = snapshot.selected.min(self.filtered.len().saturating_sub(1));
+        }
     }
 
     fn selected_item(&self) -> Option<&LoginPickerItem> {
@@ -266,6 +299,15 @@ impl LoginPicker {
                 }
                 return Ok(OverlayAction::Close);
             }
+            KeyCode::Char('r') | KeyCode::Char('R')
+                if !modifiers.contains(KeyModifiers::CONTROL)
+                    && !modifiers.contains(KeyModifiers::ALT) =>
+            {
+                if let Some(item) = self.selected_item() {
+                    return Ok(OverlayAction::Revalidate(item.provider));
+                }
+                return Ok(OverlayAction::Close);
+            }
             KeyCode::Char(c)
                 if !modifiers.contains(KeyModifiers::CONTROL)
                     && !modifiers.contains(KeyModifiers::ALT) =>
@@ -325,6 +367,8 @@ impl LoginPicker {
                 Span::styled(" navigate  ", Style::default().fg(MUTED_DARK)),
                 hotkey(" Click "),
                 Span::styled(" select  ", Style::default().fg(MUTED_DARK)),
+                hotkey(" R "),
+                Span::styled(" revalidate  ", Style::default().fg(MUTED_DARK)),
                 hotkey(" type "),
                 Span::styled(" filter  ", Style::default().fg(MUTED_DARK)),
                 hotkey(" Esc "),
@@ -628,6 +672,10 @@ impl LoginPicker {
         lines.push(Line::from(vec![Span::styled(
             "Press Enter to begin login.",
             Style::default().fg(Color::Rgb(170, 210, 255)),
+        )]));
+        lines.push(Line::from(vec![Span::styled(
+            "Press R to revalidate the current provider.",
+            Style::default().fg(Color::Rgb(255, 208, 128)),
         )]));
 
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
@@ -1016,5 +1064,41 @@ mod tests {
             picker.selected_item().map(|item| item.provider.id),
             Some("claude")
         );
+    }
+
+    #[test]
+    fn test_login_picker_revalidate_key_targets_selected_provider() {
+        let mut picker = LoginPicker::with_summary(
+            " Login ",
+            vec![
+                LoginPickerItem::new(
+                    1,
+                    crate::provider_catalog::OPENAI_LOGIN_PROVIDER,
+                    AuthState::NotConfigured,
+                    None,
+                    None,
+                    "not configured",
+                ),
+                LoginPickerItem::new(
+                    2,
+                    crate::provider_catalog::ZAI_LOGIN_PROVIDER,
+                    AuthState::Available,
+                    Some("not validated yet".to_string()),
+                    None,
+                    "API key configured",
+                ),
+            ],
+            LoginPickerSummary::default(),
+        );
+        picker.selected = 1;
+
+        let action = picker
+            .handle_overlay_key(KeyCode::Char('r'), KeyModifiers::empty())
+            .expect("revalidate key should be handled");
+
+        assert!(matches!(
+            action,
+            OverlayAction::Revalidate(provider) if provider.id == "zai"
+        ));
     }
 }

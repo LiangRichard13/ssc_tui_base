@@ -17,6 +17,14 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use std::sync::Arc;
 
 impl App {
+    fn base_model_picker_selection_snapshot(
+        &self,
+    ) -> Option<crate::tui::login_picker::LoginPickerSelectionSnapshot> {
+        let picker_cell = self.login_picker_overlay.as_ref()?;
+        let picker = picker_cell.borrow();
+        Some(picker.selection_snapshot())
+    }
+
     fn abandon_pending_login_for_new_flow(&mut self) {
         if let Some((provider, method)) = self
             .pending_login
@@ -72,6 +80,54 @@ impl App {
         self.input.clear();
         self.cursor_pos = 0;
         self.set_status_notice("Login: choose a base-model provider");
+    }
+
+    pub(crate) fn refresh_open_saitec_base_model_login_picker(&mut self) {
+        let snapshot = self.base_model_picker_selection_snapshot();
+        self.open_saitec_base_model_login_picker();
+        if let Some(snapshot) = snapshot
+            && let Some(picker_cell) = self.login_picker_overlay.as_ref()
+        {
+            picker_cell.borrow_mut().restore_selection(&snapshot);
+        }
+    }
+
+    pub(crate) fn start_login_picker_provider_validation(
+        &mut self,
+        provider: crate::provider_catalog::LoginProviderDescriptor,
+    ) {
+        self.set_status_notice(format!("Validation: checking {}...", provider.display_name));
+
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                let result =
+                    crate::cli::auth_test::run_post_login_validation_quiet(provider).await;
+                let (success, message) = match result {
+                    Ok(()) => (
+                        true,
+                        format!("Runtime validation passed for {}.", provider.display_name),
+                    ),
+                    Err(error) => (false, error.to_string()),
+                };
+                crate::bus::Bus::global().publish(
+                    crate::bus::BusEvent::ProviderValidationCompleted(
+                        crate::bus::ProviderValidationCompleted {
+                            provider: provider.id.to_string(),
+                            provider_display_name: provider.display_name.to_string(),
+                            success,
+                            message,
+                        },
+                    ),
+                );
+            });
+        } else {
+            let message = format!(
+                "Validation could not start for {} because no async runtime is available.",
+                provider.display_name
+            );
+            self.push_display_message(DisplayMessage::error(message.clone()));
+            self.set_status_notice(format!("Validation: {} failed", provider.display_name));
+        }
     }
 
     pub(crate) fn open_login_mode_selector(&mut self) {
@@ -2288,6 +2344,23 @@ impl App {
                     self.pending_login = None;
                 }
             }
+        }
+    }
+
+    pub(crate) fn handle_provider_validation_completed(
+        &mut self,
+        event: crate::bus::ProviderValidationCompleted,
+    ) {
+        self.refresh_open_saitec_base_model_login_picker();
+        if event.success {
+            self.push_display_message(DisplayMessage::system(event.message));
+            self.set_status_notice(format!("Validation: {} ready", event.provider_display_name));
+        } else {
+            self.push_display_message(DisplayMessage::error(event.message));
+            self.set_status_notice(format!(
+                "Validation: {} failed",
+                event.provider_display_name
+            ));
         }
     }
 

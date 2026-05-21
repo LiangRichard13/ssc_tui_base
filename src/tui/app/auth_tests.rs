@@ -210,6 +210,67 @@ fn failed_openai_compatible_validation_reopens_api_key_prompt_and_records_failur
 }
 
 #[test]
+fn provider_validation_completion_refreshes_open_login_picker_status() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+
+    crate::provider_catalog::save_env_value_to_env_file(
+        "ZHIPU_API_KEY",
+        "zai.env",
+        Some("zai-test-key"),
+    )
+    .expect("save Z.AI key");
+
+    let mut app = create_test_app();
+    app.open_saitec_base_model_login_picker();
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("move selection to OpenAI");
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("move selection to Z.AI");
+
+    crate::auth::validation::save(
+        "zai",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save passing validation");
+
+    super::local::handle_bus_event(
+        &mut app,
+        Ok(crate::bus::BusEvent::ProviderValidationCompleted(
+            crate::bus::ProviderValidationCompleted {
+                provider: "zai".to_string(),
+                provider_display_name: "Z.AI".to_string(),
+                success: true,
+                message: "Runtime validation passed for Z.AI.".to_string(),
+            },
+        )),
+    );
+
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "revalidation should refresh the open picker instead of closing it"
+    );
+    assert_eq!(
+        app.status_notice(),
+        Some("Validation: Z.AI ready".to_string())
+    );
+    assert!(
+        app.display_messages()
+            .iter()
+            .any(|message| message.role == "system"
+                && message.content.contains("Runtime validation passed for Z.AI")),
+        "successful revalidation should be surfaced to the user"
+    );
+}
+
+#[test]
 fn saitec_pending_login_empty_submit_keeps_form_and_shows_validation_error() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_for_tests();

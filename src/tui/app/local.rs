@@ -158,6 +158,10 @@ pub(super) fn handle_bus_event(
             app.handle_login_completed(login);
             true
         }
+        Ok(BusEvent::ProviderValidationCompleted(event)) => {
+            app.handle_provider_validation_completed(event);
+            true
+        }
         Ok(BusEvent::ModelsUpdated) => {
             app.invalidate_model_picker_cache();
             true

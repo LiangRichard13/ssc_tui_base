@@ -25,6 +25,9 @@ impl App {
                 self.login_picker_overlay = None;
                 self.start_login_provider(provider);
             }
+            OverlayAction::Revalidate(provider) => {
+                self.start_login_picker_provider_validation(provider);
+            }
         }
         Ok(())
     }
