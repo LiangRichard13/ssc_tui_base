@@ -248,6 +248,7 @@ fn copilot_recent_token_exchange_failure_is_not_auto_usable() {
             success: false,
             provider_smoke_ok: None,
             tool_smoke_ok: None,
+            validated_models: Vec::new(),
             summary:
                 "refresh_probe: Copilot token exchange failed (HTTP 403 Forbidden): feature_flag_blocked"
                     .to_string(),
@@ -329,6 +330,7 @@ fn openai_compatible_validation_failure_marks_provider_as_expired() {
             success: false,
             provider_smoke_ok: Some(false),
             tool_smoke_ok: Some(false),
+            validated_models: Vec::new(),
             summary: "provider_smoke: unauthorized".to_string(),
         },
     )
@@ -535,4 +537,43 @@ fn saitec_save_session_syncs_business_api_key_into_env_bridge() {
 
     restore_env_var("JCODE_HOME", prev_home);
     restore_env_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_api_key);
+}
+
+#[test]
+fn validation_save_and_load_preserves_validated_models() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::TempDir::new().expect("create temp dir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::auth::validation::save(
+        "kimi",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            validated_models: vec![
+                "kimi-for-coding".to_string(),
+                "moonshotai/kimi-k2.5".to_string(),
+            ],
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save validation record");
+
+    let loaded = crate::auth::validation::get("kimi").expect("load validation record");
+    assert_eq!(
+        loaded.validated_models,
+        vec![
+            "kimi-for-coding".to_string(),
+            "moonshotai/kimi-k2.5".to_string()
+        ]
+    );
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
 }

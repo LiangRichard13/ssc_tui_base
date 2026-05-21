@@ -7,6 +7,9 @@ async fn maybe_run_auth_test_smoke(
     prompt: &str,
 ) {
     if enabled && report.success && target.supports_smoke() {
+        if let Some(model) = model {
+            report.note_validated_model(model);
+        }
         match kind.run(target, model, prompt).await {
             Ok(output) => {
                 let ok = output.contains("AUTH_TEST_OK");
@@ -41,6 +44,11 @@ async fn maybe_run_auth_test_smoke_for_choice(
     if enabled && report.success {
         match auth_test_choice_plan(choice, model).await {
             Ok(AuthTestChoicePlan::Run { model }) => {
+                if let Some(model_name) =
+                    effective_validated_model_for_choice(choice, model.as_deref())
+                {
+                    report.note_validated_model(&model_name);
+                }
                 match kind.run_for_choice(choice, model.as_deref(), prompt).await {
                     Ok(output) => {
                         let ok = output.contains("AUTH_TEST_OK");
@@ -66,6 +74,19 @@ async fn maybe_run_auth_test_smoke_for_choice(
     } else if !enabled {
         report.push_step(kind.step_name(), true, kind.skipped_by_flag_detail());
     }
+}
+
+fn effective_validated_model_for_choice(
+    choice: &super::provider_init::ProviderChoice,
+    planned_model: Option<&str>,
+) -> Option<String> {
+    if let Some(model) = planned_model.map(str::trim).filter(|model| !model.is_empty()) {
+        return Some(model.to_string());
+    }
+
+    super::provider_init::profile_for_choice(choice)
+        .and_then(|profile| profile.default_model)
+        .map(ToString::to_string)
 }
 
 pub(crate) async fn run_post_login_validation(
@@ -425,6 +446,7 @@ fn persist_auth_test_report(report: &AuthTestProviderReport) {
         success: report.success,
         provider_smoke_ok: step_map.get("provider_smoke").copied(),
         tool_smoke_ok: step_map.get("tool_smoke").copied(),
+        validated_models: report.validated_models.clone(),
         summary,
     };
 
@@ -433,5 +455,50 @@ fn persist_auth_test_report(report: &AuthTestProviderReport) {
             "failed to persist auth validation result for {}: {}",
             report.provider, err
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::provider_init::ProviderChoice;
+
+    #[test]
+    fn validated_model_for_choice_uses_profile_default_when_plan_model_is_none() {
+        let model = effective_validated_model_for_choice(
+            &ProviderChoice::AlibabaCodingPlan,
+            None,
+        );
+        assert_eq!(model.as_deref(), Some("qwen3-coder-plus"));
+    }
+
+    #[test]
+    fn persist_auth_test_report_saves_validated_models() {
+        let _lock = crate::storage::lock_test_env();
+        let temp = tempfile::TempDir::new().expect("create temp dir");
+        let prev_home = std::env::var_os("JCODE_HOME");
+
+        crate::env::set_var("JCODE_HOME", temp.path());
+        let mut report = AuthTestProviderReport::new_generic("kimi".to_string(), Vec::new());
+        report.note_validated_model("kimi-for-coding");
+        report.note_validated_model("moonshotai/kimi-k2.5");
+        report.push_step("provider_smoke", true, "Provider returned AUTH_TEST_OK.");
+
+        persist_auth_test_report(&report);
+
+        let record = crate::auth::validation::get("kimi").expect("persisted validation");
+        assert_eq!(
+            record.validated_models,
+            vec![
+                "kimi-for-coding".to_string(),
+                "moonshotai/kimi-k2.5".to_string()
+            ]
+        );
+
+        if let Some(prev_home) = prev_home {
+            crate::env::set_var("JCODE_HOME", prev_home);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
     }
 }

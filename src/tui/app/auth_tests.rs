@@ -236,6 +236,7 @@ fn provider_validation_completion_refreshes_open_login_picker_status() {
             success: true,
             provider_smoke_ok: Some(true),
             tool_smoke_ok: Some(true),
+            validated_models: Vec::new(),
             summary: "tool_smoke: AUTH_TEST_OK".to_string(),
         },
     )

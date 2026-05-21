@@ -32,6 +32,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 #[cfg(test)]
 use jcode_provider_core::FailoverDecision;
+use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
 pub use jcode_provider_core::{
@@ -917,7 +918,22 @@ impl Provider for MultiProvider {
             }
             let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
             let api_method = format!("openai-compatible:{}", resolved.id);
-            for model in crate::provider_catalog::openai_compatible_profile_static_models(profile) {
+            let mut route_models: BTreeSet<String> =
+                crate::provider_catalog::openai_compatible_profile_static_models(profile)
+                    .into_iter()
+                    .collect();
+            if let Some(record) = crate::auth::validation::get(&resolved.id)
+                .filter(|record| record.success)
+            {
+                route_models.extend(
+                    record
+                        .validated_models
+                        .into_iter()
+                        .map(|model| model.trim().to_string())
+                        .filter(|model| !model.is_empty()),
+                );
+            }
+            for model in route_models {
                 let already_present = routes.iter().any(|route| {
                     route.model == model
                         && route.provider == resolved.display_name

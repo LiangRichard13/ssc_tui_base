@@ -197,6 +197,7 @@ mod tests {
                 success: true,
                 provider_smoke_ok: Some(true),
                 tool_smoke_ok: Some(true),
+                validated_models: Vec::new(),
                 summary: "tool_smoke: ok".to_string(),
             }),
             last_refresh: None,
@@ -241,6 +242,7 @@ mod tests {
             success: true,
             provider_smoke_ok: Some(true),
             tool_smoke_ok: Some(true),
+            validated_models: Vec::new(),
             summary: "tool_smoke: ok".to_string(),
         });
 

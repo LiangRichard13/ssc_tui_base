@@ -124,6 +124,8 @@ pub struct ProviderValidationRecord {
     pub success: bool,
     pub provider_smoke_ok: Option<bool>,
     pub tool_smoke_ok: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validated_models: Vec<String>,
     pub summary: String,
 }
 
@@ -134,4 +136,25 @@ pub struct ProviderRefreshRecord {
     pub last_success_ms: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProviderValidationRecord;
+
+    #[test]
+    fn provider_validation_record_backfills_missing_validated_models() {
+        let json = r#"{
+            "checked_at_ms": 1,
+            "success": true,
+            "provider_smoke_ok": true,
+            "tool_smoke_ok": false,
+            "summary": "ok"
+        }"#;
+
+        let record: ProviderValidationRecord =
+            serde_json::from_str(json).expect("deserialize validation record");
+
+        assert!(record.validated_models.is_empty());
+    }
 }

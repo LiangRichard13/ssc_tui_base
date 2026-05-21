@@ -1001,6 +1001,7 @@ fn test_filtered_login_picker_uses_validation_results_for_provider_status_text()
             success: false,
             provider_smoke_ok: Some(false),
             tool_smoke_ok: Some(false),
+            validated_models: Vec::new(),
             summary: "provider_smoke: unauthorized".to_string(),
         },
     )
@@ -1012,6 +1013,7 @@ fn test_filtered_login_picker_uses_validation_results_for_provider_status_text()
             success: true,
             provider_smoke_ok: Some(true),
             tool_smoke_ok: Some(true),
+            validated_models: Vec::new(),
             summary: "tool_smoke: AUTH_TEST_OK".to_string(),
         },
     )

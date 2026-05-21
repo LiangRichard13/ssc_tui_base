@@ -385,6 +385,60 @@ fn test_configured_direct_compatible_profiles_are_listed_without_openrouter_key(
 }
 
 #[test]
+fn test_validated_direct_compatible_models_are_merged_into_model_routes() {
+    with_clean_provider_test_env(|| {
+        with_env_var("BAILIAN_CODING_PLAN_API_KEY", "test-alibaba-key", || {
+            let temp = tempfile::TempDir::new().expect("create temp dir");
+            let prev_home = std::env::var_os("JCODE_HOME");
+            crate::env::set_var("JCODE_HOME", temp.path());
+
+            crate::auth::validation::save(
+                "alibaba-coding-plan",
+                crate::auth::validation::ProviderValidationRecord {
+                    checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                    success: true,
+                    provider_smoke_ok: Some(true),
+                    tool_smoke_ok: Some(true),
+                    validated_models: vec!["qwen3-coder-max".to_string()],
+                    summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+                },
+            )
+            .expect("save validation record");
+
+            let provider = MultiProvider {
+                claude: RwLock::new(None),
+                anthropic: RwLock::new(None),
+                openai: RwLock::new(None),
+                copilot_api: RwLock::new(None),
+                antigravity: RwLock::new(None),
+                gemini: RwLock::new(None),
+                cursor: RwLock::new(None),
+                bedrock: RwLock::new(None),
+                openrouter: RwLock::new(None),
+                active: RwLock::new(ActiveProvider::OpenAI),
+                use_claude_cli: false,
+                startup_notices: RwLock::new(Vec::new()),
+                forced_provider: None,
+            };
+
+            let routes = provider.model_routes();
+            assert!(routes.iter().any(|route| {
+                route.model == "qwen3-coder-max"
+                    && route.provider == "Alibaba Cloud Coding Plan"
+                    && route.api_method == "openai-compatible:alibaba-coding-plan"
+                    && route.available
+            }));
+
+            if let Some(prev_home) = prev_home {
+                crate::env::set_var("JCODE_HOME", prev_home);
+            } else {
+                crate::env::remove_var("JCODE_HOME");
+            }
+        })
+    });
+}
+
+#[test]
 fn test_profile_prefixed_model_switch_reinitializes_direct_compatible_runtime() {
     with_clean_provider_test_env(|| {
         with_env_var("DEEPSEEK_API_KEY", "test-deepseek-key", || {

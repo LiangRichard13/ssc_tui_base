@@ -173,6 +173,7 @@ struct AuthTestProviderReport {
     steps: Vec<AuthTestStepReport>,
     smoke_output: Option<String>,
     tool_smoke_output: Option<String>,
+    validated_models: Vec<String>,
     success: bool,
 }
 
@@ -184,6 +185,7 @@ impl AuthTestProviderReport {
             steps: Vec::new(),
             smoke_output: None,
             tool_smoke_output: None,
+            validated_models: Vec::new(),
             success: true,
         }
     }
@@ -195,6 +197,7 @@ impl AuthTestProviderReport {
             steps: Vec::new(),
             smoke_output: None,
             tool_smoke_output: None,
+            validated_models: Vec::new(),
             success: true,
         }
     }
@@ -208,6 +211,14 @@ impl AuthTestProviderReport {
             ok,
             detail: detail.into(),
         });
+    }
+
+    fn note_validated_model(&mut self, model: &str) {
+        let model = model.trim();
+        if model.is_empty() || self.validated_models.iter().any(|existing| existing == model) {
+            return;
+        }
+        self.validated_models.push(model.to_string());
     }
 }
 

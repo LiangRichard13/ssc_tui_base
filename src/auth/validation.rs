@@ -70,6 +70,7 @@ mod tests {
             success: true,
             provider_smoke_ok: Some(true),
             tool_smoke_ok: Some(true),
+            validated_models: vec!["gpt-5.5".to_string()],
             summary: "ok".to_string(),
         };
         assert!(format_record_label(&record).starts_with("runtime + tool validated"));
@@ -82,6 +83,7 @@ mod tests {
             success: false,
             provider_smoke_ok: Some(false),
             tool_smoke_ok: Some(false),
+            validated_models: Vec::new(),
             summary: "provider smoke failed".to_string(),
         };
         assert!(format_record_label(&record).starts_with("validation failed"));
