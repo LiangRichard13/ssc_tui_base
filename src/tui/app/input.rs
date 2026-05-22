@@ -2147,18 +2147,22 @@ impl App {
             return;
         }
 
+        let pending_login = self.pending_login.take();
+        let pending_account_input = self.pending_account_input.take();
         let raw_input = std::mem::take(&mut self.input);
         if raw_input.trim() == "/login" || raw_input.trim() == "/login jcode" {
             crate::logging::info(&format!(
                 "login-debug: submit_input raw=`{}` pending_login_before={} preview_active={}",
                 raw_input.trim(),
-                self.pending_login.is_some(),
+                pending_login.is_some(),
                 self.inline_interactive_state
                     .as_ref()
                     .is_some_and(|picker| picker.preview)
             ));
         }
-        push_submitted_input_history(self, &raw_input);
+        if pending_login.is_none() && pending_account_input.is_none() {
+            push_submitted_input_history(self, &raw_input);
+        }
         let input = self.expand_paste_placeholders(&raw_input);
         self.pasted_contents.clear();
         self.cursor_pos = 0;
@@ -2172,12 +2176,12 @@ impl App {
         // assistant paragraph shows up later out of order.
         self.commit_pending_streaming_assistant_message();
 
-        if let Some(pending) = self.pending_login.take() {
+        if let Some(pending) = pending_login {
             self.handle_login_input(pending, input);
             return;
         }
 
-        if let Some(pending) = self.pending_account_input.take() {
+        if let Some(pending) = pending_account_input {
             self.handle_pending_account_input(pending, input);
             return;
         }

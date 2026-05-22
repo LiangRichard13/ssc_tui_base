@@ -1,10 +1,112 @@
 use super::*;
+use crate::tui::TuiState;
 use crate::tui::ui::input_ui;
 use ratatui::layout::Rect;
+use unicode_width::UnicodeWidthStr;
 
 impl App {
     const MOUSE_SCROLL_INTENT_LINES: i16 = 3;
     const MOUSE_SCROLL_MAX_QUEUE: i16 = 24;
+
+    fn pending_text_entry_chat_area(layout: crate::tui::ui::LayoutSnapshot) -> Rect {
+        let mut area = layout.messages_area;
+        if crate::saitec::product_profile::use_fixed_shell_layout() && area.height > 2 {
+            area.height = area.height.saturating_sub(2);
+        }
+        if let Some(input_area) = layout.input_area {
+            area.width = input_area.width;
+        }
+        area
+    }
+
+    fn handle_pending_text_entry_overlay_mouse(&mut self, mouse: MouseEvent) -> bool {
+        let Some(overlay) = self.pending_text_entry_overlay() else {
+            return false;
+        };
+        let Some(layout) = super::super::ui::last_layout_snapshot() else {
+            return false;
+        };
+        if !matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+            return false;
+        }
+
+        let chat_area = Self::pending_text_entry_chat_area(layout);
+        let width = chat_area.width.min(78).max(50);
+        let inner_width = width.saturating_sub(2) as usize;
+        let blank_after_details = usize::from(!overlay.detail_lines.is_empty());
+        let detail_rows: usize = overlay
+            .detail_lines
+            .iter()
+            .map(|line| {
+                crate::tui::markdown::wrap_line(
+                    ratatui::text::Line::from(format!(" {}", line)),
+                    inner_width.max(1),
+                )
+                .len()
+            })
+            .sum();
+        let footer_rows = crate::tui::markdown::wrap_line(
+            ratatui::text::Line::from(format!(" {}", overlay.footer_hint)),
+            inner_width.max(1),
+        )
+        .len();
+        let rendered_line_count =
+            detail_rows + blank_after_details + 1 + 1 + 1 + 1 + footer_rows;
+        let desired_height =
+            (6usize + rendered_line_count).min(chat_area.height.saturating_sub(2).max(8) as usize);
+        let height = desired_height.max(8) as u16;
+        let popup = Rect {
+            x: chat_area.x + chat_area.width.saturating_sub(width) / 2,
+            y: chat_area.y + chat_area.height.saturating_sub(height) / 2,
+            width,
+            height,
+        };
+
+        if mouse.column < popup.x
+            || mouse.column >= popup.x.saturating_add(popup.width)
+            || mouse.row < popup.y
+            || mouse.row >= popup.y.saturating_add(popup.height)
+        {
+            return false;
+        }
+
+        let validate_label = "[ Validate ]";
+        let cancel_label = "[ Cancel ]";
+        let button_gap = "  ";
+        let button_width = UnicodeWidthStr::width(validate_label)
+            + UnicodeWidthStr::width(button_gap)
+            + UnicodeWidthStr::width(cancel_label);
+        let button_padding = inner_width.saturating_sub(button_width) / 2;
+        let button_row = popup.y + 1 + detail_rows as u16 + blank_after_details as u16 + 2;
+        if mouse.row == button_row {
+            let validate_start = popup.x + 1 + button_padding as u16;
+            let validate_end = validate_start + UnicodeWidthStr::width(validate_label) as u16;
+            let cancel_start = validate_end + UnicodeWidthStr::width(button_gap) as u16;
+            let cancel_end = cancel_start + UnicodeWidthStr::width(cancel_label) as u16;
+
+            if mouse.column >= validate_start && mouse.column < validate_end {
+                self.pending_text_entry_focus = super::PendingTextEntryFocus::Validate;
+                super::input::handle_pending_login_key(
+                    self,
+                    KeyCode::Enter,
+                    KeyModifiers::empty(),
+                );
+                return false;
+            }
+            if mouse.column >= cancel_start && mouse.column < cancel_end {
+                self.pending_text_entry_focus = super::PendingTextEntryFocus::Cancel;
+                super::input::handle_pending_login_key(
+                    self,
+                    KeyCode::Enter,
+                    KeyModifiers::empty(),
+                );
+                return false;
+            }
+        }
+
+        self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+        false
+    }
 
     fn current_visible_diagram_hash(&self) -> Option<u64> {
         if self.diagram_mode != crate::config::DiagramDisplayMode::Pinned
@@ -740,6 +842,10 @@ impl App {
                 }
                 _ => return false,
             }
+        }
+
+        if self.pending_text_entry_overlay().is_some() {
+            return self.handle_pending_text_entry_overlay_mouse(mouse);
         }
 
         if let Some(ref picker_cell) = self.session_picker_overlay {

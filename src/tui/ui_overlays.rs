@@ -12,6 +12,24 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthStr;
 
+fn clip_overlay_input_to_single_line(
+    input: &str,
+    max_chars: usize,
+    cursor_char_pos: usize,
+) -> (String, usize) {
+    let chars: Vec<char> = input.chars().collect();
+    if chars.len() <= max_chars {
+        return (input.to_string(), cursor_char_pos.min(chars.len()));
+    }
+
+    let clamped_cursor = cursor_char_pos.min(chars.len());
+    let max_start = chars.len().saturating_sub(max_chars);
+    let start = clamped_cursor.saturating_sub(max_chars).min(max_start);
+    let end = (start + max_chars).min(chars.len());
+    let visible = chars[start..end].iter().collect::<String>();
+    (visible, clamped_cursor.saturating_sub(start).min(end - start))
+}
+
 fn saitec_form_field_value(
     form: &crate::tui::app::SaitecPendingForm,
     field: crate::tui::app::SaitecLoginField,
@@ -258,9 +276,16 @@ pub(super) fn draw_pending_text_entry_overlay(
     }
 
     let field_row = lines.len() as u16;
+    let label = format!(" {} ", overlay.field_label);
+    let cursor_char_pos = crate::tui::core::byte_offset_to_char_index(live_input, live_cursor_pos);
+    let max_input_width = inner_width
+        .saturating_sub(UnicodeWidthStr::width(label.as_str()))
+        .max(1);
+    let (visible_input, visible_cursor_char_pos) =
+        clip_overlay_input_to_single_line(&masked_input, max_input_width, cursor_char_pos);
     lines.push(Line::from(vec![
         Span::styled(
-            format!(" {} ", overlay.field_label),
+            label.clone(),
             if overlay.validate_focused || overlay.cancel_focused {
                 Style::default()
                     .fg(rgb(210, 210, 225))
@@ -271,35 +296,46 @@ pub(super) fn draw_pending_text_entry_overlay(
             },
         ),
         Span::styled(
-            if masked_input.is_empty() {
+            if visible_input.is_empty() {
                 " ".to_string()
             } else {
-                masked_input.clone()
+                visible_input.clone()
             },
             Style::default().fg(rgb(235, 235, 245)),
         ),
     ]));
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        "               [ Validate ]",
-        if overlay.validate_focused {
-            Style::default()
-                .fg(accent_color())
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(rgb(210, 210, 225))
-        },
-    )));
-    lines.push(Line::from(Span::styled(
-        "                [ Cancel ]",
-        if overlay.cancel_focused {
-            Style::default()
-                .fg(accent_color())
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(rgb(210, 210, 225))
-        },
-    )));
+    let validate_label = "[ Validate ]";
+    let cancel_label = "[ Cancel ]";
+    let button_gap = "  ";
+    let button_width = UnicodeWidthStr::width(validate_label)
+        + UnicodeWidthStr::width(button_gap)
+        + UnicodeWidthStr::width(cancel_label);
+    let button_padding = " ".repeat(inner_width.saturating_sub(button_width) / 2);
+    lines.push(Line::from(vec![
+        Span::raw(button_padding),
+        Span::styled(
+            validate_label,
+            if overlay.validate_focused {
+                Style::default()
+                    .fg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(rgb(210, 210, 225))
+            },
+        ),
+        Span::raw(button_gap),
+        Span::styled(
+            cancel_label,
+            if overlay.cancel_focused {
+                Style::default()
+                    .fg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(rgb(210, 210, 225))
+            },
+        ),
+    ]));
     lines.push(Line::from(""));
     lines.extend(markdown::wrap_line(
         Line::from(Span::styled(
@@ -340,12 +376,10 @@ pub(super) fn draw_pending_text_entry_overlay(
         popup,
     );
 
-    let cursor_char_pos = crate::tui::core::byte_offset_to_char_index(live_input, live_cursor_pos);
-    let cursor_prefix = masked_input
+    let cursor_prefix = visible_input
         .chars()
-        .take(cursor_char_pos)
+        .take(visible_cursor_char_pos)
         .collect::<String>();
-    let label = format!(" {} ", overlay.field_label);
     if !overlay.validate_focused && !overlay.cancel_focused {
         let cursor_x = popup.x
             + 1

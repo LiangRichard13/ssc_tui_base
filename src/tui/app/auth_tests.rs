@@ -727,6 +727,33 @@ fn api_key_login_down_twice_then_enter_activates_cancel_button() {
 }
 
 #[test]
+fn api_key_login_submit_does_not_enter_submitted_input_history() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let mut app = create_test_app();
+
+    app.input = "first prompt".to_string();
+    app.submit_input();
+
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+    app.input = "secret-api-key".to_string();
+    app.cursor_pos = app.input.len();
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should move focus to validate");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter on validate should submit the overlay");
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty())
+        .expect("history recall should still work after login");
+    assert_eq!(
+        app.input(),
+        "first prompt",
+        "secondary form input should not be stored in submitted input history"
+    );
+}
+
+#[test]
 fn kimi_api_key_login_success_keeps_chat_input_available() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");

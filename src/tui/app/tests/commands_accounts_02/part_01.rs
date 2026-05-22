@@ -1524,6 +1524,113 @@ fn test_api_key_login_overlay_shows_cancel_button_instead_of_cancel_command() {
 }
 
 #[test]
+fn test_api_key_login_overlay_places_validate_and_cancel_on_one_row() {
+    let mut app = create_test_app();
+    app.set_pending_api_key_login_for_tests("kimi", "Kimi Code", "KIMI_API_KEY");
+
+    let backend = ratatui::backend::TestBackend::new(100, 28);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let text = buffer_to_text(&terminal);
+    assert!(
+        text.lines()
+            .any(|line| line.contains("[ Validate ]") && line.contains("[ Cancel ]")),
+        "api-key overlay should place validate and cancel on one row, got:\n{text}"
+    );
+}
+
+#[test]
+fn test_api_key_login_overlay_masks_long_input_without_wrapping() {
+    let mut app = create_test_app();
+    let live_key = "x".repeat(160);
+    app.input = live_key;
+    app.cursor_pos = app.input.len();
+    app.set_pending_api_key_login_for_tests("kimi", "Kimi Code", "KIMI_API_KEY");
+
+    let backend = ratatui::backend::TestBackend::new(60, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let star_lines = buffer_to_text(&terminal)
+        .lines()
+        .filter(|line| line.matches('*').count() >= 10)
+        .count();
+    assert_eq!(
+        star_lines, 1,
+        "masked API-key input should stay on one visual line"
+    );
+}
+
+#[test]
+fn test_api_key_login_overlay_mouse_click_validate_submits() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+    let mut app = create_test_app();
+    app.set_pending_api_key_login_for_tests("zai", "Z.AI", "ZAI_API_KEY");
+    app.input = "secret-api-key".to_string();
+    app.cursor_pos = app.input.len();
+
+    let backend = ratatui::backend::TestBackend::new(100, 28);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("api-key login draw should succeed");
+
+    let buf = terminal.backend().buffer();
+    let mut validate_hit = None;
+    'rows: for y in 0..buf.area.height {
+        let mut line = String::with_capacity(buf.area.width as usize);
+        for x in 0..buf.area.width {
+            line.push_str(buf[(x, y)].symbol());
+        }
+        if let Some(col) = line.find("[ Validate ]") {
+            validate_hit = Some((col as u16 + 2, y));
+            break 'rows;
+        }
+    }
+    let (column, row) = validate_hit.expect("validate button should be visible");
+
+    let handled = app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::empty(),
+    });
+
+    assert!(!handled, "overlay click should request an immediate redraw");
+    assert!(
+        app.pending_login.is_none(),
+        "clicking validate should submit the API-key overlay"
+    );
+
+    let saved = std::fs::read_to_string(
+        crate::storage::app_config_dir()
+            .expect("config dir")
+            .join("test.env"),
+    )
+    .expect("saved env file");
+    assert!(
+        saved.contains("ZAI_API_KEY=secret-api-key"),
+        "validate click should save the API key, got:\n{saved}"
+    );
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[test]
 fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
     let mut app = create_test_app();
     app.input = "/account openrouter add".to_string();
