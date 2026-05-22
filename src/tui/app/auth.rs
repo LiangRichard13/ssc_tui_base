@@ -2110,6 +2110,22 @@ impl App {
         // without requiring a restart or a second user action.
         self.provider.on_auth_changed();
 
+        if self.is_remote {
+            if let Some(profile_id) =
+                crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                    &provider_label,
+                )
+                && let Some(profile) =
+                    crate::provider_catalog::openai_compatible_profile_by_id(profile_id)
+                && let Some(default_model) =
+                    crate::provider_catalog::resolve_openai_compatible_profile(profile)
+                        .default_model
+            {
+                self.pending_model_switch = Some(format!("{profile_id}:{default_model}"));
+            }
+            return;
+        }
+
         let provider = Arc::clone(&self.provider);
         let session_id = self.session.id.clone();
         let provider_descriptor = crate::provider_catalog::saitec_auth_status_login_providers()

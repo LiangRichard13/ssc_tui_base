@@ -490,6 +490,17 @@ fn openai_compatible_post_login_activation_uses_provider_prefixed_kimi_spec() {
 }
 
 #[test]
+fn remote_openai_compatible_post_login_activation_queues_documented_default_model() {
+    let mut app = App::new_for_remote(None);
+    app.start_openai_compatible_post_login_activation("Kimi Code".to_string());
+
+    assert_eq!(
+        app.pending_model_switch.as_deref(),
+        Some("kimi:kimi-for-coding")
+    );
+}
+
+#[test]
 fn saitec_pending_login_empty_submit_keeps_form_and_shows_validation_error() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_for_tests();
