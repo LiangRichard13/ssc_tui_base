@@ -240,7 +240,7 @@ fn openai_compatible_key_save_does_not_mark_hosted_provider_validated_by_presenc
 }
 
 #[test]
-fn failed_openai_compatible_validation_reopens_api_key_prompt_and_records_failure() {
+fn failed_openai_compatible_validation_keeps_saved_key_flow_closed_and_records_failure() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
@@ -257,25 +257,57 @@ fn failed_openai_compatible_validation_reopens_api_key_prompt_and_records_failur
         message: "Post-login validation failed for Z.AI. Credentials were saved, but jcode could not verify runtime readiness.".to_string(),
     });
 
-    match app.pending_login.as_ref() {
-        Some(super::auth::PendingLogin::ApiKeyProfile {
-            provider_id,
-            provider,
-            key_name,
-            ..
-        }) => {
-            assert_eq!(provider_id, "zai");
-            assert_eq!(provider, "Z.AI");
-            assert_eq!(key_name, "ZHIPU_API_KEY");
-        }
-        other => panic!("expected API-key prompt to reopen after failed validation, got: {other:?}"),
-    }
+    assert!(
+        app.pending_login.is_none(),
+        "runtime validation failure after saving a hosted API key should not reopen the API-key prompt"
+    );
+    assert_eq!(
+        app.status_notice(),
+        Some("Validation: Z.AI failed".to_string())
+    );
     assert!(
         app.display_messages()
             .iter()
             .any(|message| message.role == "error"
                 && message.content.contains("Post-login validation failed")),
         "validation failure should be surfaced as an error message"
+    );
+}
+
+#[test]
+fn failed_openai_compatible_activation_keeps_saved_key_flow_closed_and_records_failure() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.start_login_provider(crate::provider_catalog::KIMI_LOGIN_PROVIDER);
+    let pending = app.pending_login.take().expect("pending Kimi Code login");
+    app.handle_login_input(pending, "kimi-test-key".to_string());
+
+    app.handle_login_completed(crate::bus::LoginCompleted {
+        provider: "Kimi Code".to_string(),
+        success: false,
+        message: "Fetched the model catalog, but it contained no selectable Kimi Code models and failed to switch to the documented default `kimi-for-coding`: This provider does not support model switching".to_string(),
+    });
+
+    assert!(
+        app.pending_login.is_none(),
+        "post-save model activation failure should not reopen the API-key prompt"
+    );
+    assert_eq!(
+        app.status_notice(),
+        Some("Validation: Kimi Code failed".to_string())
+    );
+    assert!(
+        app.display_messages().iter().any(|message| {
+            message.role == "error"
+                && message
+                    .content
+                    .contains("contained no selectable Kimi Code models")
+        }),
+        "model activation failure should be surfaced as an error message"
     );
 }
 
@@ -338,6 +370,84 @@ fn provider_validation_completion_refreshes_open_login_picker_status() {
             .any(|message| message.role == "system"
                 && message.content.contains("Runtime validation passed for Z.AI")),
         "successful revalidation should be surfaced to the user"
+    );
+}
+
+#[test]
+fn post_login_validation_failure_does_not_reopen_base_model_picker() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.start_login_provider(crate::provider_catalog::KIMI_LOGIN_PROVIDER);
+    let pending = app.pending_login.take().expect("pending Kimi Code login");
+    app.handle_login_input(pending, "kimi-test-key".to_string());
+
+    assert!(
+        app.login_picker_overlay.is_none(),
+        "submitting the API-key form should not leave the base-model picker open"
+    );
+
+    super::local::handle_bus_event(
+        &mut app,
+        Ok(crate::bus::BusEvent::ProviderValidationCompleted(
+            crate::bus::ProviderValidationCompleted {
+                provider: "kimi".to_string(),
+                provider_display_name: "Kimi Code".to_string(),
+                success: false,
+                message: "Fetched the model catalog, but it contained no selectable Kimi Code models and failed to switch to the documented default `kimi-for-coding`: This provider does not support model switching".to_string(),
+            },
+        )),
+    );
+
+    assert!(
+        app.login_picker_overlay.is_none(),
+        "post-login validation failure should not reopen the base-model picker"
+    );
+    assert_eq!(
+        app.status_notice(),
+        Some("Validation: Kimi Code failed".to_string())
+    );
+    assert!(
+        app.display_messages().iter().any(|message| {
+            message.role == "error"
+                && message
+                    .content
+                    .contains("contained no selectable Kimi Code models")
+        }),
+        "post-login validation failure should still surface an error message"
+    );
+}
+
+#[test]
+fn failed_text_entry_login_does_not_preserve_branded_startup_surface_after_error() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.start_login_provider(crate::provider_catalog::KIMI_LOGIN_PROVIDER);
+    let pending = app.pending_login.take().expect("pending Kimi Code login");
+    app.handle_login_input(pending, "kimi-test-key".to_string());
+
+    super::local::handle_bus_event(
+        &mut app,
+        Ok(crate::bus::BusEvent::ProviderValidationCompleted(
+            crate::bus::ProviderValidationCompleted {
+                provider: "kimi".to_string(),
+                provider_display_name: "Kimi Code".to_string(),
+                success: false,
+                message: "Fetched the model catalog, but it contained no selectable Kimi Code models and failed to switch to the documented default `kimi-for-coding`: This provider does not support model switching".to_string(),
+            },
+        )),
+    );
+
+    assert!(
+        !TuiState::preserve_branded_startup_surface(&app),
+        "once an API-key login surfaces an error message, the branded startup splash should not keep hiding it"
     );
 }
 
