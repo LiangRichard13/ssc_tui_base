@@ -361,6 +361,32 @@ fn startup_splash_renders_png_logo_without_external_asset_file() {
 }
 
 #[test]
+fn remote_error_message_suppresses_startup_splash() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        remote_startup_phase_active: true,
+        display_messages: vec![DisplayMessage::error(
+            "Validation failed for Kimi Code.".to_string(),
+        )],
+        messages_version: 1,
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("remote error draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("Validation failed for Kimi Code."),
+        "remote error feedback should remain visible instead of being hidden behind the startup splash: {rendered}"
+    );
+}
+
+#[test]
 fn startup_splash_footer_shows_three_segments() {
     let _guard = viewport_snapshot_test_lock();
     let backend = ratatui::backend::TestBackend::new(100, 24);

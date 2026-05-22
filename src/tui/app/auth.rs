@@ -2110,6 +2110,22 @@ impl App {
         // without requiring a restart or a second user action.
         self.provider.on_auth_changed();
 
+        if self.is_remote {
+            if let Some(profile_id) =
+                crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                    &provider_label,
+                )
+                && let Some(profile) =
+                    crate::provider_catalog::openai_compatible_profile_by_id(profile_id)
+                && let Some(default_model) =
+                    crate::provider_catalog::resolve_openai_compatible_profile(profile)
+                        .default_model
+            {
+                self.pending_model_switch = Some(format!("{profile_id}:{default_model}"));
+            }
+            return;
+        }
+
         let provider = Arc::clone(&self.provider);
         let session_id = self.session.id.clone();
         let provider_descriptor = crate::provider_catalog::saitec_auth_status_login_providers()
@@ -2156,13 +2172,11 @@ impl App {
                                     if let Some(provider_descriptor) = provider_descriptor
                                         && let Err(error) = crate::cli::auth_test::run_post_login_validation_quiet(provider_descriptor).await
                                     {
-                                        crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
-                                            crate::bus::LoginCompleted {
-                                                provider: provider_label.clone(),
-                                                success: false,
-                                                message: error.to_string(),
-                                            },
-                                        ));
+                                        publish_openai_compatible_validation_result(
+                                            &provider_label,
+                                            false,
+                                            error.to_string(),
+                                        );
                                         return;
                                     }
                                     crate::bus::Bus::global().publish_models_updated();
@@ -2183,16 +2197,12 @@ impl App {
                                     );
                                 }
                                 Err(error) => {
-                                    crate::bus::Bus::global().publish(
-                                        crate::bus::BusEvent::LoginCompleted(
-                                            crate::bus::LoginCompleted {
-                                                provider: provider_label,
-                                                success: false,
-                                                message: format!(
-                                                    "Fetched models, but failed to switch to `{}`: {}\n\nYou can run `/refresh-model-list` to retry model discovery.",
-                                                    model, error
-                                                ),
-                                            },
+                                    publish_openai_compatible_validation_result(
+                                        &provider_label,
+                                        false,
+                                        format!(
+                                            "Fetched models, but failed to switch to `{}`: {}\n\nYou can run `/refresh-model-list` to retry model discovery.",
+                                            model, error
                                         ),
                                     );
                                 }
@@ -2226,45 +2236,38 @@ impl App {
                                     );
                                 }
                                 Err(error) => {
-                                    crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
-                                        crate::bus::LoginCompleted {
-                                            provider: provider_label.clone(),
-                                            success: false,
-                                            message: format!(
-                                                "Fetched the model catalog, but it contained no selectable {} models and failed to switch to the documented default `{}`: {}\n\nRun `/refresh-model-list` to retry model discovery, then `jcode auth status` and `jcode auth doctor` for a structured diagnosis.",
-                                                provider_label,
-                                                default_model,
-                                                error
-                                            ),
-                                        },
-                                    ));
+                                    publish_openai_compatible_validation_result(
+                                        &provider_label,
+                                        false,
+                                        format!(
+                                            "Fetched the model catalog, but it contained no selectable {} models and failed to switch to the documented default `{}`: {}\n\nRun `/refresh-model-list` to retry model discovery, then `jcode auth status` and `jcode auth doctor` for a structured diagnosis.",
+                                            provider_label,
+                                            default_model,
+                                            error
+                                        ),
+                                    );
                                 }
                             }
                         } else {
-                            crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
-                                crate::bus::LoginCompleted {
-                                    provider: provider_label.clone(),
-                                    success: false,
-                                    message:
-                                        format!(
-                                            "Fetched the model catalog, but it contained no selectable {} models. Run `/refresh-model-list` to retry model discovery, then `jcode auth status` and `jcode auth doctor` for a structured diagnosis.",
-                                            provider_label
-                                        ),
-                                },
-                            ));
+                            publish_openai_compatible_validation_result(
+                                &provider_label,
+                                false,
+                                format!(
+                                    "Fetched the model catalog, but it contained no selectable {} models. Run `/refresh-model-list` to retry model discovery, then `jcode auth status` and `jcode auth doctor` for a structured diagnosis.",
+                                    provider_label
+                                ),
+                            );
                         }
                     }
                     Err(error) => {
-                        crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
-                            crate::bus::LoginCompleted {
-                                provider: provider_label,
-                                success: false,
-                                message: format!(
-                                    "Saved the API key, but failed to refresh the model catalog:\n\n{}\n\nRun `/refresh-model-list` to retry model discovery after checking the provider settings.",
-                                    error
-                                ),
-                            },
-                        ));
+                        publish_openai_compatible_validation_result(
+                            &provider_label,
+                            false,
+                            format!(
+                                "Saved the API key, but failed to refresh the model catalog:\n\n{}\n\nRun `/refresh-model-list` to retry model discovery after checking the provider settings.",
+                                error
+                            ),
+                        );
                     }
                 }
             });
@@ -2373,15 +2376,18 @@ impl App {
                     }
                 }
             } else if let Some(provider_descriptor) =
-                crate::provider_catalog::resolve_login_provider(&login.provider)
-                && matches!(
-                    provider_descriptor.target,
-                    crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
-                )
+                resolve_openai_compatible_provider_descriptor(&login.provider)
             {
                 self.push_display_message(DisplayMessage::error(message));
-                self.set_status_notice(format!("Login: {} failed", login.provider));
-                self.start_login_provider(provider_descriptor);
+                if is_openai_compatible_post_save_failure_message(&login.message) {
+                    self.set_status_notice(format!(
+                        "Validation: {} failed",
+                        provider_descriptor.display_name
+                    ));
+                } else {
+                    self.set_status_notice(format!("Login: {} failed", login.provider));
+                    self.start_login_provider(provider_descriptor);
+                }
             } else {
                 self.push_display_message(DisplayMessage::error(message));
                 self.set_status_notice(format!("Login: {} failed", login.provider));
@@ -2396,7 +2402,9 @@ impl App {
         &mut self,
         event: crate::bus::ProviderValidationCompleted,
     ) {
-        self.refresh_open_saitec_base_model_login_picker();
+        if self.login_picker_overlay.is_some() {
+            self.refresh_open_saitec_base_model_login_picker();
+        }
         if event.success {
             self.push_display_message(DisplayMessage::system(event.message));
             self.set_status_notice(format!("Validation: {} ready", event.provider_display_name));
@@ -2563,6 +2571,61 @@ fn looks_like_saitec_callback_input(input: &str) -> bool {
 
 fn antigravity_input_requires_state_validation(input: &str, expected_state: Option<&str>) -> bool {
     expected_state.is_some() && looks_like_oauth_callback_input(input)
+}
+
+fn is_openai_compatible_post_save_failure_message(message: &str) -> bool {
+    let lower = message.trim().to_ascii_lowercase();
+    lower.contains("credentials were saved")
+        || lower.contains("saved the api key")
+        || lower.contains("fetched the model catalog")
+        || lower.contains("fetched models, but failed to switch")
+}
+
+fn resolve_openai_compatible_provider_descriptor(
+    provider_label: &str,
+) -> Option<crate::provider_catalog::LoginProviderDescriptor> {
+    crate::provider_catalog::resolve_login_provider(provider_label).filter(|provider| {
+        matches!(
+            provider.target,
+            crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
+        )
+    }).or_else(|| {
+        crate::provider_catalog::saitec_auth_status_login_providers()
+            .into_iter()
+            .find(|provider| {
+                matches!(
+                    provider.target,
+                    crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
+                ) && provider.display_name.eq_ignore_ascii_case(provider_label.trim())
+            })
+    })
+}
+
+fn publish_openai_compatible_validation_result(
+    provider_label: &str,
+    success: bool,
+    message: String,
+) {
+    if let Some(provider_descriptor) = resolve_openai_compatible_provider_descriptor(provider_label) {
+        crate::bus::Bus::global().publish(
+            crate::bus::BusEvent::ProviderValidationCompleted(
+                crate::bus::ProviderValidationCompleted {
+                    provider: provider_descriptor.id.to_string(),
+                    provider_display_name: provider_descriptor.display_name.to_string(),
+                    success,
+                    message,
+                },
+            ),
+        );
+    } else {
+        crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
+            crate::bus::LoginCompleted {
+                provider: provider_label.to_string(),
+                success,
+                message,
+            },
+        ));
+    }
 }
 
 #[cfg(test)]

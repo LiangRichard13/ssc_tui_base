@@ -92,6 +92,24 @@ fn test_remote_api_key_login_escape_closes_text_entry_overlay() {
 }
 
 #[test]
+fn test_remote_tick_dispatches_pending_model_switch_without_extra_keypress() {
+    let mut app = create_test_app();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    app.is_remote = true;
+    app.pending_model_switch = Some("kimi:kimi-for-coding".to_string());
+
+    rt.block_on(crate::tui::app::remote::handle_tick(&mut app, &mut remote));
+
+    assert!(
+        app.pending_model_switch.is_none(),
+        "remote tick should dispatch queued model switches even without another keypress"
+    );
+}
+
+#[test]
 fn test_remote_up_arrow_walks_back_through_multiple_history_entries() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();

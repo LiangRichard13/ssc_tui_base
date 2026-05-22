@@ -26,7 +26,10 @@ impl App {
         let Some(layout) = super::super::ui::last_layout_snapshot() else {
             return false;
         };
-        if !matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+        if !matches!(
+            mouse.kind,
+            MouseEventKind::Down(MouseButton::Left) | MouseEventKind::Up(MouseButton::Left)
+        ) {
             return false;
         }
 

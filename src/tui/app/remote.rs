@@ -65,6 +65,10 @@ pub(super) async fn handle_tick(app: &mut App, remote: &mut RemoteConnection) ->
     app.maybe_capture_runtime_memory_heartbeat();
     app.progress_mouse_scroll_animation();
     needs_redraw |= dispatch_compacted_history_load(app, remote).await;
+    if let Some(spec) = app.pending_model_switch.take() {
+        let _ = remote.set_model(&spec).await;
+        needs_redraw = true;
+    }
     if let Some(chunk) = app.stream_buffer.flush() {
         app.append_streaming_text(&chunk);
         needs_redraw = true;
