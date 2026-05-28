@@ -3,6 +3,8 @@ import os
 import httpx
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
+from api_tools.auth_headers import build_auth_headers
+from api_tools.http_errors import raise_for_status_with_body
 
 API_BASE = os.getenv("CORE_API_BASE", "http://127.0.0.1:8000")
 HTTP_TIMEOUT = httpx.Timeout(timeout=30.0, connect=10.0)
@@ -12,8 +14,7 @@ def register_file_manage_tools(mcp: FastMCP):
     """Register file management tools to the MCP server."""
 
     def _headers() -> dict:
-        api_key = os.getenv("SAITEC_API_KEY", "")
-        return {"X-API-Key": api_key}
+        return build_auth_headers()
 
     # --- Tools ---
 
@@ -50,7 +51,7 @@ def register_file_manage_tools(mcp: FastMCP):
                 data={"file_type": file_type},
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -73,7 +74,7 @@ def register_file_manage_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/file-manage/files/{file_id}",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
 
             content_type = resp.headers.get("content-type", "application/octet-stream")
             if "application/json" in content_type:
@@ -113,7 +114,7 @@ def register_file_manage_tools(mcp: FastMCP):
                 params={"skip": skip, "limit": limit},
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -132,5 +133,5 @@ def register_file_manage_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/file-manage/tasks/{task_id}/files",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
