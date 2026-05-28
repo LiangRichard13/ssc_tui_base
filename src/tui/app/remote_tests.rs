@@ -163,15 +163,29 @@ fn remote_login_form_up_down_moves_between_saitec_fields() {
 }
 
 #[test]
-fn remote_show_interactive_login_opens_saitec_form_directly() {
+fn remote_login_mode_selector_enter_defaults_to_saitec_form() {
     let mut app = create_test_app();
-    app.show_interactive_login();
+    app.open_login_mode_selector();
+
+    assert!(app.account_picker_overlay.is_some());
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    rt.block_on(crate::tui::app::remote::handle_remote_key(
+        &mut app,
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+        &mut remote,
+    ))
+    .expect("enter should activate the selected login mode");
 
     match app.pending_login {
         Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
             assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
         }
-        ref other => panic!("expected Saitec form after interactive login: {other:?}"),
+        ref other => panic!("expected Saitec form after remote selector Enter: {other:?}"),
     }
     assert!(app.account_picker_overlay.is_none());
 }
@@ -228,7 +242,7 @@ fn remote_login_mode_selector_up_after_down_returns_to_saitec_without_closing_se
 }
 
 #[test]
-fn remote_typed_login_command_opens_saitec_form_directly() {
+fn remote_typed_login_command_opens_login_mode_selector() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().expect("runtime");
     let _guard = rt.enter();
@@ -254,14 +268,7 @@ fn remote_typed_login_command_opens_saitec_form_directly() {
     ))
     .expect("enter should handle typed login command");
 
-    match app.pending_login {
-        Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
-        }
-        ref other => panic!("expected Saitec form after remote /login: {other:?}"),
-    }
-    assert!(app.account_picker_overlay.is_none());
-    assert!(app.login_picker_overlay.is_none());
+    assert!(app.is_login_mode_selector_open());
     assert!(app.input().is_empty());
 }
 

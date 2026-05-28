@@ -20,7 +20,7 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
 
     if trimmed == "/login" {
         crate::logging::info("login-debug: handle_auth_command matched `/login`");
-        app.start_jcode_login();
+        app.open_login_mode_selector();
         return true;
     }
 

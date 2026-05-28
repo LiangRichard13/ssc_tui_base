@@ -466,7 +466,7 @@ impl App {
     }
 
     pub(super) fn show_interactive_login(&mut self) {
-        self.start_jcode_login();
+        self.open_login_mode_selector();
     }
 
     pub(super) fn start_login_provider(

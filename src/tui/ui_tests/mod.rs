@@ -231,7 +231,7 @@ fn startup_splash_shows_login_tab_completion_hint_before_first_message() {
         command_suggestions: vec![
             (
                 "/login".to_string(),
-                "Start the Saitec login flow",
+                "Choose SAITEC login or base-model configuration",
             ),
             (
                 "/login jcode".to_string(),
@@ -252,7 +252,7 @@ fn startup_splash_shows_login_tab_completion_hint_before_first_message() {
 
     let rendered = buffer_to_text(&terminal).join("\n");
     assert!(
-        rendered.contains("/login - Start the Saitec login flow"),
+        rendered.contains("/login - Choose SAITEC login or base-model configuration"),
         "startup splash should show the /login completion hint when /login is typed before the first message: {rendered}"
     );
     assert!(

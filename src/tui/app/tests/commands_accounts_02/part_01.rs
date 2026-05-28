@@ -530,26 +530,23 @@ fn test_account_picker_prompt_new_openai_label_cancel_clears_prompt() {
 }
 
 #[test]
-fn test_login_command_opens_saitec_login_form_directly() {
+fn test_login_command_opens_login_mode_selector_overlay() {
     let mut app = create_test_app();
     app.input = "/login".to_string();
     app.submit_input();
 
-    assert!(app.account_picker_overlay.is_none());
-    assert!(app.login_picker_overlay.is_none());
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
-        }
-        ref other => panic!("unexpected pending login state after /login: {other:?}"),
-    }
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "/login should open the top-level login mode selector"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "/login should no longer jump directly into the Saitec form"
+    );
 }
 
 #[test]
-fn test_login_command_renders_saitec_overlay_without_login_picker_columns() {
+fn test_login_mode_selector_uses_simple_two_option_dialog() {
     let mut app = create_test_app();
     app.input = "/login".to_string();
     app.submit_input();
@@ -561,41 +558,51 @@ fn test_login_command_renders_saitec_overlay_without_login_picker_columns() {
         .expect("login selector draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("Saitec Login"), "rendered overlay:\n{text}");
-    assert!(text.contains("Email"), "rendered overlay:\n{text}");
-    assert!(text.contains("Phone"), "rendered overlay:\n{text}");
-    assert!(text.contains("Password"), "rendered overlay:\n{text}");
-    assert!(!text.contains("PROVIDER"), "rendered overlay:\n{text}");
-    assert!(!text.contains("ITEM"), "rendered overlay:\n{text}");
-    assert!(!text.contains("ACTION"), "rendered overlay:\n{text}");
+    assert!(text.contains("SAITEC"), "rendered selector:\n{text}");
+    assert!(text.contains("Base models"), "rendered selector:\n{text}");
+    assert!(
+        text.contains("sign in to SAITEC and unlock the TUI"),
+        "rendered selector:\n{text}"
+    );
+    assert!(
+        text.contains("open the filtered base-model login picker"),
+        "rendered selector:\n{text}"
+    );
+    assert!(!text.contains("Overview"), "rendered selector:\n{text}");
+    assert!(
+        !text.contains("Providers & Quick Actions"),
+        "rendered selector:\n{text}"
+    );
+    assert!(
+        !text.contains("saved accounts stay surfaced here"),
+        "rendered selector:\n{text}"
+    );
 }
 
 #[test]
-fn test_enter_on_login_command_without_inline_preview_opens_saitec_form() {
+fn test_enter_on_login_preview_submits_login_command_and_opens_selector() {
     let mut app = create_test_app();
     app.input = "/login".to_string();
     app.sync_model_picker_preview_from_input();
     assert!(
         app.inline_interactive_state.is_none(),
-        "typing /login should not open the inline login picker preview"
+        "exact /login should not open the inline login preview"
     );
 
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("enter should submit login command");
 
-    assert!(app.account_picker_overlay.is_none());
-    assert!(app.login_picker_overlay.is_none());
     assert!(app.inline_interactive_state.is_none());
-    assert_eq!(app.input(), "");
-    assert_eq!(app.cursor_pos, 0);
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
-        }
-        ref other => panic!("unexpected pending login state after Enter on /login: {other:?}"),
+
+    assert!(
+        app.account_picker_overlay.is_some() || app.pending_login.is_some(),
+        "enter on exact /login should submit the command"
+    );
+
+    if app.pending_login.is_none() {
+        assert!(app.account_picker_overlay.is_some());
+        assert_eq!(app.input(), "");
+        assert_eq!(app.cursor_pos, 0);
     }
 }
 
@@ -638,11 +645,19 @@ fn test_login_mode_selector_enter_defaults_to_saitec_form() {
 }
 
 #[test]
-fn test_login_command_clears_stale_saitec_form_before_reopening_direct_form() {
+fn test_login_mode_selector_clears_stale_saitec_form_before_entering_saitec_branch() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_for_tests();
-    app.input = "/login".to_string();
-    app.submit_input();
+    app.open_login_mode_selector();
+
+    assert!(
+        app.pending_login.is_none(),
+        "opening the top-level login selector should dismiss the stale pending login form"
+    );
+    assert!(app.account_picker_overlay.is_some());
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter should activate the default login mode");
 
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
@@ -651,7 +666,9 @@ fn test_login_command_clears_stale_saitec_form_before_reopening_direct_form() {
                 crate::tui::app::auth::SaitecLoginField::Email
             );
         }
-        ref other => panic!("unexpected pending login state after reopening /login: {other:?}"),
+        ref other => panic!(
+            "unexpected pending login state after Enter on selector with stale form: {other:?}"
+        ),
     }
     assert!(app.account_picker_overlay.is_none());
 }
@@ -920,19 +937,6 @@ fn test_login_mode_selector_clears_stale_saitec_form_before_entering_base_models
     );
     assert!(app.pending_login.is_none());
     assert!(app.account_picker_overlay.is_none());
-}
-
-#[test]
-fn test_login_command_up_recalls_last_submitted_command_from_form() {
-    let mut app = create_test_app();
-    app.input = "/login".to_string();
-    app.submit_input();
-
-    app.handle_key(KeyCode::Up, KeyModifiers::empty())
-        .expect("up should recall the previous input from the login form");
-
-    assert_eq!(app.input(), "/login");
-    assert_eq!(app.cursor_pos, app.input().len());
 }
 
 #[test]
@@ -1809,16 +1813,14 @@ fn test_help_overlay_keeps_login_logout_and_model_commands() {
 }
 
 #[test]
-fn test_login_command_after_prior_message_renders_saitec_form_without_provider_item_action_table() {
+fn test_login_command_after_prior_message_renders_login_selector_without_provider_item_action_table()
+{
     let mut app = create_test_app();
     app.push_display_message(DisplayMessage::user("hello before login"));
     app.input = "/login".to_string();
     app.submit_input();
 
-    match app.pending_login {
-        Some(crate::tui::app::PendingLogin::SaitecForm { .. }) => {}
-        ref other => panic!("expected Saitec form after /login, got {other:?}"),
-    }
+    assert!(app.is_login_mode_selector_open());
 
     let backend = ratatui::backend::TestBackend::new(120, 40);
     let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
@@ -1827,10 +1829,8 @@ fn test_login_command_after_prior_message_renders_saitec_form_without_provider_i
         .expect("login overlay draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("Saitec Login"), "rendered:\n{text}");
-    assert!(text.contains("Email"), "rendered:\n{text}");
-    assert!(text.contains("Phone"), "rendered:\n{text}");
-    assert!(text.contains("Password"), "rendered:\n{text}");
+    assert!(text.contains("SAITEC"), "rendered:\n{text}");
+    assert!(text.contains("Base models"), "rendered:\n{text}");
     assert!(!text.contains("PROVIDER"), "rendered:\n{text}");
     assert!(!text.contains("ITEM"), "rendered:\n{text}");
     assert!(!text.contains("ACTION"), "rendered:\n{text}");

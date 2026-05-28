@@ -653,7 +653,7 @@ fn test_model_picker_filter_text_includes_provider_and_method() {
 }
 
 #[test]
-fn test_login_command_does_not_open_inline_login_picker_preview() {
+fn test_login_picker_preview_stays_open_and_updates_filter() {
     let mut app = create_test_app();
 
     for c in "/login jc".chars() {
@@ -661,11 +661,41 @@ fn test_login_command_does_not_open_inline_login_picker_preview() {
             .unwrap();
     }
 
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("login picker preview should be open");
+    assert!(picker.preview);
+    assert_eq!(picker.kind, crate::tui::PickerKind::Login);
+    assert_eq!(picker.filter, "jc");
     assert!(
-        app.inline_interactive_state.is_none(),
-        "typing /login variants should not open the inline login picker preview"
+        picker
+            .filtered
+            .iter()
+            .any(|&i| picker.entries[i].name == "Saitec Subscription")
     );
     assert_eq!(app.input(), "/login jc");
+}
+
+#[test]
+fn test_login_command_opens_login_mode_selector() {
+    let mut app = create_test_app();
+
+    for c in "/login".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+            .unwrap();
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .unwrap();
+
+    assert!(
+        app.is_login_mode_selector_open(),
+        "/login should open the SAITEC/base-model selector"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "/login should not jump directly into a concrete login flow"
+    );
 }
 
 #[test]
