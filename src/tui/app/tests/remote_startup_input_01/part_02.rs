@@ -598,88 +598,102 @@ fn test_model_picker_remote_bedrock_model_requires_runtime_validation() {
 
 #[test]
 fn test_model_picker_preserves_recommendation_priority_order() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_openai_recommendations(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_provider_validation(
+            "openai",
+            &[
+                "gpt-5.2",
+                "gpt-5.5",
+                "gpt-5.4",
+                "gpt-5.4-pro",
+                "gpt-5.3-codex-spark",
+                "gpt-5.3-codex",
+                "claude-opus-4-7",
+            ],
+        );
+        let mut app = create_test_app();
+        configure_test_remote_models_with_openai_recommendations(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let model_names: Vec<&str> = picker.entries.iter().map(|m| m.name.as_str()).collect();
+        let model_names: Vec<&str> = picker.entries.iter().map(|m| m.name.as_str()).collect();
 
-    assert_eq!(model_names.first().copied(), Some("gpt-5.2"));
+        assert_eq!(model_names.first().copied(), Some("gpt-5.2"));
 
-    let gpt55 = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "gpt-5.5")
-        .expect("gpt-5.5 should be present");
-    let gpt54 = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "gpt-5.4")
-        .expect("gpt-5.4 should be present");
-    let gpt54_pro = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "gpt-5.4-pro")
-        .expect("gpt-5.4-pro should be present");
-    let claude_opus = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "claude-opus-4-7")
-        .expect("claude-opus-4-7 should be present");
-    let spark = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "gpt-5.3-codex-spark")
-        .expect("gpt-5.3-codex-spark should be present");
-    let codex = picker
-        .entries
-        .iter()
-        .position(|model| model.name == "gpt-5.3-codex")
-        .expect("gpt-5.3-codex should be present");
+        let gpt55 = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "gpt-5.5")
+            .expect("gpt-5.5 should be present");
+        let gpt54 = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "gpt-5.4")
+            .expect("gpt-5.4 should be present");
+        let gpt54_pro = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "gpt-5.4-pro")
+            .expect("gpt-5.4-pro should be present");
+        let claude_opus = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "claude-opus-4-7")
+            .expect("claude-opus-4-7 should be present");
+        let spark = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "gpt-5.3-codex-spark")
+            .expect("gpt-5.3-codex-spark should be present");
+        let codex = picker
+            .entries
+            .iter()
+            .position(|model| model.name == "gpt-5.3-codex")
+            .expect("gpt-5.3-codex should be present");
 
-    assert!(
-        gpt55 < claude_opus,
-        "gpt-5.5 should rank ahead of claude-opus-4-7, got {:?}",
-        model_names
-    );
-    assert!(
-        claude_opus < gpt54,
-        "claude-opus-4-7 should rank ahead of unrecommended gpt-5.4, got {:?}",
-        model_names
-    );
-    assert!(
-        claude_opus < gpt54_pro,
-        "claude-opus-4-7 should rank ahead of unrecommended gpt-5.4-pro, got {:?}",
-        model_names
-    );
-    assert!(
-        picker.entries[gpt55].recommended,
-        "gpt-5.5 should be recommended"
-    );
-    assert!(
-        picker.entries[claude_opus].recommended,
-        "claude-opus-4-7 should be recommended"
-    );
-    assert!(
-        !picker.entries[gpt54].recommended,
-        "gpt-5.4 should not be recommended"
-    );
-    assert!(
-        !picker.entries[gpt54_pro].recommended,
-        "gpt-5.4-pro should not be recommended"
-    );
-    assert!(
-        !picker.entries[spark].recommended,
-        "gpt-5.3-codex-spark should not be recommended"
-    );
-    assert!(
-        !picker.entries[codex].recommended,
-        "gpt-5.3-codex should not be recommended"
-    );
+        assert!(
+            gpt55 < claude_opus,
+            "gpt-5.5 should rank ahead of claude-opus-4-7, got {:?}",
+            model_names
+        );
+        assert!(
+            claude_opus < gpt54,
+            "claude-opus-4-7 should rank ahead of unrecommended gpt-5.4, got {:?}",
+            model_names
+        );
+        assert!(
+            claude_opus < gpt54_pro,
+            "claude-opus-4-7 should rank ahead of unrecommended gpt-5.4-pro, got {:?}",
+            model_names
+        );
+        assert!(
+            picker.entries[gpt55].recommended,
+            "gpt-5.5 should be recommended"
+        );
+        assert!(
+            picker.entries[claude_opus].recommended,
+            "claude-opus-4-7 should be recommended"
+        );
+        assert!(
+            !picker.entries[gpt54].recommended,
+            "gpt-5.4 should not be recommended"
+        );
+        assert!(
+            !picker.entries[gpt54_pro].recommended,
+            "gpt-5.4-pro should not be recommended"
+        );
+        assert!(
+            !picker.entries[spark].recommended,
+            "gpt-5.3-codex-spark should not be recommended"
+        );
+        assert!(
+            !picker.entries[codex].recommended,
+            "gpt-5.3-codex should not be recommended"
+        );
+    });
 }

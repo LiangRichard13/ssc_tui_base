@@ -652,65 +652,70 @@ fn test_model_picker_includes_copilot_models_in_remote_mode() {
 
 #[test]
 fn test_available_models_updated_event_surfaces_authed_provider_in_remote_model_picker() {
-    let mut app = create_test_app();
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let _guard = rt.enter();
-    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+    with_temp_jcode_home(|| {
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
 
-    app.is_remote = true;
-    app.handle_server_event(
-        crate::protocol::ServerEvent::AvailableModelsUpdated {
-            provider_name: Some("Copilot".to_string()),
-            provider_model: Some("claude-opus-4.6".to_string()),
-            available_models: vec![
-                "claude-opus-4.6".to_string(),
-                "grok-code-fast-1".to_string(),
-            ],
-            available_model_routes: vec![
-                crate::provider::ModelRoute {
-                    model: "claude-opus-4.6".to_string(),
-                    provider: "Copilot".to_string(),
-                    api_method: "copilot".to_string(),
-                    available: true,
-                    detail: String::new(),
-                    cheapness: None,
-                },
-                crate::provider::ModelRoute {
-                    model: "grok-code-fast-1".to_string(),
-                    provider: "Copilot".to_string(),
-                    api_method: "copilot".to_string(),
-                    available: true,
-                    detail: String::new(),
-                    cheapness: None,
-                },
-            ],
-        },
-        &mut remote,
-    );
+        app.is_remote = true;
+        app.handle_server_event(
+            crate::protocol::ServerEvent::AvailableModelsUpdated {
+                provider_name: Some("Copilot".to_string()),
+                provider_model: Some("claude-opus-4.6".to_string()),
+                available_models: vec![
+                    "claude-opus-4.6".to_string(),
+                    "grok-code-fast-1".to_string(),
+                ],
+                available_model_routes: vec![
+                    crate::provider::ModelRoute {
+                        model: "claude-opus-4.6".to_string(),
+                        provider: "Copilot".to_string(),
+                        api_method: "copilot".to_string(),
+                        available: true,
+                        detail: String::new(),
+                        cheapness: None,
+                    },
+                    crate::provider::ModelRoute {
+                        model: "grok-code-fast-1".to_string(),
+                        provider: "Copilot".to_string(),
+                        api_method: "copilot".to_string(),
+                        available: true,
+                        detail: String::new(),
+                        cheapness: None,
+                    },
+                ],
+            },
+            &mut remote,
+        );
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let copilot_entry = picker
-        .entries
-        .iter()
-        .find(|entry| entry.name == "claude-opus-4.6")
-        .expect("copilot model should be shown after AvailableModelsUpdated");
-
-    assert!(
-        picker
+        let copilot_entry = picker
             .entries
             .iter()
-            .any(|entry| entry.name == "grok-code-fast-1"),
-        "all auth-updated remote models should appear in /model"
-    );
-    assert!(copilot_entry.options.iter().any(|route| {
-        route.provider == "Copilot" && route.api_method == "copilot" && route.available
-    }));
+            .find(|entry| entry.name == "claude-opus-4.6")
+            .expect("copilot model should be shown after AvailableModelsUpdated");
+
+        assert!(
+            picker
+                .entries
+                .iter()
+                .any(|entry| entry.name == "grok-code-fast-1"),
+            "all auth-updated remote models should appear in /model"
+        );
+        assert!(copilot_entry.options.iter().any(|route| {
+            route.provider == "Copilot"
+                && route.api_method == "copilot"
+                && !route.available
+                && route.detail.contains("runtime not validated")
+        }));
+    });
 }
 
 #[test]
@@ -743,25 +748,29 @@ fn test_remote_model_switch_failure_shows_actionable_guidance() {
 
 #[test]
 fn test_model_picker_remote_falls_back_to_current_model_when_catalog_empty() {
-    let _guard = crate::storage::lock_test_env();
-    let mut app = create_test_app();
-    app.is_remote = true;
-    app.remote_provider_name = Some("openrouter".to_string());
-    app.remote_provider_model = Some("anthropic/claude-sonnet-4".to_string());
-    app.remote_available_entries.clear();
-    app.remote_model_options.clear();
+    with_temp_jcode_home(|| {
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("openrouter".to_string());
+        app.remote_provider_model = Some("anthropic/claude-sonnet-4".to_string());
+        app.remote_available_entries.clear();
+        app.remote_model_options.clear();
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should open with current-model fallback");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should open with current-model fallback");
 
-    assert_eq!(picker.entries.len(), 1);
-    assert_eq!(picker.entries[0].name, "anthropic/claude-sonnet-4");
-    assert_eq!(picker.entries[0].options.len(), 1);
-    assert_eq!(picker.entries[0].options[0].provider, "openrouter");
-    assert_eq!(picker.entries[0].options[0].api_method, "current");
-    assert!(picker.entries[0].options[0].available);
+        let current_entry = picker
+            .entries
+            .iter()
+            .find(|entry| entry.name == "anthropic/claude-sonnet-4")
+            .expect("current model fallback should be present");
+        assert_eq!(current_entry.options.len(), 1);
+        assert_eq!(current_entry.options[0].provider, "openrouter");
+        assert_eq!(current_entry.options[0].api_method, "current");
+        assert!(current_entry.options[0].available);
+    });
 }

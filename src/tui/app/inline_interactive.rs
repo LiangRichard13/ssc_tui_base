@@ -23,6 +23,91 @@ use helpers::{
 const INLINE_INTERACTIVE_PAGE_JUMP: usize = 10;
 
 impl App {
+    fn model_picker_route_validation_provider(
+        route: &crate::provider::ModelRoute,
+    ) -> Option<(&'static str, &'static str)> {
+        if let Some(("openai-compatible", profile_id)) = route.api_method.split_once(':') {
+            return match profile_id.trim() {
+                "alibaba-coding-plan" => Some(("alibaba-coding-plan", "Alibaba Cloud Coding")),
+                "kimi" => Some(("kimi", "Kimi Code")),
+                "zai" => Some(("zai", "Z.AI")),
+                "" => None,
+                _ => None,
+            };
+        }
+
+        match route.api_method.as_str() {
+            "claude-oauth" | "api-key" if route.provider.contains("Anthropic") => {
+                Some(("claude", "Anthropic/Claude"))
+            }
+            "openai-oauth" => Some(("openai", "OpenAI")),
+            "openai-api-key" => Some(("openai-api", "OpenAI API")),
+            "copilot" => Some(("copilot", "GitHub Copilot")),
+            _ => None,
+        }
+    }
+
+    fn model_picker_model_is_validated(
+        model: &str,
+        record: &crate::auth::validation::ProviderValidationRecord,
+    ) -> bool {
+        let model = model.trim();
+        !model.is_empty()
+            && record.validated_models.iter().any(|validated| {
+                let validated = validated.trim();
+                !validated.is_empty()
+                    && (model == validated || model.eq_ignore_ascii_case(validated))
+            })
+    }
+
+    fn apply_model_picker_runtime_validation(
+        routes: Vec<crate::provider::ModelRoute>,
+    ) -> Vec<crate::provider::ModelRoute> {
+        routes
+            .into_iter()
+            .map(|mut route| {
+                if !route.available {
+                    return route;
+                }
+
+                let Some((provider_id, display_name)) =
+                    Self::model_picker_route_validation_provider(&route)
+                else {
+                    return route;
+                };
+
+                let Some(record) = crate::auth::validation::get(provider_id) else {
+                    route.available = false;
+                    route.detail = format!(
+                        "runtime not validated; run `jcode auth-test --provider {} --model {}`",
+                        provider_id, route.model
+                    );
+                    return route;
+                };
+
+                if !record.success {
+                    route.available = false;
+                    route.detail = format!(
+                        "{} validation failed: {}",
+                        display_name,
+                        record.summary.trim()
+                    );
+                    return route;
+                }
+
+                if !Self::model_picker_model_is_validated(&route.model, &record) {
+                    route.available = false;
+                    route.detail = format!(
+                        "{} is validated, but `{}` has not been runtime validated; run `jcode auth-test --provider {} --model {}`",
+                        display_name, route.model, provider_id, route.model
+                    );
+                }
+
+                route
+            })
+            .collect()
+    }
+
     pub(super) fn invalidate_model_picker_cache(&mut self) {
         self.model_picker_cache = None;
         self.model_picker_catalog_revision = self.model_picker_catalog_revision.wrapping_add(1);
@@ -573,6 +658,7 @@ impl App {
         } else {
             routes
         };
+        let routes = Self::apply_model_picker_runtime_validation(routes);
 
         if routes.is_empty() {
             self.inline_interactive_state = None;
@@ -1120,6 +1206,27 @@ impl App {
                     api_method: "unknown".to_string(),
                     available: false,
                     detail: "no matching configured provider route".to_string(),
+                    cheapness: None,
+                });
+            }
+        }
+
+        if routes.is_empty() {
+            let current_model = self
+                .remote_provider_model
+                .as_deref()
+                .unwrap_or("unknown")
+                .trim();
+            if !current_model.is_empty() && current_model != "unknown" {
+                routes.push(crate::provider::ModelRoute {
+                    model: current_model.to_string(),
+                    provider: self
+                        .remote_provider_name
+                        .clone()
+                        .unwrap_or_else(|| "current".to_string()),
+                    api_method: "current".to_string(),
+                    available: true,
+                    detail: "catalog still loading".to_string(),
                     cheapness: None,
                 });
             }
