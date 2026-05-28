@@ -337,6 +337,22 @@ fn with_temp_jcode_home<T>(f: impl FnOnce() -> T) -> T {
     result
 }
 
+fn save_test_provider_validation(provider_id: &str, models: &[&str]) {
+    crate::auth::validation::save(
+        provider_id,
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            validated_models: models.iter().map(|model| (*model).to_string()).collect(),
+            summary: "test validation passed".to_string(),
+        },
+    )
+    .expect("save provider validation");
+    crate::auth::AuthStatus::invalidate_cache();
+}
+
 fn create_jcode_repo_fixture() -> tempfile::TempDir {
     let temp = tempfile::TempDir::new().expect("temp repo");
     std::fs::create_dir_all(temp.path().join(".git")).expect("git dir");

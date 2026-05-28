@@ -320,27 +320,30 @@ fn test_model_picker_does_not_cache_single_model_fallback() {
 
 #[test]
 fn test_local_model_picker_selection_failure_keeps_picker_open_and_shows_next_steps() {
-    let mut app = create_failing_model_switch_test_app();
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("copilot", &["claude-opus-4.6"]);
+        let mut app = create_failing_model_switch_test_app();
 
-    app.open_model_picker();
-    wait_for_model_picker_load(&mut app);
-    assert!(app.inline_interactive_state.is_some());
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+        assert!(app.inline_interactive_state.is_some());
 
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("enter should be handled");
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .expect("enter should be handled");
 
-    assert!(
-        app.inline_interactive_state.is_some(),
-        "picker should remain open so the user can choose another model"
-    );
-    assert_eq!(app.status_notice(), Some("Model switch failed".to_string()));
+        assert!(
+            app.inline_interactive_state.is_some(),
+            "picker should remain open so the user can choose another model"
+        );
+        assert_eq!(app.status_notice(), Some("Model switch failed".to_string()));
 
-    let last = app.display_messages.last().expect("display message");
-    assert_eq!(last.role, "error");
-    assert!(last.content.contains("credentials expired"));
-    assert!(last.content.contains("/model"));
-    assert!(last.content.contains("/login"));
-    assert!(last.content.contains("/account"));
+        let last = app.display_messages.last().expect("display message");
+        assert_eq!(last.role, "error");
+        assert!(last.content.contains("credentials expired"));
+        assert!(last.content.contains("/model"));
+        assert!(last.content.contains("/login"));
+        assert!(last.content.contains("/account"));
+    });
 }
 
 #[test]
@@ -389,47 +392,54 @@ fn test_login_completed_spawns_auth_refresh_when_runtime_is_available() {
 
 #[test]
 fn test_login_completed_surfaces_new_provider_models_in_local_model_picker() {
-    let mut app = create_auth_refresh_test_app();
+    with_temp_jcode_home(|| {
+        let mut app = create_auth_refresh_test_app();
 
-    app.handle_login_completed(crate::bus::LoginCompleted {
-        provider: "copilot".to_string(),
-        success: true,
-        message: "Authenticated as **octocat** via GitHub Copilot.\n\nCopilot models are now available in `/model`."
-            .to_string(),
-    });
+        app.handle_login_completed(crate::bus::LoginCompleted {
+            provider: "copilot".to_string(),
+            success: true,
+            message: "Authenticated as **octocat** via GitHub Copilot.\n\nCopilot models are now available in `/model`."
+                .to_string(),
+        });
 
-    app.open_model_picker();
-    wait_for_model_picker_load(&mut app);
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let copilot_entry = picker
-        .entries
-        .iter()
-        .find(|entry| entry.name == "claude-opus-4.6")
-        .expect("copilot model should be shown after login");
-
-    assert!(
-        picker
+        let copilot_entry = picker
             .entries
             .iter()
-            .any(|entry| entry.name == "grok-code-fast-1"),
-        "all newly available Copilot models should appear in /model"
-    );
-    assert!(copilot_entry.options.iter().any(|route| {
-        route.provider == "Copilot" && route.api_method == "copilot" && route.available
-    }));
+            .find(|entry| entry.name == "claude-opus-4.6")
+            .expect("copilot model should be shown after login");
 
-    assert!(
-        picker.entries[0]
-            .options
-            .iter()
-            .any(|route| route.provider == "Copilot" && route.detail.contains("recently added")),
-        "recently authenticated provider should be prioritized and marked in /model"
-    );
+        assert!(
+            picker
+                .entries
+                .iter()
+                .any(|entry| entry.name == "grok-code-fast-1"),
+            "all newly available Copilot models should appear in /model"
+        );
+        assert!(copilot_entry.options.iter().any(|route| {
+            route.provider == "Copilot"
+                && route.api_method == "copilot"
+                && !route.available
+                && route.detail.contains("runtime not validated")
+        }));
+
+        assert!(
+            picker.entries[0].options.iter().any(|route| {
+                route.provider == "Copilot"
+                    && !route.available
+                    && route.detail.contains("recently added")
+                    && route.detail.contains("runtime not validated")
+            }),
+            "recently authenticated provider should be prioritized and marked in /model"
+        );
+    });
 }
 
 #[test]
@@ -518,41 +528,44 @@ fn test_local_model_picker_openrouter_bare_openai_route_uses_openai_catalog_pref
 
 #[test]
 fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
-    let (mut app, set_model_calls) =
-        create_openrouter_spec_capture_test_app_with_routes(vec![crate::provider::ModelRoute {
-            model: "kimi-for-coding".to_string(),
-            provider: "Kimi Code".to_string(),
-            api_method: "openai-compatible:kimi".to_string(),
-            available: true,
-            detail: "https://api.kimi.com/coding/v1".to_string(),
-            cheapness: None,
-        }]);
-    app.open_model_picker();
-    wait_for_model_picker_load(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+        let (mut app, set_model_calls) =
+            create_openrouter_spec_capture_test_app_with_routes(vec![crate::provider::ModelRoute {
+                model: "kimi-for-coding".to_string(),
+                provider: "Kimi Code".to_string(),
+                api_method: "openai-compatible:kimi".to_string(),
+                available: true,
+                detail: "https://api.kimi.com/coding/v1".to_string(),
+                cheapness: None,
+            }]);
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|entry| entry.name == "kimi-for-coding")
-        .expect("direct Kimi route should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("entry should be in filtered list");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let model_idx = picker
+            .entries
+            .iter()
+            .position(|entry| entry.name == "kimi-for-coding")
+            .expect("direct Kimi route should be in picker");
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == model_idx)
+            .expect("entry should be in filtered list");
 
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("model picker selection should succeed");
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .expect("model picker selection should succeed");
 
-    assert_eq!(
-        set_model_calls.lock().unwrap().as_slice(),
-        ["kimi:kimi-for-coding"]
-    );
+        assert_eq!(
+            set_model_calls.lock().unwrap().as_slice(),
+            ["kimi:kimi-for-coding"]
+        );
+    });
 }
 
 #[test]
@@ -711,6 +724,74 @@ fn test_login_smoke_model_picker_renders_unstacked_provider_rows() {
         "provider routes should not be hidden behind stacked option counts, got:\n{}",
         text
     );
+}
+
+#[test]
+fn test_model_picker_keeps_unvalidated_routes_visible_but_unavailable() {
+    with_temp_jcode_home(|| {
+        let mut app = create_login_smoke_model_app();
+
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let openai_entry = picker
+            .entries
+            .iter()
+            .find(|entry| {
+                entry.name == "gpt-5.4"
+                    && entry
+                        .options
+                        .iter()
+                        .any(|route| route.api_method == "openai-oauth")
+            })
+            .expect("OpenAI route should remain visible");
+        let openai_route = openai_entry
+            .options
+            .iter()
+            .find(|route| route.api_method == "openai-oauth")
+            .expect("OpenAI OAuth route");
+        assert!(
+            !openai_route.available,
+            "unvalidated OpenAI route should be unavailable, got: {:?}",
+            openai_route
+        );
+        assert!(
+            openai_route.detail.contains("runtime not validated")
+                && openai_route
+                    .detail
+                    .contains("jcode auth-test --provider openai --model gpt-5.4"),
+            "unvalidated OpenAI route should explain how to validate, got: {}",
+            openai_route.detail
+        );
+
+        let copilot_entry = picker
+            .entries
+            .iter()
+            .find(|entry| entry.name == "claude-opus-4.6")
+            .expect("Copilot route should remain visible");
+        let copilot_route = copilot_entry
+            .options
+            .iter()
+            .find(|route| route.api_method == "copilot")
+            .expect("Copilot route");
+        assert!(
+            !copilot_route.available,
+            "unvalidated Copilot route should be unavailable, got: {:?}",
+            copilot_route
+        );
+        assert!(
+            copilot_route.detail.contains("runtime not validated")
+                && copilot_route
+                    .detail
+                    .contains("jcode auth-test --provider copilot --model claude-opus-4.6"),
+            "unvalidated Copilot route should explain how to validate, got: {}",
+            copilot_route.detail
+        );
+    });
 }
 
 #[test]
