@@ -27,8 +27,9 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-const DEFAULT_MODEL: &str = "anthropic.claude-3-5-sonnet-20241022-v2:0";
+pub const DEFAULT_MODEL: &str = "anthropic.claude-3-5-sonnet-20241022-v2:0";
 const DEFAULT_MAX_OUTPUT_TOKENS: usize = 4096;
+const BEDROCK_API_KEY_PREFIX: &str = "bedrock-api-key-";
 pub const ENV_FILE: &str = "bedrock.env";
 pub const API_KEY_ENV: &str = "AWS_BEARER_TOKEN_BEDROCK";
 pub const REGION_ENV: &str = "JCODE_BEDROCK_REGION";
@@ -64,6 +65,7 @@ pub struct BedrockProvider {
     profile_required_models: Arc<RwLock<HashSet<String>>>,
     inference_profile_routes: Arc<RwLock<HashMap<String, String>>>,
     legacy_models: Arc<RwLock<HashSet<String>>>,
+    catalog_verified: Arc<RwLock<bool>>,
 }
 
 impl BedrockProvider {
@@ -77,6 +79,7 @@ impl BedrockProvider {
             profile_required_models: Arc::new(RwLock::new(HashSet::new())),
             inference_profile_routes: Arc::new(RwLock::new(HashMap::new())),
             legacy_models: Arc::new(RwLock::new(HashSet::new())),
+            catalog_verified: Arc::new(RwLock::new(false)),
         };
         provider.seed_cached_catalog();
         provider
@@ -92,7 +95,7 @@ impl BedrockProvider {
         }
 
         let has_region = Self::configured_region().is_some();
-        let has_credential_hint = Self::configured_bearer_token().is_some()
+        let has_credential_hint = Self::configured_valid_bearer_token().is_some()
             || std::env::var_os("AWS_ACCESS_KEY_ID").is_some()
             || std::env::var_os("AWS_PROFILE").is_some()
             || std::env::var_os("JCODE_BEDROCK_PROFILE").is_some()
@@ -107,8 +110,20 @@ impl BedrockProvider {
 
     async fn sdk_config() -> aws_types::SdkConfig {
         let mut loader = aws_config::defaults(BehaviorVersion::latest());
-        if let Some(token) = Self::configured_bearer_token() {
-            crate::env::set_var(API_KEY_ENV, token);
+        match Self::configured_bearer_token() {
+            Some(token) if Self::is_valid_bedrock_api_key_format(&token) => {
+                crate::env::set_var(API_KEY_ENV, token);
+            }
+            Some(token) => {
+                crate::logging::warn(&format!(
+                    "Ignoring invalid {} value for Bedrock: expected prefix {}",
+                    API_KEY_ENV, BEDROCK_API_KEY_PREFIX
+                ));
+                if std::env::var(API_KEY_ENV).ok().as_deref().map(str::trim) == Some(token.trim()) {
+                    crate::env::remove_var(API_KEY_ENV);
+                }
+            }
+            None => {}
         }
         if let Some(region) = Self::configured_region() {
             loader = loader.region(aws_types::region::Region::new(region));
@@ -211,6 +226,14 @@ impl BedrockProvider {
 
     pub fn configured_bearer_token() -> Option<String> {
         crate::provider_catalog::load_api_key_from_env_or_config(API_KEY_ENV, ENV_FILE)
+    }
+
+    fn configured_valid_bearer_token() -> Option<String> {
+        Self::configured_bearer_token().filter(|token| Self::is_valid_bedrock_api_key_format(token))
+    }
+
+    fn is_valid_bedrock_api_key_format(token: &str) -> bool {
+        token.trim().starts_with(BEDROCK_API_KEY_PREFIX)
     }
 
     fn env_or_config(name: &str) -> Option<String> {
@@ -320,7 +343,11 @@ impl BedrockProvider {
             return "AWS SSO/session credentials look expired. Run `aws sso login --profile <profile>` and retry.".to_string();
         }
 
-        let hint = if lower.contains("accessdenied")
+        let hint = if lower.contains("invalid api key format")
+            || lower.contains("pre-defined prefix")
+        {
+            "AWS_BEARER_TOKEN_BEDROCK is not an Amazon Bedrock API key. Bedrock API keys must start with `bedrock-api-key-`; remove this value or replace it with a real Bedrock API key."
+        } else if lower.contains("accessdenied")
             || lower.contains("access denied")
             || lower.contains("not authorized")
         {
@@ -897,6 +924,72 @@ impl BedrockProvider {
         models
     }
 
+    fn is_catalog_verified(&self) -> bool {
+        self.catalog_verified
+            .read()
+            .map(|guard| *guard)
+            .unwrap_or(false)
+    }
+
+    fn insert_model_id_aliases(target: &mut HashSet<String>, model: &str) {
+        let model = model.trim();
+        if model.is_empty() {
+            return;
+        }
+        target.insert(model.to_string());
+        target.insert(Self::normalize_model_id(model));
+        if let Some(profile) = Self::inference_profile_id_from_arn(model) {
+            target.insert(profile.clone());
+            target.insert(Self::normalize_model_id(&profile));
+        }
+        if let Some(foundation_model) = Self::foundation_model_id_from_arn(model) {
+            target.insert(foundation_model.clone());
+            target.insert(Self::normalize_model_id(&foundation_model));
+        }
+    }
+
+    fn contains_model_id_alias(target: &HashSet<String>, model: &str) -> bool {
+        let mut aliases = HashSet::new();
+        Self::insert_model_id_aliases(&mut aliases, model);
+        aliases.iter().any(|alias| target.contains(alias))
+    }
+
+    fn verified_catalog_model_ids(&self) -> HashSet<String> {
+        let mut verified = HashSet::new();
+        if !self.is_catalog_verified() {
+            return verified;
+        }
+        if let Ok(models) = self.fetched_models.read() {
+            for model in models.iter() {
+                Self::insert_model_id_aliases(&mut verified, model);
+            }
+        }
+        if let Ok(profiles) = self.fetched_inference_profiles.read() {
+            for profile in profiles.iter() {
+                Self::insert_model_id_aliases(&mut verified, profile);
+            }
+        }
+        verified
+    }
+
+    fn runtime_validated_model_ids() -> HashSet<String> {
+        let mut verified = HashSet::new();
+        let Some(record) = crate::auth::validation::get("bedrock") else {
+            return verified;
+        };
+        if !record.success {
+            return verified;
+        }
+        for model in record.validated_models {
+            Self::insert_model_id_aliases(&mut verified, &model);
+        }
+        verified
+    }
+
+    pub fn is_model_runtime_validated(model: &str) -> bool {
+        Self::contains_model_id_alias(&Self::runtime_validated_model_ids(), model)
+    }
+
     async fn refresh_catalog(&self) -> Result<(Vec<String>, Vec<String>)> {
         let client = Self::control_client().await;
         let mut models = Vec::new();
@@ -992,6 +1085,9 @@ impl BedrockProvider {
         }
         if let Ok(mut guard) = self.legacy_models.write() {
             *guard = legacy_models.clone();
+        }
+        if let Ok(mut verified) = self.catalog_verified.write() {
+            *verified = true;
         }
         Self::persist_catalog(
             &models,
@@ -1172,7 +1268,11 @@ impl Provider for BedrockProvider {
     }
 
     fn available_models_for_switching(&self) -> Vec<String> {
-        self.all_display_models()
+        self.model_routes()
+            .into_iter()
+            .filter(|route| route.available)
+            .map(|route| route.model)
+            .collect()
     }
 
     fn model_routes(&self) -> Vec<ModelRoute> {
@@ -1181,11 +1281,17 @@ impl Provider for BedrockProvider {
             .read()
             .map(|guard| guard.clone())
             .unwrap_or_default();
+        let verified_catalog_models = self.verified_catalog_model_ids();
+        let runtime_validated_models = Self::runtime_validated_model_ids();
         self.all_display_models()
             .into_iter()
             .map(|model| {
                 let info = Self::model_info(&model);
                 let is_legacy = legacy_models.contains(&model);
+                let is_catalog_verified =
+                    Self::contains_model_id_alias(&verified_catalog_models, &model);
+                let is_runtime_validated =
+                    Self::contains_model_id_alias(&runtime_validated_models, &model);
                 let mut features = Vec::new();
                 if info.supports_tools {
                     features.push("tools");
@@ -1200,10 +1306,14 @@ impl Provider for BedrockProvider {
                     model: model.clone(),
                     provider: "AWS Bedrock".to_string(),
                     api_method: "bedrock".to_string(),
-                    available: !is_legacy,
+                    available: !is_legacy && is_runtime_validated,
                     detail: if is_legacy {
                         "legacy Bedrock model; choose an active model or inference profile"
                             .to_string()
+                    } else if is_catalog_verified && !is_runtime_validated {
+                        "listed in the live Bedrock catalog, but runtime invoke has not been validated; run `jcode auth-test --provider bedrock --model <model>`".to_string()
+                    } else if !is_runtime_validated {
+                        "not verified for this AWS account/region; run /refresh-model-list and ensure IAM allows Bedrock list and invoke permissions".to_string()
                     } else {
                         format!(
                             "ConverseStream · context ~{} tokens · max output ~{} · {}",
@@ -1260,6 +1370,7 @@ impl Provider for BedrockProvider {
             profile_required_models: self.profile_required_models.clone(),
             inference_profile_routes: self.inference_profile_routes.clone(),
             legacy_models: self.legacy_models.clone(),
+            catalog_verified: self.catalog_verified.clone(),
         })
     }
 }
@@ -1302,7 +1413,7 @@ mod tests {
     fn detects_env_credentials_requires_region_and_credential_hint() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let _removed = [
             "JCODE_BEDROCK_ENABLE",
             API_KEY_ENV,
@@ -1335,7 +1446,7 @@ mod tests {
     fn detects_bedrock_login_env_file_credentials() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         for key in [
             "JCODE_BEDROCK_ENABLE",
             API_KEY_ENV,
@@ -1353,7 +1464,7 @@ mod tests {
         crate::provider_catalog::save_env_value_to_env_file(
             API_KEY_ENV,
             ENV_FILE,
-            Some("test-key"),
+            Some("bedrock-api-key-test"),
         )
         .unwrap();
         crate::env::remove_var(API_KEY_ENV);
@@ -1369,13 +1480,48 @@ mod tests {
 
         assert_eq!(
             BedrockProvider::configured_bearer_token().as_deref(),
-            Some("test-key")
+            Some("bedrock-api-key-test")
         );
         assert_eq!(
             BedrockProvider::configured_region().as_deref(),
             Some("us-east-2")
         );
         assert!(BedrockProvider::has_credentials());
+    }
+
+    #[test]
+    fn invalid_bedrock_api_key_prefix_is_not_a_credential_hint() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let _region = EnvVarGuard::set(REGION_ENV, "us-east-1");
+        let _api_key = EnvVarGuard::set(API_KEY_ENV, "sk-not-a-bedrock-key");
+        let _removed = [
+            "JCODE_BEDROCK_ENABLE",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_PROFILE",
+            "JCODE_BEDROCK_PROFILE",
+            "AWS_WEB_IDENTITY_TOKEN_FILE",
+            "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+            "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+            "AWS_SHARED_CREDENTIALS_FILE",
+            "AWS_CONFIG_FILE",
+        ]
+        .map(EnvVarGuard::remove);
+
+        assert!(
+            !BedrockProvider::has_credentials(),
+            "a non-Bedrock API key must not initialize the Bedrock provider"
+        );
+    }
+
+    #[test]
+    fn invalid_bedrock_api_key_format_error_is_not_reported_as_iam_policy() {
+        let message = BedrockProvider::classify_error_message(
+            "AccessDeniedException: Invalid API Key format: Must start with pre-defined prefix",
+        );
+        assert!(message.contains("not an Amazon Bedrock API key"));
+        assert!(!message.starts_with("AWS IAM denied"));
     }
 
     #[test]
@@ -1390,7 +1536,7 @@ mod tests {
     fn maps_profile_required_foundation_model_to_inference_profile() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let p = BedrockProvider::new();
         p.profile_required_models
             .write()
@@ -1410,7 +1556,7 @@ mod tests {
     fn maps_foundation_model_from_stale_cached_profile_list() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let p = BedrockProvider::new();
         *p.fetched_inference_profiles.write().unwrap() = vec![
             "global.amazon.nova-2-lite-v1:0".to_string(),
@@ -1426,7 +1572,7 @@ mod tests {
     fn hides_profile_required_foundation_model_when_profile_route_exists() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let p = BedrockProvider::new();
         *p.fetched_models.write().unwrap() = vec!["amazon.nova-2-lite-v1:0".to_string()];
         *p.fetched_inference_profiles.write().unwrap() =
@@ -1458,7 +1604,7 @@ mod tests {
     fn hides_foundation_model_when_profile_route_exists() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let p = BedrockProvider::new();
         *p.fetched_models.write().unwrap() = vec!["amazon.nova-2-lite-v1:0".to_string()];
         *p.fetched_inference_profiles.write().unwrap() =
@@ -1581,7 +1727,7 @@ mod tests {
     fn legacy_model_route_is_unavailable_with_reason() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().unwrap();
-        let _xdg = EnvVarGuard::set("XDG_CONFIG_HOME", temp.path().as_os_str());
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
         let p = BedrockProvider::new();
         *p.fetched_models.write().unwrap() =
             vec!["anthropic.claude-3-haiku-20240307-v1:0".to_string()];
@@ -1598,6 +1744,133 @@ mod tests {
 
         assert!(!route.available);
         assert!(route.detail.contains("legacy"));
+    }
+
+    #[test]
+    fn static_known_model_routes_are_unavailable_until_runtime_validation() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let p = BedrockProvider::new();
+
+        let route = p
+            .model_routes()
+            .into_iter()
+            .find(|route| route.model == "amazon.nova-pro-v1:0")
+            .expect("static known Bedrock route should still be displayed");
+
+        assert!(
+            !route.available,
+            "static Bedrock fallback routes should not be selectable before live catalog verification"
+        );
+        assert!(
+            route.detail.contains("not verified"),
+            "unverified route should explain why selection is blocked, got: {}",
+            route.detail
+        );
+    }
+
+    #[test]
+    fn live_catalog_verified_model_route_still_requires_runtime_validation() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let p = BedrockProvider::new();
+        *p.fetched_models.write().unwrap() = vec!["amazon.nova-pro-v1:0".to_string()];
+        *p.catalog_verified.write().unwrap() = true;
+
+        let route = p
+            .model_routes()
+            .into_iter()
+            .find(|route| route.model == "amazon.nova-pro-v1:0")
+            .expect("verified Bedrock route should be displayed");
+
+        assert!(
+            !route.available,
+            "Bedrock route from the live catalog should not be selectable until runtime validation proves InvokeModel works"
+        );
+        assert!(
+            route
+                .detail
+                .contains("runtime invoke has not been validated"),
+            "catalog-only route should explain why selection is blocked, got: {}",
+            route.detail
+        );
+    }
+
+    #[test]
+    fn runtime_validated_model_route_is_selectable() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let p = BedrockProvider::new();
+        crate::auth::validation::save(
+            "bedrock",
+            jcode_auth_types::ProviderValidationRecord {
+                checked_at_ms: 1,
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: None,
+                validated_models: vec!["amazon.nova-pro-v1:0".to_string()],
+                summary: "ok".to_string(),
+            },
+        )
+        .expect("save validation");
+
+        let route = p
+            .model_routes()
+            .into_iter()
+            .find(|route| route.model == "amazon.nova-pro-v1:0")
+            .expect("runtime validated Bedrock route should be displayed");
+
+        assert!(
+            route.available,
+            "Bedrock route with successful runtime validation should be selectable"
+        );
+        assert!(
+            !route.detail.contains("not verified"),
+            "runtime validated route should not carry the unverified warning, got: {}",
+            route.detail
+        );
+    }
+
+    #[test]
+    fn unverified_static_models_do_not_participate_in_cycle_switching() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let p = BedrockProvider::new();
+
+        let models = p.available_models_for_switching();
+
+        assert!(
+            !models.iter().any(|model| model == "amazon.nova-pro-v1:0"),
+            "unverified Bedrock fallback models should not be cycle-selectable: {models:?}"
+        );
+    }
+
+    #[test]
+    fn runtime_validated_models_participate_in_cycle_switching() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().unwrap();
+        let _home = EnvVarGuard::set("JCODE_HOME", temp.path().as_os_str());
+        let p = BedrockProvider::new();
+        crate::auth::validation::save(
+            "bedrock",
+            jcode_auth_types::ProviderValidationRecord {
+                checked_at_ms: 1,
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: None,
+                validated_models: vec!["amazon.nova-pro-v1:0".to_string()],
+                summary: "ok".to_string(),
+            },
+        )
+        .expect("save validation");
+
+        let models = p.available_models_for_switching();
+
+        assert!(models.iter().any(|model| model == "amazon.nova-pro-v1:0"));
     }
 
     #[tokio::test]

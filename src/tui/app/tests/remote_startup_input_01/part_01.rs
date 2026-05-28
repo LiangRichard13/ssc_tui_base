@@ -743,6 +743,7 @@ fn test_remote_model_switch_failure_shows_actionable_guidance() {
 
 #[test]
 fn test_model_picker_remote_falls_back_to_current_model_when_catalog_empty() {
+    let _guard = crate::storage::lock_test_env();
     let mut app = create_test_app();
     app.is_remote = true;
     app.remote_provider_name = Some("openrouter".to_string());

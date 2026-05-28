@@ -97,6 +97,95 @@ pub use self::models::{
 use self::pricing::cheapness_for_route;
 use self::selection::{ActiveProvider, ProviderAvailability};
 
+fn model_matches_validated_model(model: &str, validated: &str) -> bool {
+    let model = model.trim();
+    let validated = validated.trim();
+    !model.is_empty()
+        && !validated.is_empty()
+        && (model == validated || model.eq_ignore_ascii_case(validated))
+}
+
+fn openai_compatible_route_validation_detail(
+    provider_id: &str,
+    display_name: &str,
+    model: &str,
+    api_base: &str,
+    requires_api_key: bool,
+) -> (bool, String) {
+    if !requires_api_key {
+        return (true, api_base.to_string());
+    }
+
+    let Some(record) = crate::auth::validation::get(provider_id) else {
+        return (
+            false,
+            format!(
+                "runtime not validated; run `jcode auth-test --provider {} --model {}`",
+                provider_id, model
+            ),
+        );
+    };
+
+    if !record.success {
+        return (
+            false,
+            format!(
+                "{} validation failed: {}",
+                display_name,
+                record.summary.trim()
+            ),
+        );
+    }
+
+    if record
+        .validated_models
+        .iter()
+        .any(|validated| model_matches_validated_model(model, validated))
+    {
+        return (true, api_base.to_string());
+    }
+
+    (
+        false,
+        format!(
+            "{} key is validated, but `{}` has not been runtime validated; run `jcode auth-test --provider {} --model {}`",
+            display_name, model, provider_id, model
+        ),
+    )
+}
+
+pub(crate) fn openai_compatible_profile_route(
+    profile: crate::provider_catalog::OpenAiCompatibleProfile,
+    model: &str,
+) -> Option<ModelRoute> {
+    if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
+        return None;
+    }
+
+    let model = model.trim();
+    if !is_listable_model_name(model) {
+        return None;
+    }
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+    let (available, detail) = openai_compatible_route_validation_detail(
+        &resolved.id,
+        &resolved.display_name,
+        model,
+        &resolved.api_base,
+        resolved.requires_api_key,
+    );
+
+    Some(ModelRoute {
+        model: model.to_string(),
+        provider: resolved.display_name,
+        api_method: format!("openai-compatible:{}", resolved.id),
+        available,
+        detail,
+        cheapness: None,
+    })
+}
+
 /// MultiProvider wraps multiple providers and allows seamless model switching
 pub struct MultiProvider {
     /// Claude Code CLI provider
@@ -922,8 +1011,8 @@ impl Provider for MultiProvider {
                 crate::provider_catalog::openai_compatible_profile_static_models(profile)
                     .into_iter()
                     .collect();
-            if let Some(record) = crate::auth::validation::get(&resolved.id)
-                .filter(|record| record.success)
+            if let Some(record) =
+                crate::auth::validation::get(&resolved.id).filter(|record| record.success)
             {
                 route_models.extend(
                     record
@@ -944,15 +1033,10 @@ impl Provider for MultiProvider {
                     added_direct_openai_compatible_routes = true;
                     continue;
                 }
-                routes.push(ModelRoute {
-                    model,
-                    provider: resolved.display_name.clone(),
-                    api_method: api_method.clone(),
-                    available: true,
-                    detail: resolved.api_base.clone(),
-                    cheapness: None,
-                });
-                added_direct_openai_compatible_routes = true;
+                if let Some(route) = openai_compatible_profile_route(profile, &model) {
+                    routes.push(route);
+                    added_direct_openai_compatible_routes = true;
+                }
             }
         }
 

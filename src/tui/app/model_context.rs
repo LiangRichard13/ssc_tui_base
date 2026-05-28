@@ -1030,6 +1030,13 @@ pub(super) fn handle_model_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     if trimmed == "/model" || trimmed == "/models" {
+        if app
+            .inline_interactive_state
+            .as_ref()
+            .is_some_and(|picker| picker.preview)
+        {
+            app.inline_interactive_state = None;
+        }
         app.open_model_picker();
         return true;
     }

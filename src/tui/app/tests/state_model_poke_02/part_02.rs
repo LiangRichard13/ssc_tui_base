@@ -1,4 +1,49 @@
 #[test]
+fn test_exact_model_command_waits_for_enter_before_opening_picker() {
+    let mut app = create_test_app();
+    configure_test_remote_models(&mut app);
+
+    for c in "/model".chars() {
+        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+            .unwrap();
+    }
+
+    assert!(
+        app.inline_interactive_state.is_none(),
+        "typing exact /model should not synchronously open a preview"
+    );
+    assert_eq!(app.input(), "/model");
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .unwrap();
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .unwrap_or_else(|| {
+            panic!(
+                "exact /model command should leave the full picker open; status={:?}, pending_model_switch={:?}, messages={:?}",
+                app.status_notice(),
+                app.pending_model_switch,
+                app.display_messages
+                    .iter()
+                    .map(|message| (message.role.as_str(), message.content.as_str()))
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert!(
+        !picker.preview,
+        "exact /model should execute the command, not select the preview row"
+    );
+    assert!(app.pending_model_switch.is_none());
+    assert!(app.input().is_empty());
+    assert!(
+        picker.entries.len() > 1,
+        "full model picker should show available routes"
+    );
+}
+
+#[test]
 fn test_agents_review_picker_saves_config_override() {
     with_temp_jcode_home(|| {
         let mut app = create_test_app();

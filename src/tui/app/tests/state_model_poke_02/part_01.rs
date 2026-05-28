@@ -840,10 +840,8 @@ fn configure_test_remote_openrouter_provider_routes(app: &mut App) {
 
 #[test]
 fn test_model_picker_preview_filter_parsing() {
-    assert_eq!(
-        App::model_picker_preview_filter("/model"),
-        Some(String::new())
-    );
+    assert_eq!(App::model_picker_preview_filter("/model"), None);
+    assert_eq!(App::model_picker_preview_filter("/model   "), None);
     assert_eq!(
         App::model_picker_preview_filter("/model   gpt-5"),
         Some("gpt-5".to_string())

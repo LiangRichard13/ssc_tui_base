@@ -84,6 +84,10 @@ fn effective_validated_model_for_choice(
         return Some(model.to_string());
     }
 
+    if matches!(choice, super::provider_init::ProviderChoice::Bedrock) {
+        return Some(crate::provider::bedrock::DEFAULT_MODEL.to_string());
+    }
+
     super::provider_init::profile_for_choice(choice)
         .and_then(|profile| profile.default_model)
         .map(ToString::to_string)
@@ -470,6 +474,12 @@ mod tests {
             None,
         );
         assert_eq!(model.as_deref(), Some("qwen3-coder-plus"));
+    }
+
+    #[test]
+    fn validated_model_for_bedrock_uses_native_default_when_plan_model_is_none() {
+        let model = effective_validated_model_for_choice(&ProviderChoice::Bedrock, None);
+        assert_eq!(model.as_deref(), Some(crate::provider::bedrock::DEFAULT_MODEL));
     }
 
     #[test]

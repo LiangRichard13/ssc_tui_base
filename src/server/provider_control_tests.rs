@@ -5,6 +5,7 @@ use crate::tool::Registry;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::Mutex as StdMutex;
 use std::sync::RwLock as StdRwLock;
 
 #[derive(Default)]
@@ -21,6 +22,62 @@ impl AuthChangeMockProvider {
         Self {
             state: Arc::new(AuthChangeMockState::default()),
         }
+    }
+}
+
+#[derive(Default)]
+struct ExplicitSwitchMockProvider {
+    model: StdRwLock<String>,
+    set_model_calls: StdMutex<Vec<String>>,
+}
+
+#[async_trait]
+impl Provider for ExplicitSwitchMockProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> anyhow::Result<EventStream> {
+        let stream = futures::stream::empty::<anyhow::Result<StreamEvent>>();
+        Ok(Box::pin(stream) as Pin<Box<dyn futures::Stream<Item = _> + Send>>)
+    }
+
+    fn name(&self) -> &str {
+        "explicit-switch"
+    }
+
+    fn model(&self) -> String {
+        self.model
+            .read()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|_| "initial-model".to_string())
+    }
+
+    fn available_models_for_switching(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn set_model(&self, model: &str) -> anyhow::Result<()> {
+        self.set_model_calls
+            .lock()
+            .expect("set model calls")
+            .push(model.to_string());
+        *self.model.write().expect("model write") = model.to_string();
+        Ok(())
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(Self {
+            model: StdRwLock::new(self.model()),
+            set_model_calls: StdMutex::new(
+                self.set_model_calls
+                    .lock()
+                    .expect("set model calls")
+                    .clone(),
+            ),
+        })
     }
 }
 
@@ -150,6 +207,53 @@ async fn notify_auth_changed_emits_available_models_updated_after_provider_updat
             && route.provider == "MockAuth"
             && route.api_method == "mock-auth"
     }));
+}
+
+#[tokio::test]
+async fn set_model_allows_explicit_profile_prefix_even_when_cycle_list_is_empty() {
+    let provider = Arc::new(ExplicitSwitchMockProvider {
+        model: StdRwLock::new("initial-model".to_string()),
+        set_model_calls: StdMutex::new(Vec::new()),
+    });
+    let provider_for_agent: Arc<dyn Provider> = provider.clone();
+    let registry = Registry::empty();
+    let agent = Arc::new(Mutex::new(Agent::new(provider_for_agent, registry)));
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel();
+
+    handle_set_model(
+        99,
+        "kimi:kimi-for-coding".to_string(),
+        &agent,
+        &client_event_tx,
+    )
+    .await;
+
+    let event = client_event_rx
+        .recv()
+        .await
+        .expect("expected ModelChanged response");
+    match event {
+        ServerEvent::ModelChanged {
+            id,
+            model,
+            provider_name,
+            error,
+        } => {
+            assert_eq!(id, 99);
+            assert_eq!(model, "kimi:kimi-for-coding");
+            assert_eq!(provider_name.as_deref(), Some("explicit-switch"));
+            assert_eq!(error, None);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+    assert_eq!(
+        provider
+            .set_model_calls
+            .lock()
+            .expect("set model calls")
+            .as_slice(),
+        ["kimi:kimi-for-coding"]
+    );
 }
 
 #[tokio::test]

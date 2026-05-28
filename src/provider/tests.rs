@@ -10,6 +10,8 @@ fn with_clean_provider_test_env<T>(f: impl FnOnce() -> T) -> T {
     let saved_profile_env = [
         "OPENROUTER_API_KEY",
         "DEEPSEEK_API_KEY",
+        "ZHIPU_API_KEY",
+        "ZAI_API_KEY",
         "KIMI_API_KEY",
         "JCODE_OPENROUTER_API_BASE",
         "JCODE_OPENROUTER_API_KEY_NAME",

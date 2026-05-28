@@ -104,6 +104,23 @@ async fn model_switching_available(agent: &Arc<Mutex<Agent>>) -> Option<String> 
     }
 }
 
+fn requested_model_has_explicit_routing(model: &str) -> bool {
+    let model = model.trim();
+    if model.is_empty() {
+        return false;
+    }
+
+    if crate::provider::explicit_model_provider_prefix(model).is_some() {
+        return true;
+    }
+
+    let Some((prefix, rest)) = model.split_once(':') else {
+        return false;
+    };
+    !rest.trim().is_empty()
+        && crate::provider_catalog::openai_compatible_profile_by_id(prefix).is_some()
+}
+
 pub(super) async fn handle_cycle_model(
     id: u64,
     direction: i8,
@@ -201,14 +218,16 @@ pub(super) async fn handle_set_model(
     agent: &Arc<Mutex<Agent>>,
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
 ) {
-    if let Some(current) = model_switching_available(agent).await {
-        let _ = client_event_tx.send(ServerEvent::ModelChanged {
-            id,
-            model: current,
-            provider_name: None,
-            error: Some("Model switching is not available for this provider.".to_string()),
-        });
-        return;
+    if !requested_model_has_explicit_routing(&model) {
+        if let Some(current) = model_switching_available(agent).await {
+            let _ = client_event_tx.send(ServerEvent::ModelChanged {
+                id,
+                model: current,
+                provider_name: None,
+                error: Some("Model switching is not available for this provider.".to_string()),
+            });
+            return;
+        }
     }
 
     let current = {

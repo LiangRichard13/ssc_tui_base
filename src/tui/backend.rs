@@ -510,6 +510,18 @@ impl RemoteConnection {
         self.send_request(request).await
     }
 
+    /// Trigger a model refresh without blocking the caller on the remote writer.
+    pub fn refresh_models_detached(&mut self) {
+        let id = self.next_request_id;
+        self.next_request_id += 1;
+        self.send_request_detached(Request::RefreshModels { id }, "refresh_models");
+    }
+
+    #[cfg(test)]
+    pub fn next_request_id_for_test(&self) -> u64 {
+        self.next_request_id
+    }
+
     /// Set the active model on the server
     pub async fn set_model(&mut self, model: &str) -> Result<()> {
         let request = Request::SetModel {

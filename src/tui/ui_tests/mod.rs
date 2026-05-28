@@ -329,6 +329,58 @@ fn startup_splash_new_session_hint_uses_ascii_arrow() {
     );
 }
 
+fn sample_model_picker() -> crate::tui::InlineInteractiveState {
+    crate::tui::InlineInteractiveState {
+        kind: crate::tui::PickerKind::Model,
+        entries: vec![crate::tui::PickerEntry {
+            name: "kimi-k2-test".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "Kimi".to_string(),
+                api_method: "openai-compatible".to_string(),
+                available: true,
+                detail: "configured".to_string(),
+                estimated_reference_cost_micros: None,
+            }],
+            action: crate::tui::PickerAction::Model,
+            selected_option: 0,
+            is_current: true,
+            is_default: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            old: false,
+            created_date: None,
+            effort: None,
+        }],
+        filtered: vec![0],
+        selected: 0,
+        column: 0,
+        filter: String::new(),
+        preview: false,
+    }
+}
+
+#[test]
+fn startup_splash_does_not_hide_inline_model_picker() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        inline_interactive_state: Some(sample_model_picker()),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("kimi-k2-test"),
+        "startup splash should not hide an active inline model picker: {rendered}"
+    );
+}
+
 #[test]
 fn startup_splash_renders_png_logo_without_external_asset_file() {
     let _guard = viewport_snapshot_test_lock();
