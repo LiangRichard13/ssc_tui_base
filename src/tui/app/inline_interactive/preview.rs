@@ -6,7 +6,14 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 impl App {
     pub(crate) fn model_picker_preview_filter(input: &str) -> Option<String> {
+        let filter = slash_command_preview_filter(input, &["/model", "/models"])?;
+        (!filter.is_empty()).then_some(filter)
+    }
+
+    pub(crate) fn is_exact_model_picker_command(input: &str) -> bool {
         slash_command_preview_filter(input, &["/model", "/models"])
+            .map(|filter| filter.is_empty())
+            .unwrap_or(false)
     }
 
     pub(crate) fn login_picker_preview_filter(input: &str) -> Option<String> {
@@ -162,6 +169,10 @@ impl App {
             crate::logging::info(
                 "login-debug: activate_picker_from_preview bypassed Login preview so /login can submit",
             );
+            return false;
+        }
+
+        if preview_kind == PickerKind::Model && Self::is_exact_model_picker_command(&self.input) {
             return false;
         }
 

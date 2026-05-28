@@ -8,6 +8,7 @@ fn test_fallback_sequence_includes_all_providers() {
             ActiveProvider::Copilot,
             ActiveProvider::Gemini,
             ActiveProvider::Cursor,
+            ActiveProvider::Bedrock,
             ActiveProvider::OpenRouter,
         ]
     );
@@ -19,6 +20,7 @@ fn test_fallback_sequence_includes_all_providers() {
             ActiveProvider::Copilot,
             ActiveProvider::Gemini,
             ActiveProvider::Cursor,
+            ActiveProvider::Bedrock,
             ActiveProvider::OpenRouter,
         ]
     );
@@ -31,6 +33,7 @@ fn test_fallback_sequence_includes_all_providers() {
             ActiveProvider::Antigravity,
             ActiveProvider::Gemini,
             ActiveProvider::Cursor,
+            ActiveProvider::Bedrock,
             ActiveProvider::OpenRouter,
         ]
     );
@@ -43,6 +46,7 @@ fn test_fallback_sequence_includes_all_providers() {
             ActiveProvider::Antigravity,
             ActiveProvider::Copilot,
             ActiveProvider::Cursor,
+            ActiveProvider::Bedrock,
             ActiveProvider::OpenRouter,
         ]
     );

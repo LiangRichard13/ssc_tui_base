@@ -1,5 +1,86 @@
 use super::*;
 
+fn restore_env_var(key: &str, value: Option<std::ffi::OsString>) {
+    if let Some(value) = value {
+        crate::env::set_var(key, value);
+    } else {
+        crate::env::remove_var(key);
+    }
+}
+
+fn sample_saitec_session(api_key: &str) -> crate::saitec::auth::SaitecSession {
+    crate::saitec::auth::SaitecSession {
+        auth_token: Some("jwt-test-token".to_string()),
+        api_key: api_key.to_string(),
+        token_type: "Bearer".to_string(),
+        user_id: Some("user-123".to_string()),
+        email: Some("user@example.com".to_string()),
+        phone: None,
+        display_name: Some("Test User".to_string()),
+        api_key_id: Some("key-123".to_string()),
+        api_key_name: Some("SAITEC-TUI-test".to_string()),
+        api_key_created_at: None,
+        api_key_expires_at: None,
+        last_validated_at: None,
+    }
+}
+
+#[test]
+fn test_saitec_mcp_load_injects_saved_session_runtime_env_without_persisting_secret() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let prev_api_key = std::env::var_os("SAITEC_API_KEY");
+    let prev_core_api_base = std::env::var_os("CORE_API_BASE");
+    let prev_saitec_api_base = std::env::var_os("SAITEC_API_BASE");
+    let prev_auth_base = std::env::var_os("SAITEC_AUTH_BASE");
+
+    let temp = tempfile::TempDir::new().unwrap();
+    let skills_root = temp.path().join("vendored-skills");
+    let server_dir = skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+    crate::env::remove_var("SAITEC_API_KEY");
+    crate::env::remove_var("CORE_API_BASE");
+    crate::env::remove_var("SAITEC_API_BASE");
+    crate::env::remove_var("SAITEC_AUTH_BASE");
+
+    let auth_path = crate::saitec::paths::auth_file().unwrap();
+    crate::storage::write_json_secret(&auth_path, &sample_saitec_session("sk-session-only"))
+        .unwrap();
+
+    let config = McpConfig::load();
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(
+        saitec.env.get("SAITEC_API_KEY").map(String::as_str),
+        Some("sk-session-only")
+    );
+    assert_eq!(
+        saitec.env.get("CORE_API_BASE").map(String::as_str),
+        Some(crate::saitec::auth::DEFAULT_CORE_API_BASE)
+    );
+
+    let mcp_path = temp
+        .path()
+        .join("external")
+        .join(".saitec_tui")
+        .join("mcp.json");
+    let persisted = std::fs::read_to_string(mcp_path).unwrap();
+    assert!(
+        !persisted.contains("sk-session-only"),
+        "runtime API key must not be persisted in mcp.json"
+    );
+
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("SAITEC_SKILLS_ROOT", prev_skills_root);
+    restore_env_var("SAITEC_API_KEY", prev_api_key);
+    restore_env_var("CORE_API_BASE", prev_core_api_base);
+    restore_env_var("SAITEC_API_BASE", prev_saitec_api_base);
+    restore_env_var("SAITEC_AUTH_BASE", prev_auth_base);
+}
+
 #[test]
 fn test_saitec_bootstrap_creates_missing_mcp_config() {
     let _guard = crate::storage::lock_test_env();
@@ -15,7 +96,11 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-    let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+    let mcp_path = temp
+        .path()
+        .join("external")
+        .join(".saitec_tui")
+        .join("mcp.json");
     assert!(mcp_path.exists(), "expected bootstrap to create mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
@@ -42,17 +127,20 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
 }
 
 #[test]
-fn test_saitec_bootstrap_preserves_existing_servers_and_saitec_entry() {
+fn test_saitec_bootstrap_preserves_existing_servers_and_refreshes_saitec_entry() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
     let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let prev_saitec_python = std::env::var_os("SAITEC_TUI_PYTHON");
     let temp = tempfile::TempDir::new().unwrap();
     let skills_root = temp.path().join("vendored-skills");
     let server_dir = skills_root.join("mcp_server");
     std::fs::create_dir_all(&server_dir).unwrap();
     std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
+    let managed_python = temp.path().join("venv").join("Scripts").join("python.exe");
     crate::env::set_var("JCODE_HOME", temp.path());
     crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+    crate::env::set_var("SAITEC_TUI_PYTHON", &managed_python);
 
     let mcp_dir = temp.path().join("external").join(".saitec_tui");
     std::fs::create_dir_all(&mcp_dir).unwrap();
@@ -85,9 +173,16 @@ fn test_saitec_bootstrap_preserves_existing_servers_and_saitec_entry() {
     assert_eq!(existing.env.get("EXISTING"), Some(&"1".to_string()));
 
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
-    assert_eq!(saitec.command, "custom-bin");
-    assert_eq!(saitec.args, vec!["--custom"]);
+    assert_eq!(saitec.command, managed_python.display().to_string());
+    assert_eq!(
+        saitec.args,
+        vec![server_dir.join("server.py").display().to_string()]
+    );
     assert_eq!(saitec.env.get("CUSTOM"), Some(&"1".to_string()));
+    assert_eq!(
+        saitec.env.get("PYTHONPATH"),
+        Some(&server_dir.display().to_string())
+    );
 
     if let Some(prev_home) = prev_home {
         crate::env::set_var("JCODE_HOME", prev_home);
@@ -98,6 +193,11 @@ fn test_saitec_bootstrap_preserves_existing_servers_and_saitec_entry() {
         crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
     } else {
         crate::env::remove_var("SAITEC_SKILLS_ROOT");
+    }
+    if let Some(prev_saitec_python) = prev_saitec_python {
+        crate::env::set_var("SAITEC_TUI_PYTHON", prev_saitec_python);
+    } else {
+        crate::env::remove_var("SAITEC_TUI_PYTHON");
     }
 }
 
@@ -114,7 +214,11 @@ fn test_saitec_bootstrap_skips_when_vendored_script_missing() {
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-    let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+    let mcp_path = temp
+        .path()
+        .join("external")
+        .join(".saitec_tui")
+        .join("mcp.json");
     assert!(
         !mcp_path.exists(),
         "expected bootstrap to skip config creation when the vendored server script is missing"

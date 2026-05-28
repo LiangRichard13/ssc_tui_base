@@ -17,6 +17,10 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $SupportScriptPath = Join-Path $PSScriptRoot "dev_saitec_tui_support.ps1"
 . $SupportScriptPath
 $cargoCommand = Resolve-DevCargoCommand
+$mcpPython = Ensure-DevSaitecMcpPython -RepoRootPath $RepoRoot
+if (-not [string]::IsNullOrWhiteSpace($mcpPython)) {
+    Write-Info "Using SAITEC MCP Python: $mcpPython"
+}
 
 $buildArtifacts = Get-DevBuildArtifactPaths `
     -RepoRootPath $RepoRoot `

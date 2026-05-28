@@ -363,6 +363,8 @@ impl McpConfig {
             }
         }
 
+        crate::saitec::mcp::apply_runtime_env(&mut merged);
+
         merged
     }
 }

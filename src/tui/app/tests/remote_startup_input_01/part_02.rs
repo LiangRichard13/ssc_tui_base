@@ -142,6 +142,236 @@ fn test_remote_available_models_updated_after_refresh_shows_summary_and_updates_
 }
 
 #[test]
+fn test_remote_model_command_opens_picker_even_if_remote_writer_is_blocked() {
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_provider_model = Some("kimi-for-coding".to_string());
+    app.remote_available_entries = vec!["kimi-for-coding".to_string()];
+    app.remote_model_options = vec![crate::provider::ModelRoute {
+        model: "kimi-for-coding".to_string(),
+        provider: "Kimi Code".to_string(),
+        api_method: "openai-compatible:kimi".to_string(),
+        available: true,
+        detail: "validated".to_string(),
+        cheapness: None,
+    }];
+    app.input = "/model".to_string();
+    app.cursor_pos = app.input.len();
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let mut remote = rt.block_on(async { crate::tui::backend::RemoteConnection::dummy() });
+    let writer = remote.writer();
+    let writer_guard = rt.block_on(writer.lock());
+
+    let result = rt.block_on(async {
+        tokio::time::timeout(
+            Duration::from_millis(50),
+            app.handle_remote_key(KeyCode::Enter, KeyModifiers::empty(), &mut remote),
+        )
+        .await
+    });
+
+    drop(writer_guard);
+
+    assert!(
+        result.is_ok(),
+        "/model should not block the TUI on the remote writer"
+    );
+    result
+        .expect("remote model command should complete promptly")
+        .expect("remote model command should not fail");
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("/model should open the remote model picker immediately");
+    assert_eq!(picker.kind, crate::tui::PickerKind::Model);
+    assert!(!picker.preview);
+    assert!(
+        picker
+            .entries
+            .iter()
+            .any(|entry| entry.name == "kimi-for-coding"),
+        "picker should include the already known Kimi model"
+    );
+}
+
+#[test]
+fn test_remote_model_command_does_not_refresh_catalog_implicitly() {
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_provider_model = Some("kimi-for-coding".to_string());
+    app.remote_available_entries = vec!["kimi-for-coding".to_string()];
+    app.remote_model_options = vec![crate::provider::ModelRoute {
+        model: "kimi-for-coding".to_string(),
+        provider: "Kimi Code".to_string(),
+        api_method: "openai-compatible:kimi".to_string(),
+        available: true,
+        detail: "validated".to_string(),
+        cheapness: None,
+    }];
+    app.input = "/model".to_string();
+    app.cursor_pos = app.input.len();
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let mut remote = rt.block_on(async { crate::tui::backend::RemoteConnection::dummy() });
+    let next_request_id = remote.next_request_id_for_test();
+
+    rt.block_on(async {
+        app.handle_remote_key(KeyCode::Enter, KeyModifiers::empty(), &mut remote)
+            .await
+            .expect("remote /model should be handled");
+    });
+
+    assert_eq!(
+        remote.next_request_id_for_test(),
+        next_request_id,
+        "/model should open the picker from cached routes; /refresh-model-list is the explicit refresh command"
+    );
+}
+
+#[test]
+fn test_remote_model_picker_merges_configured_kimi_when_server_routes_are_present() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::provider_catalog::save_env_value_to_env_file(
+        "KIMI_API_KEY",
+        "kimi.env",
+        Some("good-kimi-key"),
+    )
+    .expect("save Kimi key");
+    crate::auth::validation::save(
+        "kimi",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            validated_models: vec!["kimi-for-coding".to_string()],
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save passing Kimi validation");
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_provider_model = Some("server-model".to_string());
+    app.remote_available_entries.clear();
+    app.remote_model_options = vec![crate::provider::ModelRoute {
+        model: "server-model".to_string(),
+        provider: "Server Provider".to_string(),
+        api_method: "server".to_string(),
+        available: true,
+        detail: "server catalog".to_string(),
+        cheapness: None,
+    }];
+
+    app.open_model_picker();
+
+    match prev_home {
+        Some(value) => crate::env::set_var("JCODE_HOME", value),
+        None => crate::env::remove_var("JCODE_HOME"),
+    }
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should be open");
+    assert!(
+        picker
+            .entries
+            .iter()
+            .any(|entry| entry.name == "server-model"),
+        "server-provided routes should remain visible"
+    );
+    let kimi_entry = picker
+        .entries
+        .iter()
+        .find(|entry| entry.name == "kimi-for-coding")
+        .expect("configured Kimi route should be merged into the remote picker");
+    assert!(
+        kimi_entry.options.iter().any(|route| {
+            route.provider == "Kimi Code"
+                && route.api_method == "openai-compatible:kimi"
+                && route.available
+        }),
+        "validated Kimi route should be selectable, got: {:?}",
+        kimi_entry.options
+    );
+}
+
+#[test]
+fn test_model_picker_page_keys_move_selection() {
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_model_options = (0..30)
+        .map(|idx| crate::provider::ModelRoute {
+            model: format!("server-model-{idx:02}"),
+            provider: "Server Provider".to_string(),
+            api_method: "server".to_string(),
+            available: true,
+            detail: "server catalog".to_string(),
+            cheapness: None,
+        })
+        .collect();
+
+    app.open_model_picker();
+    assert_eq!(
+        app.inline_interactive_state
+            .as_ref()
+            .expect("model picker should open")
+            .selected,
+        0
+    );
+
+    app.handle_inline_interactive_key(KeyCode::PageDown, KeyModifiers::empty())
+        .expect("PageDown should be handled");
+    let selected_after_page_down = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should stay open")
+        .selected;
+    assert!(
+        selected_after_page_down > 0,
+        "PageDown should advance the selected model"
+    );
+
+    app.handle_inline_interactive_key(KeyCode::End, KeyModifiers::empty())
+        .expect("End should be handled");
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should stay open");
+    let last = picker.filtered.len().saturating_sub(1);
+    assert_eq!(picker.selected, last);
+
+    app.handle_inline_interactive_key(KeyCode::PageUp, KeyModifiers::empty())
+        .expect("PageUp should be handled");
+    assert!(
+        app.inline_interactive_state
+            .as_ref()
+            .expect("model picker should stay open")
+            .selected
+            < last,
+        "PageUp should move back from the last model"
+    );
+
+    app.handle_inline_interactive_key(KeyCode::Home, KeyModifiers::empty())
+        .expect("Home should be handled");
+    assert_eq!(
+        app.inline_interactive_state
+            .as_ref()
+            .expect("model picker should stay open")
+            .selected,
+        0
+    );
+}
+
+#[test]
 fn test_model_picker_copilot_models_have_copilot_route() {
     let mut app = create_test_app();
     configure_test_remote_models_with_copilot(&mut app);
@@ -198,9 +428,10 @@ fn test_model_picker_remote_comtegra_model_uses_comtegra_route_not_copilot() {
         glm_entry.options.iter().any(|r| {
             r.provider == "Comtegra GPU Cloud"
                 && r.api_method == "openai-compatible:comtegra"
-                && r.available
+                && !r.available
+                && r.detail.contains("runtime not validated")
         }),
-        "glm route should be Comtegra/api key, got: {:?}",
+        "glm route should be Comtegra/api key but require runtime validation, got: {:?}",
         glm_entry.options
     );
     assert!(
@@ -211,14 +442,109 @@ fn test_model_picker_remote_comtegra_model_uses_comtegra_route_not_copilot() {
 }
 
 #[test]
-fn test_model_picker_remote_bedrock_model_has_bedrock_route_when_configured() {
+fn test_remote_model_picker_adds_validated_kimi_and_blocks_failed_zai_routes() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::provider_catalog::save_env_value_to_env_file(
+        "ZHIPU_API_KEY",
+        "zai.env",
+        Some("bad-zai-key"),
+    )
+    .expect("save Z.AI key");
+    crate::provider_catalog::save_env_value_to_env_file(
+        "KIMI_API_KEY",
+        "kimi.env",
+        Some("good-kimi-key"),
+    )
+    .expect("save Kimi key");
+    crate::auth::validation::save(
+        "zai",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: false,
+            provider_smoke_ok: Some(false),
+            tool_smoke_ok: None,
+            validated_models: Vec::new(),
+            summary: "provider_smoke: invalid api key".to_string(),
+        },
+    )
+    .expect("save failed Z.AI validation");
+    crate::auth::validation::save(
+        "kimi",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            validated_models: vec!["kimi-for-coding".to_string()],
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save passing Kimi validation");
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_available_entries = vec!["glm-4.5".to_string()];
+    app.remote_model_options.clear();
+    app.open_model_picker();
+
+    match prev_home {
+        Some(value) => crate::env::set_var("JCODE_HOME", value),
+        None => crate::env::remove_var("JCODE_HOME"),
+    }
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should be open");
+    let glm_entry = picker
+        .entries
+        .iter()
+        .find(|entry| entry.name == "glm-4.5")
+        .expect("Z.AI GLM route should still be visible");
+    assert!(
+        glm_entry.options.iter().any(|route| {
+            route.provider == "Z.AI"
+                && route.api_method == "openai-compatible:zai"
+                && !route.available
+                && route.detail.contains("validation failed")
+        }),
+        "failed Z.AI validation should keep GLM unavailable, got: {:?}",
+        glm_entry.options
+    );
+
+    let kimi_entry = picker
+        .entries
+        .iter()
+        .find(|entry| entry.name == "kimi-for-coding")
+        .expect("validated Kimi route should be added to the remote picker");
+    assert!(
+        kimi_entry.options.iter().any(|route| {
+            route.provider == "Kimi Code"
+                && route.api_method == "openai-compatible:kimi"
+                && route.available
+        }),
+        "Kimi Code should be selectable when runtime validation passed, got: {:?}",
+        kimi_entry.options
+    );
+}
+
+#[test]
+fn test_model_picker_remote_bedrock_model_requires_runtime_validation() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var("JCODE_HOME").ok();
     let prev_key = std::env::var(crate::provider::bedrock::API_KEY_ENV).ok();
     let prev_region = std::env::var(crate::provider::bedrock::REGION_ENV).ok();
     let temp = tempfile::tempdir().expect("tempdir");
     crate::env::set_var("JCODE_HOME", temp.path().display().to_string());
-    crate::env::set_var(crate::provider::bedrock::API_KEY_ENV, "test-bedrock-key");
+    crate::env::set_var(
+        crate::provider::bedrock::API_KEY_ENV,
+        "bedrock-api-key-test",
+    );
     crate::env::set_var(crate::provider::bedrock::REGION_ENV, "us-east-2");
     crate::auth::AuthStatus::invalidate_cache();
 
@@ -256,8 +582,16 @@ fn test_model_picker_remote_bedrock_model_has_bedrock_route_when_configured() {
         nova_entry
             .options
             .iter()
-            .any(|r| { r.provider == "AWS Bedrock" && r.api_method == "bedrock" && r.available }),
-        "Bedrock route should be available with credentials, got: {:?}",
+            .any(|r| { r.provider == "AWS Bedrock" && r.api_method == "bedrock" && !r.available }),
+        "Bedrock route should stay unavailable until runtime validation, got: {:?}",
+        nova_entry.options
+    );
+    assert!(
+        nova_entry
+            .options
+            .iter()
+            .any(|r| r.detail.contains("runtime validated")),
+        "unverified Bedrock route should explain validation requirement, got: {:?}",
         nova_entry.options
     );
 }

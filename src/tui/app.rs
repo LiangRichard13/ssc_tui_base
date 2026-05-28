@@ -242,6 +242,7 @@ struct ModelPickerCacheSignature {
     reasoning_effort: Option<String>,
     available_efforts: Vec<String>,
     simplified_model_picker: bool,
+    saitec_logged_out_model_catalog: bool,
     catalog_revision: u64,
     remote_provider_name: Option<String>,
     remote_available_len: usize,

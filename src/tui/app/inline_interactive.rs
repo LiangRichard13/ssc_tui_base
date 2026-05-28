@@ -20,6 +20,8 @@ use helpers::{
     save_agent_model_override,
 };
 
+const INLINE_INTERACTIVE_PAGE_JUMP: usize = 10;
+
 impl App {
     pub(super) fn invalidate_model_picker_cache(&mut self) {
         self.model_picker_cache = None;
@@ -59,6 +61,7 @@ impl App {
                 .map(|effort| (*effort).to_string())
                 .collect(),
             simplified_model_picker: crate::perf::tui_policy().simplified_model_picker,
+            saitec_logged_out_model_catalog: self.use_saitec_logged_out_model_catalog(),
             catalog_revision: self.model_picker_catalog_revision,
             remote_provider_name: self.remote_provider_name.clone(),
             remote_available_len: self.remote_available_entries.len(),
@@ -126,6 +129,54 @@ impl App {
         model_count > 1 && route_count > 1
     }
 
+    pub(super) fn use_saitec_logged_out_model_catalog(&self) -> bool {
+        if self.is_remote {
+            return false;
+        }
+
+        let can_leak_static_catalog = matches!(
+            self.provider.name().trim().to_ascii_lowercase().as_str(),
+            "openai" | "claude" | "anthropic" | "openrouter" | "saitec subscription"
+        );
+
+        can_leak_static_catalog && crate::saitec::auth::ensure_logged_in().is_err()
+    }
+
+    fn saitec_logged_out_model_routes_for_picker() -> Vec<crate::provider::ModelRoute> {
+        crate::subscription_catalog::curated_models()
+            .iter()
+            .map(|model| crate::provider::ModelRoute {
+                model: model.id.to_string(),
+                provider: "Saitec Subscription".to_string(),
+                api_method: "saitec".to_string(),
+                available: false,
+                detail: "login required; use /login".to_string(),
+                cheapness: None,
+            })
+            .collect()
+    }
+
+    fn bedrock_picker_availability(model: &str, has_credentials: bool) -> (bool, String) {
+        if !has_credentials {
+            return (
+                false,
+                "no Bedrock credentials or region; run /login bedrock".to_string(),
+            );
+        }
+
+        if crate::provider::bedrock::BedrockProvider::is_model_runtime_validated(model) {
+            return (true, String::new());
+        }
+
+        (
+            false,
+            format!(
+                "not runtime validated for this AWS account/region; run `jcode auth-test --provider bedrock --model {}`",
+                model
+            ),
+        )
+    }
+
     fn simplified_model_routes_for_picker(
         &self,
         current_model: &str,
@@ -171,15 +222,15 @@ impl App {
 
             let (provider, api_method, available, detail) =
                 if crate::provider::bedrock::BedrockProvider::is_bedrock_model_id(&model) {
+                    let has_credentials = auth.bedrock != crate::auth::AuthState::NotConfigured
+                        || crate::provider::bedrock::BedrockProvider::has_credentials();
+                    let (available, detail) =
+                        Self::bedrock_picker_availability(&model, has_credentials);
                     (
                         "AWS Bedrock".to_string(),
                         "bedrock".to_string(),
-                        auth.bedrock != crate::auth::AuthState::NotConfigured,
-                        if auth.bedrock == crate::auth::AuthState::NotConfigured {
-                            "no Bedrock credentials or region; run /login bedrock".to_string()
-                        } else {
-                            String::new()
-                        },
+                        available,
+                        detail,
                     )
                 } else if model.contains('/') {
                     (
@@ -293,6 +344,17 @@ impl App {
             return;
         }
 
+        if self.use_saitec_logged_out_model_catalog() {
+            self.open_model_picker_with_routes(
+                cache_signature,
+                picker_started,
+                Self::saitec_logged_out_model_routes_for_picker(),
+                0,
+                false,
+            );
+            return;
+        }
+
         if !self.is_remote && !crate::perf::tui_policy().simplified_model_picker {
             self.open_loading_model_picker(&current_model);
             self.start_model_picker_route_load(cache_signature, picker_started);
@@ -301,11 +363,7 @@ impl App {
 
         let routes_started = std::time::Instant::now();
         let routes: Vec<crate::provider::ModelRoute> = if self.is_remote {
-            if !self.remote_model_options.is_empty() {
-                self.remote_model_options.clone()
-            } else {
-                self.build_remote_model_routes_fallback()
-            }
+            self.remote_model_routes_for_picker()
         } else {
             self.simplified_model_routes_for_picker(&current_model)
         };
@@ -882,6 +940,16 @@ impl App {
         }
     }
 
+    pub(super) fn remote_model_routes_for_picker(&self) -> Vec<crate::provider::ModelRoute> {
+        if self.remote_model_options.is_empty() {
+            return self.build_remote_model_routes_fallback();
+        }
+
+        let mut routes = self.remote_model_options.clone();
+        Self::append_configured_openai_compatible_routes_for_remote_picker(&mut routes);
+        routes
+    }
+
     pub(super) fn build_remote_model_routes_fallback(&self) -> Vec<crate::provider::ModelRoute> {
         let auth = crate::auth::AuthStatus::check_fast();
         let mut routes = Vec::new();
@@ -896,18 +964,15 @@ impl App {
                 .and_then(crate::provider::openrouter::load_endpoints_disk_cache_public);
 
             if crate::provider::bedrock::BedrockProvider::is_bedrock_model_id(model) {
-                let available = auth.bedrock != crate::auth::AuthState::NotConfigured
+                let has_credentials = auth.bedrock != crate::auth::AuthState::NotConfigured
                     || crate::provider::bedrock::BedrockProvider::has_credentials();
+                let (available, detail) = Self::bedrock_picker_availability(model, has_credentials);
                 routes.push(crate::provider::ModelRoute {
                     model: model.clone(),
                     provider: "AWS Bedrock".to_string(),
                     api_method: "bedrock".to_string(),
                     available,
-                    detail: if available {
-                        String::new()
-                    } else {
-                        "no Bedrock credentials or region; run /login bedrock".to_string()
-                    },
+                    detail,
                     cheapness: None,
                 });
                 continue;
@@ -1059,6 +1124,82 @@ impl App {
                 });
             }
         }
+
+        Self::append_configured_openai_compatible_routes_for_remote_picker(&mut routes);
+        routes
+    }
+
+    fn append_configured_openai_compatible_routes_for_remote_picker(
+        routes: &mut Vec<crate::provider::ModelRoute>,
+    ) {
+        let mut seen: std::collections::HashSet<(String, String, String)> = routes
+            .iter()
+            .map(|route| {
+                (
+                    route.model.clone(),
+                    route.provider.clone(),
+                    route.api_method.clone(),
+                )
+            })
+            .collect();
+        for route in Self::configured_openai_compatible_routes_for_remote_picker() {
+            let key = (
+                route.model.clone(),
+                route.provider.clone(),
+                route.api_method.clone(),
+            );
+            if seen.insert(key) {
+                routes.push(route);
+            }
+        }
+    }
+
+    fn configured_openai_compatible_routes_for_remote_picker() -> Vec<crate::provider::ModelRoute> {
+        let mut routes = Vec::new();
+        let mut seen: std::collections::HashSet<(String, String, String)> =
+            std::collections::HashSet::new();
+
+        for profile in crate::provider_catalog::openai_compatible_profiles()
+            .iter()
+            .copied()
+        {
+            if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
+                continue;
+            }
+
+            let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+            let mut models: std::collections::BTreeSet<String> =
+                crate::provider_catalog::openai_compatible_profile_static_models(profile)
+                    .into_iter()
+                    .collect();
+            if let Some(record) =
+                crate::auth::validation::get(&resolved.id).filter(|record| record.success)
+            {
+                models.extend(
+                    record
+                        .validated_models
+                        .into_iter()
+                        .map(|model| model.trim().to_string())
+                        .filter(|model| !model.is_empty()),
+                );
+            }
+
+            for model in models {
+                let Some(route) = crate::provider::openai_compatible_profile_route(profile, &model)
+                else {
+                    continue;
+                };
+                let key = (
+                    route.model.clone(),
+                    route.provider.clone(),
+                    route.api_method.clone(),
+                );
+                if seen.insert(key) {
+                    routes.push(route);
+                }
+            }
+        }
+
         routes
     }
 
@@ -1084,15 +1225,7 @@ impl App {
             {
                 continue;
             }
-            let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
-            return Some(crate::provider::ModelRoute {
-                model: model.to_string(),
-                provider: resolved.display_name,
-                api_method: format!("openai-compatible:{}", resolved.id),
-                available: true,
-                detail: resolved.api_base,
-                cheapness: None,
-            });
+            return crate::provider::openai_compatible_profile_route(profile, model);
         }
         None
     }
@@ -1129,6 +1262,15 @@ impl App {
             {
                 Ok(false)
             }
+            KeyCode::Enter
+                if self
+                    .inline_interactive_state
+                    .as_ref()
+                    .is_some_and(|picker| picker.kind == PickerKind::Model)
+                    && Self::is_exact_model_picker_command(&self.input) =>
+            {
+                Ok(false)
+            }
             KeyCode::Down => {
                 if let Some(picker) = self.inline_interactive_state.as_mut() {
                     let max = picker.filtered.len().saturating_sub(1);
@@ -1158,13 +1300,13 @@ impl App {
             KeyCode::PageDown => {
                 if let Some(picker) = self.inline_interactive_state.as_mut() {
                     let max = picker.filtered.len().saturating_sub(1);
-                    picker.selected = (picker.selected + 5).min(max);
+                    picker.selected = (picker.selected + INLINE_INTERACTIVE_PAGE_JUMP).min(max);
                 }
                 Ok(true)
             }
             KeyCode::PageUp => {
                 if let Some(picker) = self.inline_interactive_state.as_mut() {
-                    picker.selected = picker.selected.saturating_sub(5);
+                    picker.selected = picker.selected.saturating_sub(INLINE_INTERACTIVE_PAGE_JUMP);
                 }
                 Ok(true)
             }
@@ -1665,6 +1807,50 @@ impl App {
         Ok(())
     }
 
+    fn move_inline_interactive_selection_page(picker: &mut InlineInteractiveState, forward: bool) {
+        if picker.column == 0 {
+            let max = picker.filtered.len().saturating_sub(1);
+            picker.selected = if forward {
+                picker
+                    .selected
+                    .saturating_add(INLINE_INTERACTIVE_PAGE_JUMP)
+                    .min(max)
+            } else {
+                picker.selected.saturating_sub(INLINE_INTERACTIVE_PAGE_JUMP)
+            };
+        } else if let Some(&idx) = picker.filtered.get(picker.selected) {
+            let entry = &mut picker.entries[idx];
+            let max = entry.options.len().saturating_sub(1);
+            entry.selected_option = if forward {
+                entry
+                    .selected_option
+                    .saturating_add(INLINE_INTERACTIVE_PAGE_JUMP)
+                    .min(max)
+            } else {
+                entry
+                    .selected_option
+                    .saturating_sub(INLINE_INTERACTIVE_PAGE_JUMP)
+            };
+        }
+    }
+
+    fn move_inline_interactive_selection_to_edge(picker: &mut InlineInteractiveState, end: bool) {
+        if picker.column == 0 {
+            picker.selected = if end {
+                picker.filtered.len().saturating_sub(1)
+            } else {
+                0
+            };
+        } else if let Some(&idx) = picker.filtered.get(picker.selected) {
+            let entry = &mut picker.entries[idx];
+            entry.selected_option = if end {
+                entry.options.len().saturating_sub(1)
+            } else {
+                0
+            };
+        }
+    }
+
     pub(super) fn handle_inline_interactive_key(
         &mut self,
         code: KeyCode,
@@ -1769,6 +1955,31 @@ impl App {
                     {
                         picker.column += 1;
                     }
+                }
+            }
+            KeyCode::PageDown | KeyCode::Char('f')
+                if matches!(code, KeyCode::PageDown)
+                    || modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                if let Some(ref mut picker) = self.inline_interactive_state {
+                    Self::move_inline_interactive_selection_page(picker, true);
+                }
+            }
+            KeyCode::PageUp | KeyCode::Char('b')
+                if matches!(code, KeyCode::PageUp) || modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                if let Some(ref mut picker) = self.inline_interactive_state {
+                    Self::move_inline_interactive_selection_page(picker, false);
+                }
+            }
+            KeyCode::Home => {
+                if let Some(ref mut picker) = self.inline_interactive_state {
+                    Self::move_inline_interactive_selection_to_edge(picker, false);
+                }
+            }
+            KeyCode::End => {
+                if let Some(ref mut picker) = self.inline_interactive_state {
+                    Self::move_inline_interactive_selection_to_edge(picker, true);
                 }
             }
             KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {

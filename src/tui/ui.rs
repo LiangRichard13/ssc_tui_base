@@ -1021,16 +1021,18 @@ pub fn last_layout_snapshot() -> Option<LayoutSnapshot> {
 }
 
 pub(super) fn should_show_startup_splash(app: &dyn TuiState) -> bool {
+    if app.inline_ui_state().is_some() {
+        return false;
+    }
+
     let no_streaming_output = app.streaming_text().is_empty();
     let has_display_messages = !app.display_messages().is_empty();
-    let is_initial_empty =
-        !has_display_messages && !app.is_processing() && no_streaming_output;
+    let is_initial_empty = !has_display_messages && !app.is_processing() && no_streaming_output;
     let preserve_branded_startup_surface = app.preserve_branded_startup_surface();
-    let is_remote_preconversation_startup =
-        app.is_remote_mode()
-            && app.display_user_message_count() == 0
-            && !has_display_messages
-            && no_streaming_output;
+    let is_remote_preconversation_startup = app.is_remote_mode()
+        && app.display_user_message_count() == 0
+        && !has_display_messages
+        && no_streaming_output;
     let remote_startup_splash =
         app.remote_startup_phase_active() && !has_display_messages && no_streaming_output;
 

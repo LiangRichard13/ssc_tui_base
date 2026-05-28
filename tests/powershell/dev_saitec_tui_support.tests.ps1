@@ -45,6 +45,20 @@ Describe "Get-DevBuildArtifactPaths" {
     }
 }
 
+Describe "Get-DevSaitecMcpLayout" {
+    It "places the managed MCP Python environment under target" {
+        $repoRoot = "G:\Workspace\Project2026\JCode\jcode"
+        $layout = Get-DevSaitecMcpLayout -RepoRootPath $repoRoot
+
+        $layout.SkillsRoot | Should Be (Join-Path $repoRoot "_vendor\SAITEC-Skills")
+        $layout.RequirementsPath | Should Be (Join-Path $repoRoot "_vendor\SAITEC-Skills\requirements.txt")
+        $layout.ServerPath | Should Be (Join-Path $repoRoot "_vendor\SAITEC-Skills\mcp_server\server.py")
+        $layout.VenvDir | Should Be (Join-Path $repoRoot "target\saitec-mcp-venv")
+        $layout.PythonPath | Should Be (Join-Path $repoRoot "target\saitec-mcp-venv\Scripts\python.exe")
+        $layout.RequirementsStampPath | Should Be (Join-Path $repoRoot "target\saitec-mcp-venv\.requirements.sha256")
+    }
+}
+
 Describe "Resolve-DevCargoCommand" {
     It "falls back to the user's cargo.exe when cargo is not on PATH" {
         $originalPath = $env:Path

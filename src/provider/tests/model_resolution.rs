@@ -335,7 +335,7 @@ fn test_custom_compatible_model_routes_do_not_request_openrouter_rewrite() {
 }
 
 #[test]
-fn test_configured_direct_compatible_profiles_are_listed_without_openrouter_key() {
+fn test_configured_direct_compatible_profiles_are_listed_but_unavailable_without_validation() {
     with_clean_provider_test_env(|| {
         with_env_var("DEEPSEEK_API_KEY", "test-deepseek-key", || {
             with_env_var("KIMI_API_KEY", "test-kimi-key", || {
@@ -360,24 +360,106 @@ fn test_configured_direct_compatible_profiles_are_listed_without_openrouter_key(
                     route.model == "deepseek-v4-flash"
                         && route.provider == "DeepSeek"
                         && route.api_method == "openai-compatible:deepseek"
-                        && route.available
+                        && !route.available
                 }));
                 assert!(routes.iter().any(|route| {
                     route.model == "deepseek-v4-pro"
                         && route.provider == "DeepSeek"
                         && route.api_method == "openai-compatible:deepseek"
-                        && route.available
+                        && !route.available
                 }));
                 assert!(routes.iter().any(|route| {
                     route.model == "kimi-for-coding"
                         && route.provider == "Kimi Code"
                         && route.api_method == "openai-compatible:kimi"
-                        && route.available
+                        && !route.available
                 }));
                 assert!(
                     !routes
                         .iter()
                         .any(|route| route.model == "openrouter models")
+                );
+            })
+        })
+    });
+}
+
+#[test]
+fn test_direct_compatible_routes_require_matching_runtime_validation() {
+    with_clean_provider_test_env(|| {
+        with_env_var("ZHIPU_API_KEY", "bad-zai-key", || {
+            with_env_var("KIMI_API_KEY", "good-kimi-key", || {
+                crate::auth::validation::save(
+                    "zai",
+                    crate::auth::validation::ProviderValidationRecord {
+                        checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                        success: false,
+                        provider_smoke_ok: Some(false),
+                        tool_smoke_ok: None,
+                        validated_models: Vec::new(),
+                        summary: "provider_smoke: invalid api key".to_string(),
+                    },
+                )
+                .expect("save zai validation record");
+                crate::auth::validation::save(
+                    "kimi",
+                    crate::auth::validation::ProviderValidationRecord {
+                        checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                        success: true,
+                        provider_smoke_ok: Some(true),
+                        tool_smoke_ok: Some(true),
+                        validated_models: vec!["kimi-for-coding".to_string()],
+                        summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+                    },
+                )
+                .expect("save kimi validation record");
+
+                let provider = MultiProvider {
+                    claude: RwLock::new(None),
+                    anthropic: RwLock::new(None),
+                    openai: RwLock::new(None),
+                    copilot_api: RwLock::new(None),
+                    antigravity: RwLock::new(None),
+                    gemini: RwLock::new(None),
+                    cursor: RwLock::new(None),
+                    bedrock: RwLock::new(None),
+                    openrouter: RwLock::new(None),
+                    active: RwLock::new(ActiveProvider::OpenAI),
+                    use_claude_cli: false,
+                    startup_notices: RwLock::new(Vec::new()),
+                    forced_provider: None,
+                };
+
+                let routes = provider.model_routes();
+                let glm_route = routes
+                    .iter()
+                    .find(|route| {
+                        route.model == "glm-4.5"
+                            && route.provider == "Z.AI"
+                            && route.api_method == "openai-compatible:zai"
+                    })
+                    .expect("Z.AI GLM route should be listed");
+                assert!(
+                    !glm_route.available,
+                    "failed Z.AI validation should keep GLM unavailable"
+                );
+                assert!(
+                    glm_route.detail.contains("validation failed"),
+                    "failed route should explain validation failure, got: {}",
+                    glm_route.detail
+                );
+
+                let kimi_route = routes
+                    .iter()
+                    .find(|route| {
+                        route.model == "kimi-for-coding"
+                            && route.provider == "Kimi Code"
+                            && route.api_method == "openai-compatible:kimi"
+                    })
+                    .expect("Kimi route should be listed");
+                assert!(
+                    kimi_route.available,
+                    "successful Kimi runtime validation should make only Kimi selectable"
                 );
             })
         })

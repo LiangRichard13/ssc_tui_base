@@ -321,11 +321,7 @@ impl App {
                 push_unique(&mut seen, &mut models, current);
             }
 
-            let routes = if !self.remote_model_options.is_empty() {
-                self.remote_model_options.clone()
-            } else {
-                self.build_remote_model_routes_fallback()
-            };
+            let routes = self.remote_model_routes_for_picker();
 
             for route in routes {
                 push_unique(&mut seen, &mut models, route.model);
@@ -335,9 +331,15 @@ impl App {
                 push_unique(&mut seen, &mut models, model.clone());
             }
         } else {
-            push_unique(&mut seen, &mut models, self.provider.model());
-            for model in self.provider.available_models_display() {
-                push_unique(&mut seen, &mut models, model);
+            if self.use_saitec_logged_out_model_catalog() {
+                for model in crate::subscription_catalog::curated_models() {
+                    push_unique(&mut seen, &mut models, model.id.to_string());
+                }
+            } else {
+                push_unique(&mut seen, &mut models, self.provider.model());
+                for model in self.provider.available_models_display() {
+                    push_unique(&mut seen, &mut models, model);
+                }
             }
         }
 
@@ -377,11 +379,7 @@ impl App {
         );
 
         if self.is_remote {
-            let routes = if !self.remote_model_options.is_empty() {
-                self.remote_model_options.clone()
-            } else {
-                self.build_remote_model_routes_fallback()
-            };
+            let routes = self.remote_model_routes_for_picker();
 
             for route in routes {
                 if route.model == model && route.api_method == "openrouter" {

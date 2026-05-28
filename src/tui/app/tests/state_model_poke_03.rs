@@ -3,8 +3,8 @@ fn test_model_picker_preview_arrow_keys_navigate() {
     let mut app = create_test_app();
     configure_test_remote_models(&mut app);
 
-    // Type /model to open preview
-    for c in "/model".chars() {
+    // Type a filtered /model command to open preview.
+    for c in "/model g".chars() {
         app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
             .unwrap();
     }
@@ -38,7 +38,7 @@ fn test_model_picker_preview_arrow_keys_navigate() {
     assert_eq!(picker.selected, initial_selected);
 
     // Input should be preserved
-    assert_eq!(app.input(), "/model");
+    assert_eq!(app.input(), "/model g");
 }
 
 #[test]
@@ -63,6 +63,57 @@ struct CountingModelRoutesProvider {
     calls: StdArc<AtomicUsize>,
     route_count: usize,
     delay: Duration,
+}
+
+#[derive(Clone)]
+struct UnfilteredSaitecModelProvider;
+
+#[async_trait::async_trait]
+impl Provider for UnfilteredSaitecModelProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[crate::message::ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<crate::provider::EventStream> {
+        unimplemented!("UnfilteredSaitecModelProvider")
+    }
+
+    fn name(&self) -> &str {
+        "OpenAI"
+    }
+
+    fn model(&self) -> String {
+        "gpt-5.4".to_string()
+    }
+
+    fn available_models_display(&self) -> Vec<String> {
+        vec![
+            "gpt-5.4".to_string(),
+            "deepseek/deepseek-v4-pro".to_string(),
+            "claude-opus-4-7".to_string(),
+            "moonshotai/kimi-k2.5".to_string(),
+        ]
+    }
+
+    fn model_routes(&self) -> Vec<crate::provider::ModelRoute> {
+        self.available_models_display()
+            .into_iter()
+            .map(|model| crate::provider::ModelRoute {
+                model,
+                provider: "Test".to_string(),
+                api_method: "test".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            })
+            .collect()
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
+    }
 }
 
 #[async_trait::async_trait]
@@ -105,6 +156,44 @@ impl Provider for CountingModelRoutesProvider {
     fn fork(&self) -> Arc<dyn Provider> {
         Arc::new(self.clone())
     }
+}
+
+#[test]
+fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
+    with_temp_jcode_home(|| {
+        let provider: Arc<dyn Provider> = Arc::new(UnfilteredSaitecModelProvider);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+        let mut app = App::new_for_test_harness(provider, registry);
+        app.queue_mode = false;
+        app.diff_mode = crate::config::DiffDisplayMode::Inline;
+
+        for c in "/model".chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+                .unwrap();
+        }
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
+        wait_for_model_picker_load(&mut app);
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+
+        assert!(!picker.preview);
+        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
+        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(!names.contains(&"gpt-5.4"));
+        assert!(!names.contains(&"claude-opus-4-7"));
+        assert!(
+            names
+                .iter()
+                .all(|name| crate::subscription_catalog::is_curated_model(name)),
+            "logged-out /model preview leaked non-curated models: {names:?}"
+        );
+    });
 }
 
 #[test]
@@ -361,7 +450,7 @@ fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
         .expect("antigravity model should be shown after login");
 
     assert!(antigravity_entry.options.iter().any(|route| {
-        route.provider == "Antigravity" && route.api_method == "cli" && route.available
+        route.provider == "Antigravity" && route.api_method == "https" && route.available
     }));
 }
 
@@ -503,7 +592,7 @@ fn test_agent_model_picker_openrouter_bare_openai_route_saves_openai_catalog_pre
 #[test]
 fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_them() {
     let mut app = create_antigravity_picker_test_app();
-    let text = render_model_picker_text(&mut app, 90, 12);
+    let text = render_model_picker_text(&mut app, 90, 24);
 
     assert!(
         text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),
@@ -530,7 +619,7 @@ fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_
         text
     );
     assert!(
-        text.contains("cli"),
+        text.contains("https"),
         "rendered /model view should show the route transport column, got:
 {}",
         text
@@ -540,7 +629,7 @@ fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_
 #[test]
 fn test_login_smoke_model_picker_renders_unstacked_provider_rows() {
     let mut app = create_login_smoke_model_app();
-    let text = render_model_picker_text(&mut app, 110, 18);
+    let text = render_model_picker_text(&mut app, 110, 32);
 
     assert!(
         text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),

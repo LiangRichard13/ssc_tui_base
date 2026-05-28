@@ -13,7 +13,9 @@ pub fn mcp_config_file() -> Result<PathBuf> {
 
 pub fn ensure_bootstrap() -> Result<()> {
     let Some(server_script) = resolve_server_script() else {
-        crate::logging::warn("SAITEC MCP bootstrap skipped: vendored mcp_server/server.py not found");
+        crate::logging::warn(
+            "SAITEC MCP bootstrap skipped: vendored mcp_server/server.py not found",
+        );
         return Ok(());
     };
 
@@ -34,26 +36,90 @@ pub fn ensure_bootstrap() -> Result<()> {
         McpConfig::default()
     };
 
-    if config.servers.contains_key(SAITEC_MCP_SERVER_NAME) {
-        return Ok(());
+    let desired_command = python_command();
+    let desired_args = vec![server_script.display().to_string()];
+    let desired_env = default_env(server_script.parent());
+    let mut changed = false;
+
+    match config.servers.get_mut(SAITEC_MCP_SERVER_NAME) {
+        Some(server) => {
+            if server.command != desired_command {
+                server.command = desired_command;
+                changed = true;
+            }
+            if server.args != desired_args {
+                server.args = desired_args;
+                changed = true;
+            }
+            for (key, value) in desired_env {
+                if server.env.get(&key) != Some(&value) {
+                    server.env.insert(key, value);
+                    changed = true;
+                }
+            }
+            if !server.shared {
+                server.shared = true;
+                changed = true;
+            }
+        }
+        None => {
+            config.servers.insert(
+                SAITEC_MCP_SERVER_NAME.to_string(),
+                McpServerConfig {
+                    command: desired_command,
+                    args: desired_args,
+                    env: desired_env,
+                    shared: true,
+                },
+            );
+            changed = true;
+        }
     }
 
-    config.servers.insert(
-        SAITEC_MCP_SERVER_NAME.to_string(),
-        McpServerConfig {
-            command: python_command(),
-            args: vec![server_script.display().to_string()],
-            env: default_env(server_script.parent()),
-            shared: true,
-        },
+    if changed {
+        config.save_to_file(&mcp_path)?;
+        crate::logging::info(&format!(
+            "SAITEC MCP bootstrap updated config at {}",
+            mcp_path.display()
+        ));
+    }
+    Ok(())
+}
+
+pub fn apply_runtime_env(config: &mut McpConfig) {
+    let Some(server) = config.servers.get_mut(SAITEC_MCP_SERVER_NAME) else {
+        return;
+    };
+
+    if let Some(api_key) = runtime_api_key() {
+        server.env.insert(
+            crate::subscription_catalog::JCODE_API_KEY_ENV.to_string(),
+            api_key,
+        );
+    }
+
+    server.env.insert(
+        "CORE_API_BASE".to_string(),
+        crate::saitec::auth::core_api_base(),
     );
 
-    config.save_to_file(&mcp_path)?;
-    crate::logging::info(&format!(
-        "SAITEC MCP bootstrap wrote default config to {}",
-        mcp_path.display()
-    ));
-    Ok(())
+    if let Ok(home) = crate::saitec::paths::home_dir() {
+        server
+            .env
+            .insert("SAITEC_TUI_HOME".to_string(), home.display().to_string());
+    }
+}
+
+fn runtime_api_key() -> Option<String> {
+    crate::subscription_catalog::configured_api_key().or_else(|| {
+        crate::saitec::auth::load_session()
+            .ok()
+            .flatten()
+            .and_then(|session| {
+                let trimmed = session.api_key.trim();
+                (!trimmed.is_empty()).then(|| trimmed.to_string())
+            })
+    })
 }
 
 fn python_command() -> String {
