@@ -7,6 +7,7 @@
 - **Push when done** - Push all commits to remote when finishing a task or session
 - **Use fast iteration by default** - Prefer `cargo check`, targeted tests, and dev builds while iterating
 - **Rebuild when done** - When you are done making changes, build the source.
+- **Run the dev debug script after fixes** - After completing each fix, run `scripts/dev_saitec_tui.ps1` to start the TUI project so the user can inspect it.
 - **Bump version for releases** - Update version in `Cargo.toml` when making releases. When cutting a new release, look at all the changes that happened since the last release and determine what the version bump should be ie patch or minor, etc. 
 - **Remote builds available** - Use `scripts/remote_build.sh` to offload heavy cargo work to another machine. If your build is terminated, likely is because there are not enough resources on this machine to build. use remote build in that case. Try checking the resource avaliablity on the machine before you run a build. 
 
