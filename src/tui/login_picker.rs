@@ -120,6 +120,7 @@ pub struct LoginPickerSummary {
 #[derive(Debug, Clone)]
 pub struct LoginPicker {
     title: String,
+    primary_action_label: String,
     items: Vec<LoginPickerItem>,
     filtered: Vec<usize>,
     selected: usize,
@@ -152,8 +153,18 @@ impl LoginPicker {
         items: Vec<LoginPickerItem>,
         summary: LoginPickerSummary,
     ) -> Self {
+        Self::with_summary_and_primary_action(title, items, summary, "login")
+    }
+
+    pub fn with_summary_and_primary_action(
+        title: impl Into<String>,
+        items: Vec<LoginPickerItem>,
+        summary: LoginPickerSummary,
+        primary_action_label: impl Into<String>,
+    ) -> Self {
         let mut picker = Self {
             title: title.into(),
+            primary_action_label: primary_action_label.into(),
             items,
             filtered: Vec::new(),
             selected: 0,
@@ -165,19 +176,28 @@ impl LoginPicker {
         picker
     }
 
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
     pub fn debug_memory_profile(&self) -> serde_json::Value {
         let items_estimate_bytes: usize = self.items.iter().map(estimate_item_bytes).sum();
         let filtered_estimate_bytes = self.filtered.capacity() * std::mem::size_of::<usize>();
         let filter_bytes = self.filter.capacity();
         let title_bytes = self.title.capacity();
-        let total_estimate_bytes =
-            items_estimate_bytes + filtered_estimate_bytes + filter_bytes + title_bytes;
+        let primary_action_label_bytes = self.primary_action_label.capacity();
+        let total_estimate_bytes = items_estimate_bytes
+            + filtered_estimate_bytes
+            + filter_bytes
+            + title_bytes
+            + primary_action_label_bytes;
 
         serde_json::json!({
             "items_count": self.items.len(),
             "filtered_count": self.filtered.len(),
             "selected": self.selected,
             "title_bytes": title_bytes,
+            "primary_action_label_bytes": primary_action_label_bytes,
             "filter_bytes": filter_bytes,
             "items_estimate_bytes": items_estimate_bytes,
             "filtered_estimate_bytes": filtered_estimate_bytes,
@@ -362,7 +382,10 @@ impl LoginPicker {
             .title(format!(" {} ", self.title))
             .title_bottom(Line::from(vec![
                 hotkey(" Enter "),
-                Span::styled(" login  ", Style::default().fg(MUTED_DARK)),
+                Span::styled(
+                    format!(" {}  ", self.primary_action_label),
+                    Style::default().fg(MUTED_DARK),
+                ),
                 hotkey(" Up/Down "),
                 Span::styled(" navigate  ", Style::default().fg(MUTED_DARK)),
                 hotkey(" Click "),

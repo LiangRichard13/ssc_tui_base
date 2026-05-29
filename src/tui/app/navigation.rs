@@ -856,6 +856,7 @@ impl App {
             return false;
         }
         if let Some(ref picker_cell) = self.login_picker_overlay {
+            let is_logout_picker = self.is_base_model_logout_picker_open();
             let action = picker_cell.borrow_mut().handle_overlay_mouse(mouse);
             match action {
                 crate::tui::login_picker::OverlayAction::Continue => {}
@@ -864,7 +865,11 @@ impl App {
                 }
                 crate::tui::login_picker::OverlayAction::Execute(provider) => {
                     self.login_picker_overlay = None;
-                    self.start_login_provider(provider);
+                    if is_logout_picker {
+                        self.open_base_model_logout_confirmation(provider);
+                    } else {
+                        self.start_login_provider(provider);
+                    }
                 }
                 crate::tui::login_picker::OverlayAction::Revalidate(provider) => {
                     self.start_login_picker_provider_validation(provider);

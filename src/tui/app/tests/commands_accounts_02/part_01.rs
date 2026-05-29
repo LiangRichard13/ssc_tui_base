@@ -1315,6 +1315,165 @@ fn test_logout_command_opens_target_selector_without_clearing_saitec_auth() {
 }
 
 #[test]
+fn test_logout_base_models_opens_lightweight_provider_picker() {
+    let _guard = crate::storage::lock_test_env();
+    let mut app = create_test_app();
+    app.input = "/logout base-models".to_string();
+    app.submit_input();
+
+    assert!(
+        app.login_picker_overlay.is_some(),
+        "/logout base-models should reuse the lightweight base-model picker"
+    );
+    assert!(
+        app.account_picker_overlay.is_none(),
+        "/logout base-models should not open the full account center"
+    );
+
+    let picker_cell = app
+        .login_picker_overlay
+        .as_ref()
+        .expect("logout picker overlay should open");
+    let picker = picker_cell.borrow();
+    let profile = picker.debug_memory_profile();
+    assert_eq!(profile["items_count"], 5);
+    assert_eq!(profile["filtered_count"], 5);
+    drop(picker);
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("base-model logout picker draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("Base-model Logout"), "rendered picker:\n{text}");
+    assert!(text.contains("OpenAI"), "rendered picker:\n{text}");
+    assert!(text.contains("Claude"), "rendered picker:\n{text}");
+    assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
+    assert!(text.contains("Kimi"), "rendered picker:\n{text}");
+    assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(!text.contains("Providers & Quick Actions"), "rendered picker:\n{text}");
+    assert!(!text.contains("Global defaults"), "rendered picker:\n{text}");
+}
+
+#[test]
+fn test_logout_base_model_picker_selection_opens_provider_confirmation() {
+    let _guard = crate::storage::lock_test_env();
+    let mut app = create_test_app();
+    app.input = "/logout base-models".to_string();
+    app.submit_input();
+    let first_provider_name =
+        crate::provider_catalog::saitec_visible_base_model_providers()[0].display_name;
+
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("select provider from logout picker");
+
+    assert!(
+        app.login_picker_overlay.is_none(),
+        "selecting a logout provider should close the provider picker"
+    );
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "selecting a logout provider should ask for confirmation"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "selecting a logout provider should not start a login flow"
+    );
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("base-model logout confirmation draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(
+        text.contains(&format!("Log out {}", first_provider_name)),
+        "rendered confirmation:\n{text}"
+    );
+    assert!(text.contains("Cancel"), "rendered confirmation:\n{text}");
+}
+
+#[test]
+fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_zhipu = std::env::var_os("ZHIPU_API_KEY");
+    let prev_zai = std::env::var_os("ZAI_API_KEY");
+    let prev_saitec_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::remove_var("ZAI_API_KEY");
+
+    save_test_saitec_session();
+    let profile = crate::provider_catalog::openai_compatible_profile_by_id("zai")
+        .expect("Z.AI profile should exist");
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+    crate::provider_catalog::save_env_value_to_env_file(
+        &resolved.api_key_env,
+        &resolved.env_file,
+        Some("zai-test-key"),
+    )
+    .expect("save Z.AI key");
+
+    let mut app = create_test_app();
+    app.input = "/logout base-models zai --confirm".to_string();
+    app.submit_input();
+
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load SAITEC session")
+            .is_some(),
+        "base-model logout must not clear SAITEC credentials"
+    );
+    assert_eq!(
+        crate::subscription_catalog::configured_api_key().as_deref(),
+        Some("sk-live-test")
+    );
+    assert!(
+        std::env::var_os(&resolved.api_key_env).is_none(),
+        "selected provider API key env var should be removed"
+    );
+    let env_file = crate::storage::app_config_dir()
+        .expect("config dir")
+        .join(&resolved.env_file);
+    let env_contents = std::fs::read_to_string(env_file).unwrap_or_default();
+    assert!(
+        !env_contents.contains(&format!("{}=", resolved.api_key_env)),
+        "selected provider API key should be removed from local env file"
+    );
+    assert!(
+        app.display_messages().iter().any(|msg| {
+            msg.role == "system" && msg.content.contains("Logged out from Z.AI")
+        }),
+        "base-model logout confirmation should be present in system messages"
+    );
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_zhipu) = prev_zhipu {
+        crate::env::set_var("ZHIPU_API_KEY", prev_zhipu);
+    } else {
+        crate::env::remove_var("ZHIPU_API_KEY");
+    }
+    if let Some(prev_zai) = prev_zai {
+        crate::env::set_var("ZAI_API_KEY", prev_zai);
+    } else {
+        crate::env::remove_var("ZAI_API_KEY");
+    }
+    if let Some(prev_saitec_key) = prev_saitec_key {
+        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_saitec_key);
+    } else {
+        crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    }
+}
+
+#[test]
 fn test_logout_jcode_requires_confirmation_before_clearing_saitec_auth() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");

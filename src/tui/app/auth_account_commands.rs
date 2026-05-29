@@ -91,10 +91,25 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
 fn handle_logout_target_command(app: &mut App, requested: &str) {
     let mut parts = requested.split_whitespace();
     let target = parts.next().unwrap_or_default();
-    let confirm = parts.any(|part| part.eq_ignore_ascii_case("--confirm"));
+    let mut provider_id: Option<&str> = None;
+    let mut confirm = false;
+    for part in parts {
+        if part.eq_ignore_ascii_case("--confirm") {
+            confirm = true;
+        } else if provider_id.is_none() {
+            provider_id = Some(part);
+        } else {
+            app.push_display_message(DisplayMessage::error(
+                "Use `/logout`, `/logout base-models`, `/logout base-models <provider>`, or `/logout jcode`."
+                    .to_string(),
+            ));
+            return;
+        }
+    }
 
     if target.eq_ignore_ascii_case("cancel") {
         app.account_picker_overlay = None;
+        app.login_picker_overlay = None;
         app.set_status_notice("Logout cancelled");
         app.push_display_message(DisplayMessage::system("Logout cancelled.".to_string()));
         return;
@@ -104,12 +119,28 @@ fn handle_logout_target_command(app: &mut App, requested: &str) {
         || target.eq_ignore_ascii_case("base-model")
         || target.eq_ignore_ascii_case("models")
     {
-        app.open_account_center(None);
-        app.set_status_notice("Logout: choose a base-model account");
-        app.push_display_message(DisplayMessage::system(
-            "Choose a base-model provider/account to manage. SAITEC credentials are unchanged."
-                .to_string(),
-        ));
+        let Some(provider_id) = provider_id else {
+            app.open_saitec_base_model_logout_picker();
+            return;
+        };
+
+        let Some(provider) = resolve_account_provider_descriptor(provider_id).filter(|provider| {
+            provider.id != crate::provider_catalog::JCODE_LOGIN_PROVIDER.id
+                && crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
+        }) else {
+            app.push_display_message(DisplayMessage::error(format!(
+                "{} Unsupported provider `{}`.",
+                unsupported_provider_error(),
+                provider_id
+            )));
+            return;
+        };
+
+        if confirm {
+            clear_base_model_provider_after_confirmation(app, provider);
+        } else {
+            app.open_base_model_logout_confirmation(provider);
+        }
         return;
     }
 
@@ -127,7 +158,8 @@ fn handle_logout_target_command(app: &mut App, requested: &str) {
     }
 
     app.push_display_message(DisplayMessage::error(
-        "Use `/logout`, `/logout base-models`, or `/logout jcode`.".to_string(),
+        "Use `/logout`, `/logout base-models`, `/logout base-models <provider>`, or `/logout jcode`."
+            .to_string(),
     ));
 }
 
@@ -148,6 +180,90 @@ fn clear_saitec_session_after_confirmation(app: &mut App) {
             err
         ))),
     }
+}
+
+fn clear_base_model_provider_after_confirmation(
+    app: &mut App,
+    provider: crate::provider_catalog::LoginProviderDescriptor,
+) {
+    let result = match provider.target {
+        crate::provider_catalog::LoginProviderTarget::Claude => clear_claude_provider_accounts(),
+        crate::provider_catalog::LoginProviderTarget::OpenAi => clear_openai_provider_accounts(),
+        crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(profile) => {
+            clear_openai_compatible_profile_credentials(profile)
+        }
+        _ => Err(anyhow::anyhow!(
+            "Provider `{}` does not support base-model logout.",
+            provider.display_name
+        )),
+    };
+
+    match result {
+        Ok(()) => {
+            crate::auth::AuthStatus::invalidate_cache();
+            app.account_picker_overlay = None;
+            app.login_picker_overlay = None;
+            app.pending_login = None;
+            app.trigger_provider_auth_changed();
+            app.push_display_message(DisplayMessage::system(format!(
+                "Logged out from {}. SAITEC credentials are unchanged.",
+                provider.display_name
+            )));
+            app.set_status_notice(format!("Logout: {} cleared", provider.display_name));
+        }
+        Err(err) => app.push_display_message(DisplayMessage::error(format!(
+            "Failed to log out from {}: {}",
+            provider.display_name, err
+        ))),
+    }
+}
+
+fn clear_claude_provider_accounts() -> anyhow::Result<()> {
+    let accounts = crate::auth::claude::list_accounts()?;
+    if accounts.is_empty() {
+        anyhow::bail!("No Anthropic account is configured.");
+    }
+
+    for account in accounts {
+        crate::auth::claude::remove_account(&account.label)?;
+    }
+    Ok(())
+}
+
+fn clear_openai_provider_accounts() -> anyhow::Result<()> {
+    let accounts = crate::auth::codex::list_accounts()?;
+    if accounts.is_empty() {
+        anyhow::bail!("No OpenAI account is configured.");
+    }
+
+    for account in accounts {
+        crate::auth::codex::remove_account(&account.label)?;
+    }
+    Ok(())
+}
+
+fn clear_openai_compatible_profile_credentials(
+    profile: crate::provider_catalog::OpenAiCompatibleProfile,
+) -> anyhow::Result<()> {
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+    crate::provider_catalog::save_env_value_to_env_file(
+        &resolved.api_key_env,
+        &resolved.env_file,
+        None,
+    )?;
+    if resolved.api_key_env == "ZHIPU_API_KEY" {
+        crate::provider_catalog::save_env_value_to_env_file(
+            "ZAI_API_KEY",
+            &resolved.env_file,
+            None,
+        )?;
+    }
+    crate::provider_catalog::save_env_value_to_env_file(
+        crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV,
+        &resolved.env_file,
+        None,
+    )?;
+    Ok(())
 }
 
 pub(crate) async fn handle_account_command_remote(

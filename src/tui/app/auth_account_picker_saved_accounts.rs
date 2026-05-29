@@ -8,6 +8,7 @@ impl App {
     ) -> anyhow::Result<()> {
         use crate::tui::login_picker::OverlayAction;
 
+        let is_logout_picker = self.is_base_model_logout_picker_open();
         let action = {
             let Some(picker_cell) = self.login_picker_overlay.as_ref() else {
                 return Ok(());
@@ -23,7 +24,11 @@ impl App {
             }
             OverlayAction::Execute(provider) => {
                 self.login_picker_overlay = None;
-                self.start_login_provider(provider);
+                if is_logout_picker {
+                    self.open_base_model_logout_confirmation(provider);
+                } else {
+                    self.start_login_provider(provider);
+                }
             }
             OverlayAction::Revalidate(provider) => {
                 self.start_login_picker_provider_validation(provider);

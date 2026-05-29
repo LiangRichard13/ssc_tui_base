@@ -83,6 +83,62 @@ impl App {
         self.set_status_notice("Login: choose a base-model provider");
     }
 
+    pub(crate) fn open_saitec_base_model_logout_picker(&mut self) {
+        use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
+
+        let status = crate::auth::AuthStatus::check_fast();
+        let validation = crate::auth::validation::load_all();
+        let providers = crate::provider_catalog::saitec_visible_base_model_providers();
+        let mut summary = LoginPickerSummary::default();
+        let items = providers
+            .into_iter()
+            .enumerate()
+            .map(|(index, provider)| {
+                let auth_state = status.state_for_provider(provider);
+                let validation_record = validation.get(provider.id);
+                match auth_state {
+                    crate::auth::AuthState::Available => summary.ready_count += 1,
+                    crate::auth::AuthState::Expired => summary.attention_count += 1,
+                    crate::auth::AuthState::NotConfigured => summary.setup_count += 1,
+                }
+                if provider.recommended {
+                    summary.recommended_count += 1;
+                }
+
+                LoginPickerItem::new(
+                    index + 1,
+                    provider,
+                    auth_state,
+                    validation_record.map(crate::auth::validation::format_record_label),
+                    validation_record.map(|record| record.success),
+                    status.method_detail_for_provider(provider),
+                )
+            })
+            .collect();
+
+        self.login_picker_overlay = Some(std::cell::RefCell::new(
+            LoginPicker::with_summary_and_primary_action(
+                " Base-model Logout ",
+                items,
+                summary,
+                "logout",
+            ),
+        ));
+        self.abandon_pending_login_for_new_flow();
+        self.account_picker_overlay = None;
+        self.inline_interactive_state = None;
+        self.input.clear();
+        self.cursor_pos = 0;
+        self.set_status_notice("Logout: choose a base-model provider");
+    }
+
+    pub(crate) fn is_base_model_logout_picker_open(&self) -> bool {
+        let Some(picker_cell) = self.login_picker_overlay.as_ref() else {
+            return false;
+        };
+        picker_cell.borrow().title().trim() == "Base-model Logout"
+    }
+
     pub(crate) fn refresh_open_saitec_base_model_login_picker(&mut self) {
         let snapshot = self.base_model_picker_selection_snapshot();
         self.open_saitec_base_model_login_picker();
@@ -235,6 +291,46 @@ impl App {
         self.input.clear();
         self.cursor_pos = 0;
         self.set_status_notice("Logout: confirm SAITEC");
+    }
+
+    pub(crate) fn open_base_model_logout_confirmation(
+        &mut self,
+        provider: crate::provider_catalog::LoginProviderDescriptor,
+    ) {
+        use crate::tui::account_picker::{AccountPicker, AccountPickerItem};
+
+        let items = vec![
+            AccountPickerItem::action(
+                "logout-cancel",
+                "Cancel",
+                "Cancel",
+                format!("keep {} credentials", provider.display_name),
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
+                    "/logout cancel".to_string(),
+                ),
+            ),
+            AccountPickerItem::action(
+                provider.id,
+                format!("Log out {}", provider.display_name),
+                format!("Log out {}", provider.display_name),
+                "clear only this base-model provider; SAITEC credentials stay unchanged",
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(format!(
+                    "/logout base-models {} --confirm",
+                    provider.id
+                )),
+            ),
+        ];
+
+        self.abandon_pending_login_for_new_flow();
+        self.account_picker_overlay = Some(std::cell::RefCell::new(AccountPicker::simple(
+            " Confirm Logout ",
+            items,
+        )));
+        self.login_picker_overlay = None;
+        self.inline_interactive_state = None;
+        self.input.clear();
+        self.cursor_pos = 0;
+        self.set_status_notice(format!("Logout: confirm {}", provider.display_name));
     }
 
     pub(crate) fn is_login_mode_selector_open(&self) -> bool {
