@@ -578,8 +578,7 @@ impl crate::tui::TuiState for App {
                     | PendingLogin::OpenAiCompatibleApiBase { .. }
                     | PendingLogin::CursorApiKey
             )
-        )
-            && self.display_user_message_count == 0
+        ) && self.display_user_message_count == 0
             && self.streaming_text.is_empty()
             && self
                 .display_messages

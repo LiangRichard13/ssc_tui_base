@@ -194,40 +194,11 @@ fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
 
-        let picker = app
-            .inline_interactive_state
-            .as_ref()
-            .expect("model picker should be open");
-        let names: Vec<&str> = picker
-            .entries
-            .iter()
-            .map(|entry| entry.name.as_str())
-            .collect();
-
-        assert!(names.contains(&"DeepSeek V4 Pro"));
-        assert!(names.contains(&"Kimi K2.5"));
-        assert!(!names.contains(&"gpt-5.4"));
         assert!(
-            names
-                .iter()
-                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
-            "logged-out /model leaked OpenRouter model names after logout: {names:?}"
+            app.inline_interactive_state.is_none(),
+            "logged-out /model should hide unvalidated model routes"
         );
-        assert!(
-            names
-                .iter()
-                .all(|name| crate::subscription_catalog::is_curated_model(name)),
-            "logged-out /model leaked non-curated models after logout: {names:?}"
-        );
-        assert!(
-            picker
-                .entries
-                .iter()
-                .flat_map(|entry| entry.options.iter())
-                .all(|option| !option.available),
-            "logged-out /model should not expose selectable provider routes: {:?}",
-            picker.entries
-        );
+        assert_eq!(app.status_notice(), Some("No models available".to_string()));
     });
 }
 
@@ -450,11 +421,11 @@ fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout()
             .map(|entry| entry.name.as_str())
             .collect();
 
-        assert!(names.contains(&"DeepSeek V4 Pro"));
-        assert!(names.contains(&"Kimi K2.5"));
+        assert!(!names.contains(&"DeepSeek V4 Pro"));
+        assert!(!names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"openai/gpt-5.4"));
         assert!(!names.contains(&"anthropic/claude-sonnet-4"));
-        assert!(!names.contains(&"kimi-for-coding"));
+        assert!(names.contains(&"kimi-for-coding"));
         assert!(
             names
                 .iter()
@@ -462,10 +433,8 @@ fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout()
             "remote logged-out /model leaked OpenRouter model names: {names:?}"
         );
         assert!(
-            names
-                .iter()
-                .all(|name| crate::subscription_catalog::is_curated_model(name)),
-            "remote logged-out /model leaked non-curated routes: {names:?}"
+            names.iter().all(|name| *name == "kimi-for-coding"),
+            "remote logged-out /model should only show validated routes: {names:?}"
         );
     });
 }
@@ -540,11 +509,11 @@ fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_l
             .map(|entry| entry.name.as_str())
             .collect();
 
-        assert!(names.contains(&"DeepSeek V4 Pro"));
-        assert!(names.contains(&"Kimi K2.5"));
+        assert!(!names.contains(&"DeepSeek V4 Pro"));
+        assert!(!names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"openai/gpt-5.4"));
         assert!(!names.contains(&"anthropic/claude-sonnet-4"));
-        assert!(!names.contains(&"kimi-for-coding"));
+        assert!(names.contains(&"kimi-for-coding"));
         assert!(
             names
                 .iter()
@@ -552,16 +521,14 @@ fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_l
             "remote logged-out /model leaked OpenRouter model names: {names:?}"
         );
         assert!(
-            names
-                .iter()
-                .all(|name| crate::subscription_catalog::is_curated_model(name)),
-            "remote logged-out /model leaked OpenAI-compatible routes: {names:?}"
+            names.iter().all(|name| *name == "kimi-for-coding"),
+            "remote logged-out /model should only show validated routes: {names:?}"
         );
     });
 }
 
 #[test]
-fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
+fn test_logged_out_model_picker_hides_unvalidated_saitec_curated_models() {
     with_temp_jcode_home(|| {
         crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
             auth_token: None,
@@ -596,33 +563,11 @@ fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
             .unwrap();
         wait_for_model_picker_load(&mut app);
 
-        let picker = app
-            .inline_interactive_state
-            .as_ref()
-            .expect("model picker should be open");
-        let names: Vec<&str> = picker
-            .entries
-            .iter()
-            .map(|entry| entry.name.as_str())
-            .collect();
-
-        assert!(!picker.preview);
-        assert!(names.contains(&"DeepSeek V4 Pro"));
-        assert!(names.contains(&"Kimi K2.5"));
-        assert!(!names.contains(&"gpt-5.4"));
-        assert!(!names.contains(&"claude-opus-4-7"));
         assert!(
-            names
-                .iter()
-                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
-            "logged-out /model preview leaked OpenRouter model names: {names:?}"
+            app.inline_interactive_state.is_none(),
+            "logged-out /model should not show unvalidated curated models"
         );
-        assert!(
-            names
-                .iter()
-                .all(|name| crate::subscription_catalog::is_curated_model(name)),
-            "logged-out /model preview leaked non-curated models: {names:?}"
-        );
+        assert_eq!(app.status_notice(), Some("No models available".to_string()));
     });
 }
 

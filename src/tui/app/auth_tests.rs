@@ -224,7 +224,8 @@ fn openai_compatible_key_save_does_not_mark_hosted_provider_validated_by_presenc
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
 
-    let resolved = save_tui_openai_compatible_key(crate::provider_catalog::ZAI_PROFILE, "zai-test-key")?;
+    let resolved =
+        save_tui_openai_compatible_key(crate::provider_catalog::ZAI_PROFILE, "zai-test-key")?;
     assert_eq!(resolved.id, "zai");
     assert!(
         crate::provider_catalog::openai_compatible_profile_is_configured(
@@ -368,7 +369,9 @@ fn provider_validation_completion_refreshes_open_login_picker_status() {
         app.display_messages()
             .iter()
             .any(|message| message.role == "system"
-                && message.content.contains("Runtime validation passed for Z.AI")),
+                && message
+                    .content
+                    .contains("Runtime validation passed for Z.AI")),
         "successful revalidation should be surfaced to the user"
     );
 }
@@ -456,16 +459,15 @@ fn openai_compatible_post_login_activation_uses_provider_prefixed_kimi_spec() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
-    let (mut app, set_model_calls) = create_activation_spec_capture_test_app(vec![
-        crate::provider::ModelRoute {
+    let (mut app, set_model_calls) =
+        create_activation_spec_capture_test_app(vec![crate::provider::ModelRoute {
             model: "kimi-for-coding".to_string(),
             provider: "Kimi Code".to_string(),
             api_method: "openai-compatible:kimi".to_string(),
             available: true,
             detail: "https://api.kimi.com/coding/v1".to_string(),
             cheapness: None,
-        },
-    ]);
+        }]);
     let runtime = tokio::runtime::Runtime::new().expect("runtime");
     let _enter = runtime.enter();
 
@@ -781,7 +783,10 @@ fn api_key_login_escape_closes_text_entry_overlay() {
     app.handle_key(KeyCode::Esc, KeyModifiers::empty())
         .expect("esc should close the API-key login overlay");
 
-    assert!(app.pending_login.is_none(), "API-key login should be dismissed by esc");
+    assert!(
+        app.pending_login.is_none(),
+        "API-key login should be dismissed by esc"
+    );
     assert_eq!(app.input(), "");
     let last = app
         .display_messages()

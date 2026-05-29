@@ -27,7 +27,10 @@ fn clip_overlay_input_to_single_line(
     let start = clamped_cursor.saturating_sub(max_chars).min(max_start);
     let end = (start + max_chars).min(chars.len());
     let visible = chars[start..end].iter().collect::<String>();
-    (visible, clamped_cursor.saturating_sub(start).min(end - start))
+    (
+        visible,
+        clamped_cursor.saturating_sub(start).min(end - start),
+    )
 }
 
 fn saitec_form_field_value(
@@ -287,8 +290,7 @@ pub(super) fn draw_pending_text_entry_overlay(
         Span::styled(
             label.clone(),
             if overlay.validate_focused || overlay.cancel_focused {
-                Style::default()
-                    .fg(rgb(210, 210, 225))
+                Style::default().fg(rgb(210, 210, 225))
             } else {
                 Style::default()
                     .fg(accent_color())
@@ -346,8 +348,7 @@ pub(super) fn draw_pending_text_entry_overlay(
     ));
     let cursor_row = popup_cursor_row(field_row);
 
-    let desired_height =
-        (6usize + lines.len()).min(area.height.saturating_sub(2).max(8) as usize);
+    let desired_height = (6usize + lines.len()).min(area.height.saturating_sub(2).max(8) as usize);
     let height = desired_height.max(8) as u16;
     let popup = Rect {
         x: area.x + area.width.saturating_sub(width) / 2,
@@ -372,7 +373,9 @@ pub(super) fn draw_pending_text_entry_overlay(
         .border_style(Style::default().fg(rgb(90, 120, 110)));
 
     frame.render_widget(
-        Paragraph::new(lines).block(block).wrap(Wrap { trim: false }),
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
         popup,
     );
 

@@ -72,18 +72,19 @@ impl App {
 
     fn apply_model_picker_runtime_validation(
         routes: Vec<crate::provider::ModelRoute>,
+        require_validation_for_unmapped_routes: bool,
     ) -> Vec<crate::provider::ModelRoute> {
         routes
             .into_iter()
             .filter(|route| {
                 if !route.available {
-                    return route.api_method == "saitec" && route.provider == "Saitec Subscription";
+                    return false;
                 }
 
                 let Some((provider_id, _display_name)) =
                     Self::model_picker_route_validation_provider(route)
                 else {
-                    return true;
+                    return !require_validation_for_unmapped_routes;
                 };
 
                 let Some(record) = crate::auth::validation::get(provider_id) else {
@@ -117,6 +118,15 @@ impl App {
             .into_iter()
             .filter(|route| !Self::model_picker_route_mentions_openrouter(route))
             .collect()
+    }
+
+    pub(super) fn model_picker_display_routes(
+        routes: Vec<crate::provider::ModelRoute>,
+        require_validation_for_unmapped_routes: bool,
+    ) -> Vec<crate::provider::ModelRoute> {
+        let routes = crate::provider::models::filtered_model_routes(routes);
+        let routes = Self::filter_saitec_model_picker_routes(routes);
+        Self::apply_model_picker_runtime_validation(routes, require_validation_for_unmapped_routes)
     }
 
     pub(super) fn invalidate_model_picker_cache(&mut self) {
@@ -157,7 +167,7 @@ impl App {
                 .map(|effort| (*effort).to_string())
                 .collect(),
             simplified_model_picker: crate::perf::tui_policy().simplified_model_picker,
-            saitec_logged_out_model_catalog: self.use_saitec_logged_out_model_catalog(),
+            strict_model_picker_validation: self.requires_strict_model_picker_validation(),
             catalog_revision: self.model_picker_catalog_revision,
             remote_provider_name: self.remote_provider_name.clone(),
             remote_available_len: self.remote_available_entries.len(),
@@ -225,7 +235,7 @@ impl App {
         model_count > 1 && route_count > 1
     }
 
-    pub(super) fn use_saitec_logged_out_model_catalog(&self) -> bool {
+    pub(super) fn requires_strict_model_picker_validation(&self) -> bool {
         let provider_name = if self.is_remote {
             self.remote_provider_name.as_deref().unwrap_or_default()
         } else {
@@ -258,20 +268,6 @@ impl App {
         can_leak_static_catalog
             && (!self.is_remote || remote_has_catalog)
             && crate::saitec::auth::ensure_logged_in().is_err()
-    }
-
-    fn saitec_logged_out_model_routes_for_picker() -> Vec<crate::provider::ModelRoute> {
-        crate::subscription_catalog::curated_models()
-            .iter()
-            .map(|model| crate::provider::ModelRoute {
-                model: model.display_name.to_string(),
-                provider: "Saitec Subscription".to_string(),
-                api_method: "saitec".to_string(),
-                available: false,
-                detail: "login required; use /login".to_string(),
-                cheapness: None,
-            })
-            .collect()
     }
 
     fn bedrock_picker_availability(model: &str, has_credentials: bool) -> (bool, String) {
@@ -473,17 +469,6 @@ impl App {
             &available_efforts,
         );
         if self.open_cached_model_picker_if_fresh(&cache_signature, picker_started) {
-            return;
-        }
-
-        if self.use_saitec_logged_out_model_catalog() {
-            self.open_model_picker_with_routes(
-                cache_signature,
-                picker_started,
-                Self::saitec_logged_out_model_routes_for_picker(),
-                0,
-                false,
-            );
             return;
         }
 
@@ -705,9 +690,10 @@ impl App {
         } else {
             routes
         };
-        let routes = crate::provider::models::filtered_model_routes(routes);
-        let routes = Self::filter_saitec_model_picker_routes(routes);
-        let routes = Self::apply_model_picker_runtime_validation(routes);
+        let routes = Self::model_picker_display_routes(
+            routes,
+            self.requires_strict_model_picker_validation(),
+        );
 
         if routes.is_empty() {
             self.inline_interactive_state = None;

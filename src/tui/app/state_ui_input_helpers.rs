@@ -316,9 +316,14 @@ impl App {
         let mut seen = std::collections::HashSet::new();
         let mut models = Vec::new();
 
-        if self.use_saitec_logged_out_model_catalog() {
-            for model in crate::subscription_catalog::curated_models() {
-                push_unique(&mut seen, &mut models, model.display_name.to_string());
+        if self.requires_strict_model_picker_validation() {
+            let routes = if self.is_remote {
+                self.remote_model_routes_for_picker()
+            } else {
+                self.provider.model_routes()
+            };
+            for route in Self::model_picker_display_routes(routes, true) {
+                push_unique(&mut seen, &mut models, route.model);
             }
         } else if self.is_remote {
             if let Some(current) = self.remote_provider_model.clone() {
@@ -363,7 +368,7 @@ impl App {
         if model.is_empty() {
             return Vec::new();
         }
-        if self.use_saitec_logged_out_model_catalog() {
+        if self.requires_strict_model_picker_validation() {
             return Vec::new();
         }
         if crate::subscription_catalog::is_runtime_mode_enabled() {

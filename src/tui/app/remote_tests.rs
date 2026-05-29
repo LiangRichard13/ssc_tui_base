@@ -236,7 +236,9 @@ fn remote_login_mode_selector_up_after_down_returns_to_saitec_without_closing_se
         Some(crate::tui::app::PendingLogin::SaitecForm { ref form }) => {
             assert_eq!(form.focus, crate::tui::app::SaitecLoginField::Email);
         }
-        ref other => panic!("unexpected pending login state after remote selector up/down navigation: {other:?}"),
+        ref other => panic!(
+            "unexpected pending login state after remote selector up/down navigation: {other:?}"
+        ),
     }
     assert!(app.account_picker_overlay.is_none());
 }

@@ -212,7 +212,9 @@ impl LoginPicker {
 
     pub fn selection_snapshot(&self) -> LoginPickerSelectionSnapshot {
         LoginPickerSelectionSnapshot {
-            selected_provider_id: self.selected_item().map(|item| item.provider.id.to_string()),
+            selected_provider_id: self
+                .selected_item()
+                .map(|item| item.provider.id.to_string()),
             filter: self.filter.clone(),
             selected: self.selected,
         }

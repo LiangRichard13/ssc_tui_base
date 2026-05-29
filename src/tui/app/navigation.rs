@@ -53,8 +53,7 @@ impl App {
             inner_width.max(1),
         )
         .len();
-        let rendered_line_count =
-            detail_rows + blank_after_details + 1 + 1 + 1 + 1 + footer_rows;
+        let rendered_line_count = detail_rows + blank_after_details + 1 + 1 + 1 + 1 + footer_rows;
         let desired_height =
             (6usize + rendered_line_count).min(chat_area.height.saturating_sub(2).max(8) as usize);
         let height = desired_height.max(8) as u16;
@@ -89,20 +88,12 @@ impl App {
 
             if mouse.column >= validate_start && mouse.column < validate_end {
                 self.pending_text_entry_focus = super::PendingTextEntryFocus::Validate;
-                super::input::handle_pending_login_key(
-                    self,
-                    KeyCode::Enter,
-                    KeyModifiers::empty(),
-                );
+                super::input::handle_pending_login_key(self, KeyCode::Enter, KeyModifiers::empty());
                 return false;
             }
             if mouse.column >= cancel_start && mouse.column < cancel_end {
                 self.pending_text_entry_focus = super::PendingTextEntryFocus::Cancel;
-                super::input::handle_pending_login_key(
-                    self,
-                    KeyCode::Enter,
-                    KeyModifiers::empty(),
-                );
+                super::input::handle_pending_login_key(self, KeyCode::Enter, KeyModifiers::empty());
                 return false;
             }
         }

@@ -157,8 +157,7 @@ impl App {
 
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
-                let result =
-                    crate::cli::auth_test::run_post_login_validation_quiet(provider).await;
+                let result = crate::cli::auth_test::run_post_login_validation_quiet(provider).await;
                 let (success, message) = match result {
                     Ok(()) => (
                         true,
@@ -2762,21 +2761,25 @@ fn is_openai_compatible_post_save_failure_message(message: &str) -> bool {
 fn resolve_openai_compatible_provider_descriptor(
     provider_label: &str,
 ) -> Option<crate::provider_catalog::LoginProviderDescriptor> {
-    crate::provider_catalog::resolve_login_provider(provider_label).filter(|provider| {
-        matches!(
-            provider.target,
-            crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
-        )
-    }).or_else(|| {
-        crate::provider_catalog::saitec_auth_status_login_providers()
-            .into_iter()
-            .find(|provider| {
-                matches!(
-                    provider.target,
-                    crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
-                ) && provider.display_name.eq_ignore_ascii_case(provider_label.trim())
-            })
-    })
+    crate::provider_catalog::resolve_login_provider(provider_label)
+        .filter(|provider| {
+            matches!(
+                provider.target,
+                crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
+            )
+        })
+        .or_else(|| {
+            crate::provider_catalog::saitec_auth_status_login_providers()
+                .into_iter()
+                .find(|provider| {
+                    matches!(
+                        provider.target,
+                        crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(_)
+                    ) && provider
+                        .display_name
+                        .eq_ignore_ascii_case(provider_label.trim())
+                })
+        })
 }
 
 fn publish_openai_compatible_validation_result(
@@ -2784,17 +2787,16 @@ fn publish_openai_compatible_validation_result(
     success: bool,
     message: String,
 ) {
-    if let Some(provider_descriptor) = resolve_openai_compatible_provider_descriptor(provider_label) {
-        crate::bus::Bus::global().publish(
-            crate::bus::BusEvent::ProviderValidationCompleted(
-                crate::bus::ProviderValidationCompleted {
-                    provider: provider_descriptor.id.to_string(),
-                    provider_display_name: provider_descriptor.display_name.to_string(),
-                    success,
-                    message,
-                },
-            ),
-        );
+    if let Some(provider_descriptor) = resolve_openai_compatible_provider_descriptor(provider_label)
+    {
+        crate::bus::Bus::global().publish(crate::bus::BusEvent::ProviderValidationCompleted(
+            crate::bus::ProviderValidationCompleted {
+                provider: provider_descriptor.id.to_string(),
+                provider_display_name: provider_descriptor.display_name.to_string(),
+                success,
+                message,
+            },
+        ));
     } else {
         crate::bus::Bus::global().publish(crate::bus::BusEvent::LoginCompleted(
             crate::bus::LoginCompleted {

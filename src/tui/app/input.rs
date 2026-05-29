@@ -1463,7 +1463,8 @@ pub(super) fn handle_pending_saitec_login_key(
                 app.pending_login.as_ref(),
                 Some(super::auth::PendingLogin::SaitecForm { form })
                     if form.focus == super::auth::SaitecLoginField::Email
-            ) && (app.input.is_empty() || app.submitted_input_history.recall_index.is_some());
+            ) && (app.input.is_empty()
+                || app.submitted_input_history.recall_index.is_some());
             if recall_allowed {
                 if recall_submitted_input(app, true) {
                     return true;
