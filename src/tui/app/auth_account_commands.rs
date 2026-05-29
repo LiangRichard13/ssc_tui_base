@@ -25,18 +25,12 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     if trimmed == "/logout" {
-        match crate::saitec::auth::clear_session() {
-            Ok(()) => {
-                crate::auth::AuthStatus::invalidate_cache();
-                app.push_display_message(DisplayMessage::system(
-                    "Logged out from Saitec. Reopening the login form.".to_string(),
-                ));
-                app.set_status_notice("Login: required");
-                app.start_jcode_login();
-            }
-            Err(err) => app
-                .push_display_message(DisplayMessage::error(format!("Failed to log out: {}", err))),
-        }
+        app.open_logout_mode_selector();
+        return true;
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("/logout ") {
+        handle_logout_target_command(app, rest.trim());
         return true;
     }
 
@@ -92,6 +86,68 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     false
+}
+
+fn handle_logout_target_command(app: &mut App, requested: &str) {
+    let mut parts = requested.split_whitespace();
+    let target = parts.next().unwrap_or_default();
+    let confirm = parts.any(|part| part.eq_ignore_ascii_case("--confirm"));
+
+    if target.eq_ignore_ascii_case("cancel") {
+        app.account_picker_overlay = None;
+        app.set_status_notice("Logout cancelled");
+        app.push_display_message(DisplayMessage::system("Logout cancelled.".to_string()));
+        return;
+    }
+
+    if target.eq_ignore_ascii_case("base-models")
+        || target.eq_ignore_ascii_case("base-model")
+        || target.eq_ignore_ascii_case("models")
+    {
+        app.open_account_center(None);
+        app.set_status_notice("Logout: choose a base-model account");
+        app.push_display_message(DisplayMessage::system(
+            "Choose a base-model provider/account to manage. SAITEC credentials are unchanged."
+                .to_string(),
+        ));
+        return;
+    }
+
+    if target.eq_ignore_ascii_case("jcode")
+        || target.eq_ignore_ascii_case("saitec")
+        || target.eq_ignore_ascii_case("subscription")
+        || target.eq_ignore_ascii_case("jcode-subscription")
+    {
+        if confirm {
+            clear_saitec_session_after_confirmation(app);
+        } else {
+            app.open_saitec_logout_confirmation();
+        }
+        return;
+    }
+
+    app.push_display_message(DisplayMessage::error(
+        "Use `/logout`, `/logout base-models`, or `/logout jcode`.".to_string(),
+    ));
+}
+
+fn clear_saitec_session_after_confirmation(app: &mut App) {
+    match crate::saitec::auth::clear_session() {
+        Ok(()) => {
+            crate::auth::AuthStatus::invalidate_cache();
+            app.account_picker_overlay = None;
+            app.pending_login = None;
+            app.trigger_provider_auth_changed();
+            app.push_display_message(DisplayMessage::system(
+                "Logged out from Saitec. Local SAITEC credentials were cleared.".to_string(),
+            ));
+            app.set_status_notice("Logout: SAITEC cleared");
+        }
+        Err(err) => app.push_display_message(DisplayMessage::error(format!(
+            "Failed to log out from Saitec: {}",
+            err
+        ))),
+    }
 }
 
 pub(crate) async fn handle_account_command_remote(

@@ -1241,14 +1241,7 @@ fn test_set_pending_saitec_login_for_tests_uses_form_variant() {
     }
 }
 
-#[test]
-fn test_logout_command_clears_saitec_auth_file() {
-    let _guard = crate::storage::lock_test_env();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
-    crate::env::set_var("JCODE_HOME", temp.path());
-
+fn save_test_saitec_session() {
     crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
         auth_token: None,
         api_key: "sk-live-test".to_string(),
@@ -1264,9 +1257,122 @@ fn test_logout_command_clears_saitec_auth_file() {
         last_validated_at: None,
     })
     .expect("save auth");
+}
+
+#[test]
+fn test_logout_command_opens_target_selector_without_clearing_saitec_auth() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    save_test_saitec_session();
 
     let mut app = create_test_app();
     app.input = "/logout".to_string();
+    app.submit_input();
+
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load")
+            .is_some(),
+        "/logout should not clear SAITEC credentials before the user chooses a target"
+    );
+    assert_eq!(
+        crate::subscription_catalog::configured_api_key().as_deref(),
+        Some("sk-live-test")
+    );
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "/logout should open a target selector"
+    );
+    assert!(
+        app.pending_login.is_none(),
+        "/logout should not reopen the SAITEC login form"
+    );
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("logout selector draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("SAITEC"), "rendered selector:\n{text}");
+    assert!(text.contains("Base models"), "rendered selector:\n{text}");
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_api_key) = prev_api_key {
+        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_api_key);
+    } else {
+        crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    }
+}
+
+#[test]
+fn test_logout_jcode_requires_confirmation_before_clearing_saitec_auth() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    save_test_saitec_session();
+
+    let mut app = create_test_app();
+    app.input = "/logout jcode".to_string();
+    app.submit_input();
+
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load")
+            .is_some(),
+        "/logout jcode should ask for confirmation before clearing credentials"
+    );
+    assert!(
+        app.account_picker_overlay.is_some(),
+        "/logout jcode should open a confirmation selector"
+    );
+
+    let backend = ratatui::backend::TestBackend::new(120, 40);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &app))
+        .expect("logout confirmation draw should succeed");
+    let text = buffer_to_text(&terminal);
+
+    assert!(text.contains("Log out SAITEC"), "rendered selector:\n{text}");
+    assert!(text.contains("Cancel"), "rendered selector:\n{text}");
+
+    if let Some(prev_home) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev_home);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+    if let Some(prev_api_key) = prev_api_key {
+        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_api_key);
+    } else {
+        crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    }
+}
+
+#[test]
+fn test_logout_jcode_confirm_clears_saitec_auth_file() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    save_test_saitec_session();
+
+    let mut app = create_test_app();
+    app.input = "/logout jcode --confirm".to_string();
     app.submit_input();
 
     assert!(crate::saitec::auth::load_session().expect("load").is_none());
@@ -1278,18 +1384,10 @@ fn test_logout_command_clears_saitec_auth_file() {
                 && msg.content.contains("Logged out from Saitec")),
         "logout confirmation should be present in system messages"
     );
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
-            assert_eq!(form.form.email, "");
-            assert_eq!(form.form.phone, "");
-            assert_eq!(form.form.password, "");
-        }
-        ref other => panic!("logout should reopen the saitec login form: {other:?}"),
-    }
+    assert!(
+        app.pending_login.is_none(),
+        "confirmed logout should not immediately reopen the SAITEC login form"
+    );
 
     if let Some(prev_home) = prev_home {
         crate::env::set_var("JCODE_HOME", prev_home);

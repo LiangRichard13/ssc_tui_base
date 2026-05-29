@@ -166,6 +166,77 @@ impl App {
         self.set_status_notice("Login: choose SAITEC or base models");
     }
 
+    pub(crate) fn open_logout_mode_selector(&mut self) {
+        use crate::tui::account_picker::{AccountPicker, AccountPickerItem};
+
+        let items = vec![
+            AccountPickerItem::action(
+                "base-models",
+                "Base models",
+                "Base models",
+                "manage OpenAI / Claude / Z.AI / Kimi / Alibaba credentials",
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
+                    "/logout base-models".to_string(),
+                ),
+            ),
+            AccountPickerItem::action(
+                "jcode",
+                "SAITEC",
+                "SAITEC",
+                "requires confirmation before clearing SAITEC API credentials",
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
+                    "/logout jcode".to_string(),
+                ),
+            ),
+        ];
+
+        self.abandon_pending_login_for_new_flow();
+        self.account_picker_overlay = Some(std::cell::RefCell::new(AccountPicker::simple(
+            " Logout ", items,
+        )));
+        self.login_picker_overlay = None;
+        self.inline_interactive_state = None;
+        self.input.clear();
+        self.cursor_pos = 0;
+        self.set_status_notice("Logout: choose target");
+    }
+
+    pub(crate) fn open_saitec_logout_confirmation(&mut self) {
+        use crate::tui::account_picker::{AccountPicker, AccountPickerItem};
+
+        let items = vec![
+            AccountPickerItem::action(
+                "logout-cancel",
+                "Cancel",
+                "Cancel",
+                "keep SAITEC credentials",
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
+                    "/logout cancel".to_string(),
+                ),
+            ),
+            AccountPickerItem::action(
+                "logout-saitec",
+                "Log out SAITEC",
+                "Log out SAITEC",
+                "clear ~/.saitec_tui/auth.json and the stored SAITEC API key",
+                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
+                    "/logout jcode --confirm".to_string(),
+                ),
+            ),
+        ];
+
+        self.abandon_pending_login_for_new_flow();
+        self.account_picker_overlay = Some(std::cell::RefCell::new(AccountPicker::simple(
+            " Confirm Logout ",
+            items,
+        )));
+        self.login_picker_overlay = None;
+        self.inline_interactive_state = None;
+        self.input.clear();
+        self.cursor_pos = 0;
+        self.set_status_notice("Logout: confirm SAITEC");
+    }
+
     pub(crate) fn is_login_mode_selector_open(&self) -> bool {
         let Some(picker_cell) = self.account_picker_overlay.as_ref() else {
             return false;

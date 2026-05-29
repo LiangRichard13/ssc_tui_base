@@ -8,6 +8,7 @@ impl App {
             || trimmed == "/auth"
             || trimmed.starts_with("/auth ")
             || trimmed == "/logout"
+            || trimmed.starts_with("/logout ")
         {
             return super::handle_auth_command(self, trimmed);
         }
@@ -126,6 +127,13 @@ impl App {
                     "Login",
                     provider.menu_detail,
                     AccountPickerCommand::SubmitInput("/login jcode".to_string()),
+                ));
+                items.push(AccountPickerItem::action(
+                    provider.id,
+                    provider.display_name,
+                    "Logout",
+                    "clear SAITEC credentials after confirmation",
+                    AccountPickerCommand::SubmitInput("/logout jcode".to_string()),
                 ));
             }
             items.push(AccountPickerItem::action(

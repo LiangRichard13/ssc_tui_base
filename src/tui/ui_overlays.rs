@@ -516,7 +516,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
         "Show details for one command",
     ));
     lines.push(help_entry("/login", "Start the Saitec login flow"));
-    lines.push(help_entry("/logout", "Clear local Saitec authentication"));
+    lines.push(help_entry("/logout", "Choose what to log out from"));
     lines.push(help_entry("/auth", "Show authentication status"));
     lines.push(help_entry("/model", "List or switch models"));
     lines.push(help_entry("/clear", "Clear conversation and start fresh"));
