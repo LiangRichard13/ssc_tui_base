@@ -220,20 +220,27 @@ impl App {
         } else {
             self.provider.name()
         };
-        let can_leak_static_catalog = matches!(
-            provider_name.trim().to_ascii_lowercase().as_str(),
-            "openai"
-                | "claude"
-                | "anthropic"
-                | "openrouter"
-                | "saitec subscription"
-                | "copilot"
-                | "antigravity"
-                | "gemini"
-                | "cursor"
-                | "bedrock"
-                | "aws bedrock"
-        );
+        let normalized_provider_name = provider_name.trim().to_ascii_lowercase();
+        let is_openai_compatible_runtime = normalized_provider_name == "openai-compatible"
+            || crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                provider_name,
+            )
+            .is_some();
+        let can_leak_static_catalog = is_openai_compatible_runtime
+            || matches!(
+                normalized_provider_name.as_str(),
+                "openai"
+                    | "claude"
+                    | "anthropic"
+                    | "openrouter"
+                    | "saitec subscription"
+                    | "copilot"
+                    | "antigravity"
+                    | "gemini"
+                    | "cursor"
+                    | "bedrock"
+                    | "aws bedrock"
+            );
         let remote_has_catalog =
             !self.remote_model_options.is_empty() || !self.remote_available_entries.is_empty();
 
