@@ -303,6 +303,46 @@ fn test_on_auth_changed_hot_initializes_openrouter_and_marks_routes_available() 
 }
 
 #[test]
+fn test_on_auth_changed_clears_openrouter_when_credentials_are_removed() {
+    with_clean_provider_test_env(|| {
+        with_env_var("OPENROUTER_API_KEY", "test-openrouter-key", || {
+            with_env_var("JCODE_OPENROUTER_MODEL_CATALOG", "0", || {
+                let runtime = enter_test_runtime();
+                let _enter = runtime.enter();
+                let openrouter = Arc::new(
+                    openrouter::OpenRouterProvider::new()
+                        .expect("OpenRouter provider should initialize with credentials"),
+                );
+                crate::env::remove_var("OPENROUTER_API_KEY");
+
+                let provider = MultiProvider {
+                    claude: RwLock::new(None),
+                    anthropic: RwLock::new(None),
+                    openai: RwLock::new(None),
+                    copilot_api: RwLock::new(None),
+                    antigravity: RwLock::new(None),
+                    gemini: RwLock::new(None),
+                    cursor: RwLock::new(None),
+                    bedrock: RwLock::new(None),
+                    openrouter: RwLock::new(Some(openrouter)),
+                    active: RwLock::new(ActiveProvider::OpenRouter),
+                    use_claude_cli: false,
+                    startup_notices: RwLock::new(Vec::new()),
+                    forced_provider: Some(ActiveProvider::OpenRouter),
+                };
+
+                provider.on_auth_changed();
+
+                assert!(
+                    provider.openrouter.read().unwrap().is_none(),
+                    "OpenRouter/OpenAI-compatible provider should be dropped after logout"
+                );
+            })
+        })
+    });
+}
+
+#[test]
 fn test_on_auth_changed_hot_initializes_copilot_and_marks_routes_available() {
     with_clean_provider_test_env(|| {
         with_env_var("GITHUB_TOKEN", "gho_test_token", || {

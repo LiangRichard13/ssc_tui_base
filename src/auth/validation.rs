@@ -27,6 +27,12 @@ pub fn save(provider_id: &str, record: ProviderValidationRecord) -> Result<()> {
     crate::storage::write_json(&status_path()?, &records)
 }
 
+pub fn remove(provider_id: &str) -> Result<()> {
+    let mut records = load_all();
+    records.remove(provider_id);
+    crate::storage::write_json(&status_path()?, &records)
+}
+
 pub fn status_label(provider_id: &str) -> Option<String> {
     get(provider_id).map(|record| format_record_label(&record))
 }

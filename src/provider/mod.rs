@@ -1371,6 +1371,14 @@ impl Provider for MultiProvider {
                     ));
                 }
             }
+        } else if self.openrouter_provider().is_some() {
+            crate::logging::info(
+                "Cleared OpenRouter/OpenAI-compatible provider after auth removal",
+            );
+            *self
+                .openrouter
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
         }
 
         let already_has = self.copilot_provider().is_some();

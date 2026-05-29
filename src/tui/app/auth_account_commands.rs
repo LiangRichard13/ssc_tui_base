@@ -201,10 +201,17 @@ fn clear_base_model_provider_after_confirmation(
 
     match result {
         Ok(()) => {
+            if let Err(err) = crate::auth::validation::remove(provider.id) {
+                crate::logging::warn(&format!(
+                    "Failed to clear validation state for {} after logout: {}",
+                    provider.id, err
+                ));
+            }
             crate::auth::AuthStatus::invalidate_cache();
             app.account_picker_overlay = None;
             app.login_picker_overlay = None;
             app.pending_login = None;
+            app.invalidate_model_picker_cache();
             app.trigger_provider_auth_changed();
             app.push_display_message(DisplayMessage::system(format!(
                 "Logged out from {}. SAITEC credentials are unchanged.",

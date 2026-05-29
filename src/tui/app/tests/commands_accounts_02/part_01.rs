@@ -1417,6 +1417,18 @@ fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
         Some("zai-test-key"),
     )
     .expect("save Z.AI key");
+    crate::auth::validation::save(
+        "zai",
+        crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: Some(true),
+            validated_models: vec!["glm-4.5".to_string()],
+            summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+        },
+    )
+    .expect("save Z.AI validation");
 
     let mut app = create_test_app();
     app.input = "/logout base-models zai --confirm".to_string();
@@ -1443,6 +1455,10 @@ fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
     assert!(
         !env_contents.contains(&format!("{}=", resolved.api_key_env)),
         "selected provider API key should be removed from local env file"
+    );
+    assert!(
+        crate::auth::validation::get("zai").is_none(),
+        "selected provider runtime validation should be removed on logout"
     );
     assert!(
         app.display_messages().iter().any(|msg| {
