@@ -104,21 +104,24 @@ fn test_disconnected_key_handler_runs_effort_locally() {
 
 #[test]
 fn test_disconnected_key_handler_runs_model_picker_locally() {
-    let mut app = create_test_app();
-    configure_test_remote_models(&mut app);
-    app.input = "/model".to_string();
-    app.cursor_pos = app.input.len();
+    with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
+        let mut app = create_test_app();
+        configure_test_remote_models(&mut app);
+        app.input = "/model".to_string();
+        app.cursor_pos = app.input.len();
 
-    remote::handle_disconnected_key(&mut app, KeyCode::Enter, KeyModifiers::empty()).unwrap();
+        remote::handle_disconnected_key(&mut app, KeyCode::Enter, KeyModifiers::empty()).unwrap();
 
-    assert!(app.input.is_empty());
-    assert!(app.queued_messages().is_empty());
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should open");
-    assert!(!picker.entries.is_empty());
-    assert_eq!(picker.entries[picker.selected].name, "gpt-5.3-codex");
+        assert!(app.input.is_empty());
+        assert!(app.queued_messages().is_empty());
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should open");
+        assert!(!picker.entries.is_empty());
+        assert_eq!(picker.entries[picker.selected].name, "gpt-5.3-codex");
+    });
 }
 
 #[test]

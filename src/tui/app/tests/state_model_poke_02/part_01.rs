@@ -778,6 +778,17 @@ fn configure_test_remote_models(app: &mut App) {
     app.remote_available_entries = vec!["gpt-5.3-codex".to_string(), "gpt-5.2-codex".to_string()];
 }
 
+fn save_test_openai_remote_model_validation() {
+    crate::provider_catalog::save_env_value_to_env_file(
+        "OPENAI_API_KEY",
+        "openai.env",
+        Some("test-openai-key"),
+    )
+    .expect("save OpenAI test key");
+    save_test_provider_validation("openai", &["gpt-5.3-codex", "gpt-5.2-codex"]);
+    crate::auth::AuthStatus::invalidate_cache();
+}
+
 fn configure_test_remote_models_with_openai_recommendations(app: &mut App) {
     app.is_remote = true;
     app.remote_provider_model = Some("gpt-5.2".to_string());
@@ -956,6 +967,7 @@ fn test_agents_picker_uses_provider_default_when_inherited_model_is_unknown() {
 #[test]
 fn test_agent_model_picker_inherit_row_uses_provider_default_when_inherited_model_is_unknown() {
     with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
         let mut app = create_test_app();
         configure_test_remote_models(&mut app);
         app.open_agent_model_picker(crate::tui::AgentModelTarget::Swarm);

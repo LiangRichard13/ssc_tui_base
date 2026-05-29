@@ -1,44 +1,47 @@
 #[test]
 fn test_model_picker_preview_arrow_keys_navigate() {
-    let mut app = create_test_app();
-    configure_test_remote_models(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
+        let mut app = create_test_app();
+        configure_test_remote_models(&mut app);
 
-    // Type a filtered /model command to open preview.
-    for c in "/model g".chars() {
-        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+        // Type a filtered /model command to open preview.
+        for c in "/model g".chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+                .unwrap();
+        }
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker preview should be open");
+        assert!(picker.preview);
+        let initial_selected = picker.selected;
+
+        // Down arrow should navigate in preview mode
+        app.handle_key(KeyCode::Down, KeyModifiers::empty())
             .unwrap();
-    }
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker preview should be open");
-    assert!(picker.preview);
-    let initial_selected = picker.selected;
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("picker should still be open");
+        assert!(picker.preview, "should remain in preview mode");
+        assert_eq!(picker.selected, initial_selected + 1);
 
-    // Down arrow should navigate in preview mode
-    app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .unwrap();
+        // Up arrow should navigate back
+        app.handle_key(KeyCode::Up, KeyModifiers::empty()).unwrap();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("picker should still be open");
-    assert!(picker.preview, "should remain in preview mode");
-    assert_eq!(picker.selected, initial_selected + 1);
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("picker should still be open");
+        assert!(picker.preview, "should remain in preview mode");
+        assert_eq!(picker.selected, initial_selected);
 
-    // Up arrow should navigate back
-    app.handle_key(KeyCode::Up, KeyModifiers::empty()).unwrap();
-
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("picker should still be open");
-    assert!(picker.preview, "should remain in preview mode");
-    assert_eq!(picker.selected, initial_selected);
-
-    // Input should be preserved
-    assert_eq!(app.input(), "/model g");
+        // Input should be preserved
+        assert_eq!(app.input(), "/model g");
+    });
 }
 
 #[test]
@@ -315,6 +318,7 @@ fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_sub
     with_temp_jcode_home(|| {
         save_test_saitec_session();
         crate::subscription_catalog::clear_runtime_env();
+        save_test_provider_validation("openai", &["gpt-5.5"]);
 
         let mut app = create_test_app();
         app.is_remote = true;
@@ -559,6 +563,23 @@ fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_l
 #[test]
 fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
     with_temp_jcode_home(|| {
+        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
+            auth_token: None,
+            api_key: "sk-test".to_string(),
+            token_type: "Bearer".to_string(),
+            user_id: Some("user-1".to_string()),
+            email: None,
+            phone: None,
+            display_name: None,
+            api_key_id: None,
+            api_key_name: None,
+            api_key_created_at: None,
+            api_key_expires_at: None,
+            last_validated_at: None,
+        })
+        .expect("save logged-in SAITEC session");
+        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
+
         let provider: Arc<dyn Provider> =
             Arc::new(UnfilteredSaitecModelProvider { name: "OpenAI" });
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -810,6 +831,7 @@ fn test_login_completed_surfaces_new_provider_models_in_local_model_picker() {
             message: "Authenticated as **octocat** via GitHub Copilot.\n\nCopilot models are now available in `/model`."
                 .to_string(),
         });
+        save_test_provider_validation("copilot", &["claude-opus-4.6", "grok-code-fast-1"]);
 
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
@@ -835,16 +857,15 @@ fn test_login_completed_surfaces_new_provider_models_in_local_model_picker() {
         assert!(copilot_entry.options.iter().any(|route| {
             route.provider == "Copilot"
                 && route.api_method == "copilot"
-                && !route.available
-                && route.detail.contains("runtime not validated")
+                && route.available
+                && !route.detail.contains("runtime not validated")
         }));
 
         assert!(
             picker.entries[0].options.iter().any(|route| {
                 route.provider == "Copilot"
-                    && !route.available
+                    && route.available
                     && route.detail.contains("recently added")
-                    && route.detail.contains("runtime not validated")
             }),
             "recently authenticated provider should be prioritized and marked in /model"
         );
@@ -853,55 +874,71 @@ fn test_login_completed_surfaces_new_provider_models_in_local_model_picker() {
 
 #[test]
 fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
-    let mut app = create_antigravity_picker_test_app();
-    app.open_model_picker();
-    wait_for_model_picker_load(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation(
+            "antigravity",
+            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
+        );
+        let mut app = create_antigravity_picker_test_app();
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let antigravity_entry = picker
-        .entries
-        .iter()
-        .find(|entry| entry.name == "claude-sonnet-4-6")
-        .expect("antigravity model should be shown after login");
+        let antigravity_entry = picker
+            .entries
+            .iter()
+            .find(|entry| entry.name == "claude-sonnet-4-6")
+            .expect("antigravity model should be shown after validation");
 
-    assert!(antigravity_entry.options.iter().any(|route| {
-        route.provider == "Antigravity" && route.api_method == "https" && route.available
-    }));
+        assert!(antigravity_entry.options.iter().any(|route| {
+            route.provider == "Antigravity" && route.api_method == "https" && route.available
+        }));
+    });
 }
 
 #[test]
 fn test_local_antigravity_model_picker_selection_preserves_antigravity_provider() {
-    let mut app = create_antigravity_picker_test_app();
-    app.open_model_picker();
-    wait_for_model_picker_load(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation(
+            "antigravity",
+            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
+        );
+        let mut app = create_antigravity_picker_test_app();
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|entry| entry.name == "claude-sonnet-4-6")
-        .expect("antigravity model should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("antigravity model should be in filtered list");
+        let model_idx = picker
+            .entries
+            .iter()
+            .position(|entry| entry.name == "claude-sonnet-4-6")
+            .expect("antigravity model should be in picker");
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == model_idx)
+            .expect("antigravity model should be in filtered list");
 
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
 
-    assert_eq!(app.provider.name(), "Antigravity");
-    assert_eq!(app.provider.model(), "claude-sonnet-4-6");
-    assert!(app.inline_interactive_state.is_none());
+        assert_eq!(app.provider.name(), "Antigravity");
+        assert_eq!(app.provider.model(), "claude-sonnet-4-6");
+        assert!(app.inline_interactive_state.is_none());
+    });
 }
 
 #[test]
@@ -977,131 +1014,138 @@ fn test_agent_model_picker_hides_openrouter_bare_openai_route() {
 
 #[test]
 fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_them() {
-    let mut app = create_antigravity_picker_test_app();
-    let text = render_model_picker_text(&mut app, 90, 24);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation(
+            "antigravity",
+            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
+        );
+        let mut app = create_antigravity_picker_test_app();
+        let text = render_model_picker_text(&mut app, 90, 24);
 
-    assert!(
-        text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),
-        "rendered /model view should include picker columns, got:
+        assert!(
+            text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),
+            "rendered /model view should include picker columns, got:
 {}",
-        text
-    );
-    assert!(
-        text.contains("claude-sonnet-4-6"),
-        "rendered /model view should show the Antigravity Claude row, got:
+            text
+        );
+        assert!(
+            text.contains("claude-sonnet-4-6"),
+            "rendered /model view should show the Antigravity Claude row, got:
 {}",
-        text
-    );
-    assert!(
-        text.contains("gpt-oss-120b-medium"),
-        "rendered /model view should show the Antigravity GPT row, got:
+            text
+        );
+        assert!(
+            text.contains("gpt-oss-120b-medium"),
+            "rendered /model view should show the Antigravity GPT row, got:
 {}",
-        text
-    );
-    assert!(
-        text.contains("Antigravity"),
-        "rendered /model view should show the Antigravity provider column, got:
+            text
+        );
+        assert!(
+            text.contains("Antigravity"),
+            "rendered /model view should show the Antigravity provider column, got:
 {}",
-        text
-    );
-    assert!(
-        text.contains("https"),
-        "rendered /model view should show the route transport column, got:
+            text
+        );
+        assert!(
+            text.contains("https"),
+            "rendered /model view should show the route transport column, got:
 {}",
-        text
-    );
+            text
+        );
+    });
 }
 
 #[test]
 fn test_login_smoke_model_picker_renders_unstacked_provider_rows() {
-    let mut app = create_login_smoke_model_app();
-    let text = render_model_picker_text(&mut app, 110, 32);
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("openai", &["gpt-5.4"]);
+        save_test_provider_validation("openai-api", &["gpt-5.4"]);
+        save_test_provider_validation("copilot", &["claude-opus-4.6"]);
+        save_test_provider_validation("comtegra", &["glm-51-nvfp4"]);
 
-    assert!(
-        text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),
-        "rendered /model view should include user-visible picker columns, got:\n{}",
-        text
-    );
-    assert!(
-        text.contains("gpt-5.4")
-            && text.contains("OpenAI")
-            && text.contains("oauth")
-            && text.contains("api key"),
-        "OpenAI OAuth and API-key routes should be separately visible, got:\n{}",
-        text
-    );
-    let glm_row = text
-        .lines()
-        .find(|line| line.contains("glm-51-nvfp4"))
-        .unwrap_or("");
-    assert!(
-        glm_row.contains("Comtegra GPU Cloud") && glm_row.contains("api key") && !glm_row.contains("copilot"),
-        "Comtegra GLM row should show its provider and API-key method, got row `{}` in:\n{}",
-        glm_row,
-        text
-    );
-    assert!(
-        text.contains("glm-51-nvfp4")
-            && text.contains("Comtegra GPU Cloud")
-            && text.contains("new"),
-        "Comtegra login route should be visible and marked new, got:\n{}",
-        text
-    );
-    assert!(
-        text.contains("claude-opus-4.6") && text.contains("Copilot"),
-        "Copilot route should be visible, got:\n{}",
-        text
-    );
-    assert!(
-        text.contains("deepseek/deepseek-v4-pro") && text.contains("openrouter"),
-        "OpenRouter route should be visible, got:\n{}",
-        text
-    );
-    let deepseek_auto_row = text
-        .lines()
-        .find(|line| line.contains("deepseek/deepseek-v4-pro") && line.contains("auto"))
-        .unwrap_or("");
-    let deepseek_provider_row = text
-        .lines()
-        .find(|line| line.contains("deepseek/deepseek-v4-pro") && line.contains("DeepSeek"))
-        .unwrap_or("");
-    assert!(
-        deepseek_auto_row.contains('★'),
-        "OpenRouter auto route should carry the recommended marker, got row `{}` in:\n{}",
-        deepseek_auto_row,
-        text
-    );
-    assert!(
-        !deepseek_provider_row.contains('★'),
-        "OpenRouter provider-specific routes should not carry the recommended marker, got row `{}` in:\n{}",
-        deepseek_provider_row,
-        text
-    );
-    let kimi25_row = text
-        .lines()
-        .find(|line| line.contains("moonshotai/kimi-k2.5"))
-        .unwrap_or("");
-    assert!(
-        !kimi25_row.contains('★'),
-        "Kimi K2.5 should not be recommended, got row `{}` in:\n{}",
-        kimi25_row,
-        text
-    );
-    assert!(
-        text.contains("openai/gpt-5.5") && text.contains("OpenRouter/OpenAI"),
-        "OpenRouter endpoint routes should not look like native OpenAI API-key rows, got:\n{}",
-        text
-    );
-    assert!(
-        !text.contains("(2)"),
-        "provider routes should not be hidden behind stacked option counts, got:\n{}",
-        text
-    );
+        let mut app = create_login_smoke_model_app();
+        let text = render_model_picker_text(&mut app, 110, 32);
+
+        assert!(
+            text.contains("MODEL") && text.contains("PROVIDER") && text.contains("METHOD"),
+            "rendered /model view should include user-visible picker columns, got:\n{}",
+            text
+        );
+        assert!(
+            text.contains("gpt-5.4")
+                && text.contains("OpenAI")
+                && text.contains("oauth")
+                && text.contains("api key"),
+            "validated OpenAI OAuth and API-key routes should be separately visible, got:\n{}",
+            text
+        );
+        let glm_row = text
+            .lines()
+            .find(|line| line.contains("glm-51-nvfp4"))
+            .unwrap_or("");
+        assert!(
+            glm_row.contains("Comtegra GPU Cloud")
+                && glm_row.contains("api key")
+                && !glm_row.contains("copilot"),
+            "validated Comtegra GLM row should show its provider and API-key method, got row `{}` in:\n{}",
+            glm_row,
+            text
+        );
+        assert!(
+            text.contains("claude-opus-4.6") && text.contains("Copilot"),
+            "validated Copilot route should be visible, got:\n{}",
+            text
+        );
+        assert!(
+            !text.to_ascii_lowercase().contains("openrouter")
+                && !text.contains("deepseek/deepseek-v4-pro")
+                && !text.contains("moonshotai/kimi-k2.5")
+                && !text.contains("openai/gpt-5.5")
+                && !text.to_ascii_lowercase().contains("runtime not validated"),
+            "rendered /model view should hide OpenRouter and unvalidated routes, got:\n{}",
+            text
+        );
+        assert!(
+            !text.contains("(2)"),
+            "provider routes should not be hidden behind stacked option counts, got:\n{}",
+            text
+        );
+    });
 }
 
 #[test]
-fn test_model_picker_keeps_unvalidated_routes_visible_but_unavailable() {
+fn test_model_picker_hides_unvalidated_routes_and_reports_no_models() {
     with_temp_jcode_home(|| {
+        let mut app = create_login_smoke_model_app();
+
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+
+        assert!(
+            app.inline_interactive_state.is_none(),
+            "unvalidated provider routes should not open the model picker"
+        );
+        assert_eq!(app.status_notice(), Some("No models available".to_string()));
+        let display_text = app
+            .display_messages
+            .last()
+            .map(|message| message.content.clone())
+            .unwrap_or_default();
+        assert!(
+            display_text.contains("No models are available"),
+            "empty validated route set should explain that no models are available, got: {}",
+            display_text
+        );
+    });
+}
+
+#[test]
+fn test_model_picker_shows_only_validated_runtime_routes() {
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("openai", &["gpt-5.4"]);
+        save_test_provider_validation("copilot", &["claude-opus-4.6"]);
         let mut app = create_login_smoke_model_app();
 
         app.open_model_picker();
@@ -1111,58 +1155,40 @@ fn test_model_picker_keeps_unvalidated_routes_visible_but_unavailable() {
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let openai_entry = picker
+        let route_text: Vec<String> = picker
             .entries
             .iter()
-            .find(|entry| {
-                entry.name == "gpt-5.4"
-                    && entry
-                        .options
-                        .iter()
-                        .any(|route| route.api_method == "openai-oauth")
+            .flat_map(|entry| {
+                entry.options.iter().map(move |route| {
+                    format!(
+                        "{}|{}|{}|{}|{}",
+                        entry.name, route.provider, route.api_method, route.available, route.detail
+                    )
+                })
             })
-            .expect("OpenAI route should remain visible");
-        let openai_route = openai_entry
-            .options
-            .iter()
-            .find(|route| route.api_method == "openai-oauth")
-            .expect("OpenAI OAuth route");
-        assert!(
-            !openai_route.available,
-            "unvalidated OpenAI route should be unavailable, got: {:?}",
-            openai_route
-        );
-        assert!(
-            openai_route.detail.contains("runtime not validated")
-                && openai_route
-                    .detail
-                    .contains("jcode auth-test --provider openai --model gpt-5.4"),
-            "unvalidated OpenAI route should explain how to validate, got: {}",
-            openai_route.detail
-        );
+            .collect();
 
-        let copilot_entry = picker
-            .entries
-            .iter()
-            .find(|entry| entry.name == "claude-opus-4.6")
-            .expect("Copilot route should remain visible");
-        let copilot_route = copilot_entry
-            .options
-            .iter()
-            .find(|route| route.api_method == "copilot")
-            .expect("Copilot route");
         assert!(
-            !copilot_route.available,
-            "unvalidated Copilot route should be unavailable, got: {:?}",
-            copilot_route
+            route_text
+                .iter()
+                .any(|route| route == "gpt-5.4|OpenAI|openai-oauth|true|"),
+            "validated OpenAI OAuth route should appear, got: {route_text:?}"
         );
         assert!(
-            copilot_route.detail.contains("runtime not validated")
-                && copilot_route
-                    .detail
-                    .contains("jcode auth-test --provider copilot --model claude-opus-4.6"),
-            "unvalidated Copilot route should explain how to validate, got: {}",
-            copilot_route.detail
+            route_text
+                .iter()
+                .any(|route| route == "claude-opus-4.6|Copilot|copilot|true|"),
+            "validated Copilot route should appear, got: {route_text:?}"
+        );
+        assert!(
+            route_text.iter().all(|route| {
+                !route.contains("|openai-api-key|")
+                    && !route.contains("|openai-compatible:")
+                    && !route.to_ascii_lowercase().contains("openrouter")
+                    && !route.to_ascii_lowercase().contains("runtime not validated")
+                    && route.contains("|true|")
+            }),
+            "model picker should only show runtime-validated routes, got: {route_text:?}"
         );
     });
 }

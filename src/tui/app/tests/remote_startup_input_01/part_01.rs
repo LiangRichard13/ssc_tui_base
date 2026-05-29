@@ -621,38 +621,43 @@ fn configure_test_remote_models_with_cursor(app: &mut App) {
 
 #[test]
 fn test_model_picker_includes_copilot_models_in_remote_mode() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_copilot(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("copilot", &["grok-code-fast-1"]);
+        let mut app = create_test_app();
+        configure_test_remote_models_with_copilot(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let model_names: Vec<&str> = picker.entries.iter().map(|m| m.name.as_str()).collect();
+        let model_names: Vec<&str> = picker.entries.iter().map(|m| m.name.as_str()).collect();
 
-    assert!(
-        model_names.contains(&"claude-opus-4.6"),
-        "picker should contain copilot model claude-opus-4.6, got: {:?}",
-        model_names
-    );
-    assert!(
-        model_names.contains(&"gemini-3-pro-preview"),
-        "picker should contain copilot model gemini-3-pro-preview, got: {:?}",
-        model_names
-    );
-    assert!(
-        model_names.contains(&"grok-code-fast-1"),
-        "picker should contain copilot model grok-code-fast-1, got: {:?}",
-        model_names
-    );
+        assert!(
+            model_names.contains(&"grok-code-fast-1"),
+            "picker should contain validated copilot model grok-code-fast-1, got: {:?}",
+            model_names
+        );
+        assert!(
+            picker.entries.iter().flat_map(|entry| entry.options.iter()).all(|route| {
+                route.available && !route.detail.contains("runtime not validated")
+            }),
+            "remote picker should only contain validated routes, got: {:?}",
+            picker.entries
+        );
+    });
 }
 
 #[test]
 fn test_available_models_updated_event_surfaces_authed_provider_in_remote_model_picker() {
     with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("copilot", &["grok-code-fast-1"]);
         let mut app = create_test_app();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let _guard = rt.enter();
@@ -699,21 +704,21 @@ fn test_available_models_updated_event_surfaces_authed_provider_in_remote_model_
         let copilot_entry = picker
             .entries
             .iter()
-            .find(|entry| entry.name == "claude-opus-4.6")
-            .expect("copilot model should be shown after AvailableModelsUpdated");
+            .find(|entry| entry.name == "grok-code-fast-1")
+            .expect("validated copilot model should be shown after AvailableModelsUpdated");
 
         assert!(
             picker
                 .entries
                 .iter()
                 .any(|entry| entry.name == "grok-code-fast-1"),
-            "all auth-updated remote models should appear in /model"
+            "validated auth-updated remote models should appear in /model"
         );
         assert!(copilot_entry.options.iter().any(|route| {
             route.provider == "Copilot"
                 && route.api_method == "copilot"
-                && !route.available
-                && route.detail.contains("runtime not validated")
+                && route.available
+                && !route.detail.contains("runtime not validated")
         }));
     });
 }
@@ -751,8 +756,8 @@ fn test_model_picker_remote_falls_back_to_current_model_when_catalog_empty() {
     with_temp_jcode_home(|| {
         let mut app = create_test_app();
         app.is_remote = true;
-        app.remote_provider_name = Some("openrouter".to_string());
-        app.remote_provider_model = Some("anthropic/claude-sonnet-4".to_string());
+        app.remote_provider_name = Some("OpenAI".to_string());
+        app.remote_provider_model = Some("gpt-5.4".to_string());
         app.remote_available_entries.clear();
         app.remote_model_options.clear();
 
@@ -766,10 +771,10 @@ fn test_model_picker_remote_falls_back_to_current_model_when_catalog_empty() {
         let current_entry = picker
             .entries
             .iter()
-            .find(|entry| entry.name == "anthropic/claude-sonnet-4")
+            .find(|entry| entry.name == "gpt-5.4")
             .expect("current model fallback should be present");
         assert_eq!(current_entry.options.len(), 1);
-        assert_eq!(current_entry.options[0].provider, "openrouter");
+        assert_eq!(current_entry.options[0].provider, "OpenAI");
         assert_eq!(current_entry.options[0].api_method, "current");
         assert!(current_entry.options[0].available);
     });

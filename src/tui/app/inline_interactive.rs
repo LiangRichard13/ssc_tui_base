@@ -27,22 +27,32 @@ impl App {
         route: &crate::provider::ModelRoute,
     ) -> Option<(&'static str, &'static str)> {
         if let Some(("openai-compatible", profile_id)) = route.api_method.split_once(':') {
-            return match profile_id.trim() {
-                "alibaba-coding-plan" => Some(("alibaba-coding-plan", "Alibaba Cloud Coding")),
-                "kimi" => Some(("kimi", "Kimi Code")),
-                "zai" => Some(("zai", "Z.AI")),
-                "" => None,
-                _ => None,
-            };
+            let profile_id = profile_id.trim();
+            if profile_id.is_empty() {
+                return None;
+            }
+            return crate::provider_catalog::openai_compatible_profile_by_id(profile_id)
+                .map(|profile| (profile.id, profile.display_name));
         }
 
         match route.api_method.as_str() {
+            "openai-compatible" => {
+                crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                    &route.provider,
+                )
+                .and_then(crate::provider_catalog::openai_compatible_profile_by_id)
+                .map(|profile| (profile.id, profile.display_name))
+            }
             "claude-oauth" | "api-key" if route.provider.contains("Anthropic") => {
                 Some(("claude", "Anthropic/Claude"))
             }
             "openai-oauth" => Some(("openai", "OpenAI")),
             "openai-api-key" => Some(("openai-api", "OpenAI API")),
             "copilot" => Some(("copilot", "GitHub Copilot")),
+            "code-assist-oauth" if route.provider == "Gemini" => Some(("gemini", "Gemini")),
+            "cursor" if route.provider == "Cursor" => Some(("cursor", "Cursor")),
+            "bedrock" if route.provider == "AWS Bedrock" => Some(("bedrock", "AWS Bedrock")),
+            "https" if route.provider == "Antigravity" => Some(("antigravity", "Antigravity")),
             _ => None,
         }
     }
@@ -65,53 +75,39 @@ impl App {
     ) -> Vec<crate::provider::ModelRoute> {
         routes
             .into_iter()
-            .map(|mut route| {
+            .filter(|route| {
                 if !route.available {
-                    return route;
+                    return route.api_method == "saitec" && route.provider == "Saitec Subscription";
                 }
 
-                let Some((provider_id, display_name)) =
-                    Self::model_picker_route_validation_provider(&route)
+                let Some((provider_id, _display_name)) =
+                    Self::model_picker_route_validation_provider(route)
                 else {
-                    return route;
+                    return true;
                 };
 
                 let Some(record) = crate::auth::validation::get(provider_id) else {
-                    route.available = false;
-                    route.detail = format!(
-                        "runtime not validated; run `jcode auth-test --provider {} --model {}`",
-                        provider_id, route.model
-                    );
-                    return route;
+                    return false;
                 };
 
                 if !record.success {
-                    route.available = false;
-                    route.detail = format!(
-                        "{} validation failed: {}",
-                        display_name,
-                        record.summary.trim()
-                    );
-                    return route;
+                    return false;
                 }
 
-                if !Self::model_picker_model_is_validated(&route.model, &record) {
-                    route.available = false;
-                    route.detail = format!(
-                        "{} is validated, but `{}` has not been runtime validated; run `jcode auth-test --provider {} --model {}`",
-                        display_name, route.model, provider_id, route.model
-                    );
-                }
-
-                route
+                Self::model_picker_model_is_validated(&route.model, &record)
             })
             .collect()
     }
 
     fn model_picker_route_mentions_openrouter(route: &crate::provider::ModelRoute) -> bool {
-        [&route.model, &route.provider, &route.api_method, &route.detail]
-            .iter()
-            .any(|value| value.to_ascii_lowercase().contains("openrouter"))
+        [
+            &route.model,
+            &route.provider,
+            &route.api_method,
+            &route.detail,
+        ]
+        .iter()
+        .any(|value| value.to_ascii_lowercase().contains("openrouter"))
     }
 
     fn filter_saitec_model_picker_routes(

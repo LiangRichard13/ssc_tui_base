@@ -1,194 +1,225 @@
 #[test]
 fn test_model_picker_copilot_selection_prefixes_model() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_copilot(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("copilot", &["grok-code-fast-1"]);
+        let mut app = create_test_app();
+        configure_test_remote_models_with_copilot(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    // Find grok-code-fast-1 (which should only be a copilot route)
-    let grok_idx = picker
-        .entries
-        .iter()
-        .position(|m| m.name == "grok-code-fast-1")
-        .expect("grok-code-fast-1 should be in picker");
+        // Find grok-code-fast-1 (which should only be a copilot route)
+        let grok_idx = picker
+            .entries
+            .iter()
+            .position(|m| m.name == "grok-code-fast-1")
+            .expect("grok-code-fast-1 should be in picker");
 
-    // Navigate to it and select
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == grok_idx)
-        .expect("grok-code-fast-1 should be in filtered list");
+        // Navigate to it and select
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == grok_idx)
+            .expect("grok-code-fast-1 should be in filtered list");
 
-    // Set the selected position to grok's position
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        // Set the selected position to grok's position
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
 
-    // Press Enter to select
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
+        // Press Enter to select
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
 
-    // In remote mode, selection should produce a pending_model_switch with copilot: prefix
-    if let Some(ref spec) = app.pending_model_switch {
-        assert!(
-            spec.starts_with("copilot:"),
-            "copilot model should be prefixed with 'copilot:', got: {}",
-            spec
-        );
-    }
-    // Picker should be closed
-    assert!(app.inline_interactive_state.is_none());
+        // In remote mode, selection should produce a pending_model_switch with copilot: prefix
+        if let Some(ref spec) = app.pending_model_switch {
+            assert!(
+                spec.starts_with("copilot:"),
+                "copilot model should be prefixed with 'copilot:', got: {}",
+                spec
+            );
+        }
+        // Picker should be closed
+        assert!(app.inline_interactive_state.is_none());
+    });
 }
 
 #[test]
 fn test_model_picker_cursor_models_have_cursor_route() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_cursor(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation(
+            "cursor",
+            &["composer-2-fast", "composer-2", "composer-1.5"],
+        );
+        let mut app = create_test_app();
+        configure_test_remote_models_with_cursor(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let composer_entry = picker
-        .entries
-        .iter()
-        .find(|m| m.name == "composer-2-fast")
-        .expect("composer-2-fast should be in picker");
-
-    assert!(
-        composer_entry
-            .options
+        let composer_entry = picker
+            .entries
             .iter()
-            .any(|r| r.api_method == "cursor"),
-        "composer-2-fast should have a cursor route, got: {:?}",
-        composer_entry.options
-    );
+            .find(|m| m.name == "composer-2-fast")
+            .expect("composer-2-fast should be in picker");
+
+        assert!(
+            composer_entry
+                .options
+                .iter()
+                .any(|r| r.api_method == "cursor"),
+            "composer-2-fast should have a cursor route, got: {:?}",
+            composer_entry.options
+        );
+    });
 }
 
 #[test]
 fn test_model_picker_cursor_selection_prefixes_model() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_cursor(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation(
+            "cursor",
+            &["composer-2-fast", "composer-2", "composer-1.5"],
+        );
+        let mut app = create_test_app();
+        configure_test_remote_models_with_cursor(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    let composer_idx = picker
-        .entries
-        .iter()
-        .position(|m| m.name == "composer-2-fast")
-        .expect("composer-2-fast should be in picker");
+        let composer_idx = picker
+            .entries
+            .iter()
+            .position(|m| m.name == "composer-2-fast")
+            .expect("composer-2-fast should be in picker");
 
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == composer_idx)
-        .expect("composer-2-fast should be in filtered list");
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == composer_idx)
+            .expect("composer-2-fast should be in filtered list");
 
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
 
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
 
-    assert_eq!(
-        app.pending_model_switch.as_deref(),
-        Some("cursor:composer-2-fast")
-    );
-    assert!(app.inline_interactive_state.is_none());
+        assert_eq!(
+            app.pending_model_switch.as_deref(),
+            Some("cursor:composer-2-fast")
+        );
+        assert!(app.inline_interactive_state.is_none());
+    });
 }
 
 #[test]
 fn test_model_picker_bedrock_selection_prefixes_model() {
-    let mut app = create_test_app();
-    app.is_remote = true;
-    app.remote_available_entries = vec!["amazon.nova-pro-v1:0".to_string()];
-    app.remote_model_options = vec![crate::provider::ModelRoute {
-        model: "amazon.nova-pro-v1:0".to_string(),
-        provider: "AWS Bedrock".to_string(),
-        api_method: "bedrock".to_string(),
-        available: true,
-        detail: String::new(),
-        cheapness: None,
-    }];
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("bedrock", &["amazon.nova-pro-v1:0"]);
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_available_entries = vec!["amazon.nova-pro-v1:0".to_string()];
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: "amazon.nova-pro-v1:0".to_string(),
+            provider: "AWS Bedrock".to_string(),
+            api_method: "bedrock".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+        }];
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|m| m.name == "amazon.nova-pro-v1:0")
-        .expect("Bedrock model should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("Bedrock model should be in filtered list");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let model_idx = picker
+            .entries
+            .iter()
+            .position(|m| m.name == "amazon.nova-pro-v1:0")
+            .expect("Bedrock model should be in picker");
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == model_idx)
+            .expect("Bedrock model should be in filtered list");
 
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
 
-    assert_eq!(
-        app.pending_model_switch.as_deref(),
-        Some("bedrock:amazon.nova-pro-v1:0")
-    );
-    assert!(app.inline_interactive_state.is_none());
+        assert_eq!(
+            app.pending_model_switch.as_deref(),
+            Some("bedrock:amazon.nova-pro-v1:0")
+        );
+        assert!(app.inline_interactive_state.is_none());
+    });
 }
 
 #[test]
 fn test_model_picker_bedrock_arn_selection_prefixes_model() {
-    let mut app = create_test_app();
-    app.is_remote = true;
-    let model =
-        "arn:aws:bedrock:us-east-2:302154194530:inference-profile/us.deepseek.r1-v1:0";
-    app.remote_available_entries = vec![model.to_string()];
-    app.remote_model_options = vec![crate::provider::ModelRoute {
-        model: model.to_string(),
-        provider: "AWS Bedrock".to_string(),
-        api_method: "bedrock".to_string(),
-        available: true,
-        detail: String::new(),
-        cheapness: None,
-    }];
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        let mut app = create_test_app();
+        app.is_remote = true;
+        let model =
+            "arn:aws:bedrock:us-east-2:302154194530:inference-profile/us.deepseek.r1-v1:0";
+        save_test_provider_validation("bedrock", &[model]);
+        app.remote_available_entries = vec![model.to_string()];
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: model.to_string(),
+            provider: "AWS Bedrock".to_string(),
+            api_method: "bedrock".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+        }];
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|m| m.name == model)
-        .expect("Bedrock ARN should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("Bedrock ARN should be in filtered list");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let model_idx = picker
+            .entries
+            .iter()
+            .position(|m| m.name == model)
+            .expect("Bedrock ARN should be in picker");
+        let filtered_pos = picker
+            .filtered
+            .iter()
+            .position(|&i| i == model_idx)
+            .expect("Bedrock ARN should be in filtered list");
 
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
+        app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+            .unwrap();
 
-    let expected = format!("bedrock:{model}");
-    assert_eq!(app.pending_model_switch.as_deref(), Some(expected.as_str()));
-    assert!(app.inline_interactive_state.is_none());
+        let expected = format!("bedrock:{model}");
+        assert_eq!(app.pending_model_switch.as_deref(), Some(expected.as_str()));
+        assert!(app.inline_interactive_state.is_none());
+    });
 }
 
 #[test]
@@ -213,6 +244,9 @@ fn test_remote_fallback_bedrock_arn_does_not_create_openrouter_route() {
 #[test]
 fn test_model_picker_ctrl_d_bedrock_selection_saves_bedrock_default() {
     with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("bedrock", &["amazon.nova-pro-v1:0"]);
         let mut app = create_test_app();
         app.is_remote = true;
         app.remote_available_entries = vec!["amazon.nova-pro-v1:0".to_string()];

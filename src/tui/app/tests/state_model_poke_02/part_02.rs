@@ -1,51 +1,55 @@
 #[test]
 fn test_exact_model_command_waits_for_enter_before_opening_picker() {
-    let mut app = create_test_app();
-    configure_test_remote_models(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
+        let mut app = create_test_app();
+        configure_test_remote_models(&mut app);
 
-    for c in "/model".chars() {
-        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+        for c in "/model".chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+                .unwrap();
+        }
+
+        assert!(
+            app.inline_interactive_state.is_none(),
+            "typing exact /model should not synchronously open a preview"
+        );
+        assert_eq!(app.input(), "/model");
+
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
             .unwrap();
-    }
 
-    assert!(
-        app.inline_interactive_state.is_none(),
-        "typing exact /model should not synchronously open a preview"
-    );
-    assert_eq!(app.input(), "/model");
-
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
-
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .unwrap_or_else(|| {
-            panic!(
-                "exact /model command should leave the full picker open; status={:?}, pending_model_switch={:?}, messages={:?}",
-                app.status_notice(),
-                app.pending_model_switch,
-                app.display_messages
-                    .iter()
-                    .map(|message| (message.role.as_str(), message.content.as_str()))
-                    .collect::<Vec<_>>()
-            )
-        });
-    assert!(
-        !picker.preview,
-        "exact /model should execute the command, not select the preview row"
-    );
-    assert!(app.pending_model_switch.is_none());
-    assert!(app.input().is_empty());
-    assert!(
-        picker.entries.len() > 1,
-        "full model picker should show available routes"
-    );
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "exact /model command should leave the full picker open; status={:?}, pending_model_switch={:?}, messages={:?}",
+                    app.status_notice(),
+                    app.pending_model_switch,
+                    app.display_messages
+                        .iter()
+                        .map(|message| (message.role.as_str(), message.content.as_str()))
+                        .collect::<Vec<_>>()
+                )
+            });
+        assert!(
+            !picker.preview,
+            "exact /model should execute the command, not select the preview row"
+        );
+        assert!(app.pending_model_switch.is_none());
+        assert!(app.input().is_empty());
+        assert!(
+            picker.entries.len() > 1,
+            "full model picker should show available routes"
+        );
+    });
 }
 
 #[test]
 fn test_agents_review_picker_saves_config_override() {
     with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
         let mut app = create_test_app();
         configure_test_remote_models(&mut app);
         app.open_agent_model_picker(crate::tui::AgentModelTarget::Review);
@@ -339,43 +343,49 @@ fn test_model_autocomplete_completes_unique_provider_match() {
 
 #[test]
 fn test_model_picker_preview_stays_open_and_updates_filter() {
-    let mut app = create_test_app();
-    configure_test_remote_models(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
+        let mut app = create_test_app();
+        configure_test_remote_models(&mut app);
 
-    for c in "/model g52c".chars() {
-        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
-            .unwrap();
-    }
+        for c in "/model g52c".chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+                .unwrap();
+        }
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker preview should be open");
-    assert!(picker.preview);
-    assert_eq!(picker.filter, "g52c");
-    assert!(
-        picker
-            .filtered
-            .iter()
-            .any(|&i| picker.entries[i].name == "gpt-5.2-codex")
-    );
-    assert_eq!(app.input(), "/model g52c");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker preview should be open");
+        assert!(picker.preview);
+        assert_eq!(picker.filter, "g52c");
+        assert!(
+            picker
+                .filtered
+                .iter()
+                .any(|&i| picker.entries[i].name == "gpt-5.2-codex")
+        );
+        assert_eq!(app.input(), "/model g52c");
+    });
 }
 
 #[test]
 fn test_model_picker_preview_enter_selects_model() {
-    let mut app = create_test_app();
-    configure_test_remote_models(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_openai_remote_model_validation();
+        let mut app = create_test_app();
+        configure_test_remote_models(&mut app);
 
-    for c in "/model g52c".chars() {
-        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+        for c in "/model g52c".chars() {
+            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
+                .unwrap();
+        }
+        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
             .unwrap();
-    }
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
 
-    // Enter from preview mode selects the model and closes the picker
-    assert!(app.inline_interactive_state.is_none());
-    assert!(app.input().is_empty());
-    assert_eq!(app.cursor_pos(), 0);
+        // Enter from preview mode selects the model and closes the picker
+        assert!(app.inline_interactive_state.is_none());
+        assert!(app.input().is_empty());
+        assert_eq!(app.cursor_pos(), 0);
+    });
 }

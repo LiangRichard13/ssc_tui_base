@@ -373,72 +373,80 @@ fn test_model_picker_page_keys_move_selection() {
 
 #[test]
 fn test_model_picker_copilot_models_have_copilot_route() {
-    let mut app = create_test_app();
-    configure_test_remote_models_with_copilot(&mut app);
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("copilot", &["grok-code-fast-1"]);
+        let mut app = create_test_app();
+        configure_test_remote_models_with_copilot(&mut app);
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
 
-    // grok-code-fast-1 is NOT in ALL_CLAUDE_MODELS or ALL_OPENAI_MODELS,
-    // so it should get a copilot route
-    let grok_entry = picker
-        .entries
-        .iter()
-        .find(|m| m.name == "grok-code-fast-1")
-        .expect("grok-code-fast-1 should be in picker");
+        // grok-code-fast-1 is NOT in ALL_CLAUDE_MODELS or ALL_OPENAI_MODELS,
+        // so it should get a copilot route
+        let grok_entry = picker
+            .entries
+            .iter()
+            .find(|m| m.name == "grok-code-fast-1")
+            .expect("grok-code-fast-1 should be in picker");
 
-    assert!(
-        grok_entry.options.iter().any(|r| r.api_method == "copilot"),
-        "grok-code-fast-1 should have a copilot route, got: {:?}",
-        grok_entry.options
-    );
+        assert!(
+            grok_entry.options.iter().any(|r| r.api_method == "copilot"),
+            "grok-code-fast-1 should have a copilot route, got: {:?}",
+            grok_entry.options
+        );
+    });
 }
 
 #[test]
 fn test_model_picker_remote_comtegra_model_uses_comtegra_route_not_copilot() {
-    let prev_key = std::env::var("COMTEGRA_API_KEY").ok();
-    crate::env::set_var("COMTEGRA_API_KEY", "test-key");
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("comtegra", &["glm-51-nvfp4"]);
+        let prev_key = std::env::var("COMTEGRA_API_KEY").ok();
+        crate::env::set_var("COMTEGRA_API_KEY", "test-key");
 
-    let mut app = create_test_app();
-    app.is_remote = true;
-    app.remote_available_entries = vec!["glm-51-nvfp4".to_string()];
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_available_entries = vec!["glm-51-nvfp4".to_string()];
 
-    app.open_model_picker();
+        app.open_model_picker();
 
-    match prev_key {
-        Some(value) => crate::env::set_var("COMTEGRA_API_KEY", value),
-        None => crate::env::remove_var("COMTEGRA_API_KEY"),
-    }
+        match prev_key {
+            Some(value) => crate::env::set_var("COMTEGRA_API_KEY", value),
+            None => crate::env::remove_var("COMTEGRA_API_KEY"),
+        }
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let glm_entry = picker
-        .entries
-        .iter()
-        .find(|m| m.name == "glm-51-nvfp4")
-        .expect("glm-51-nvfp4 should be in picker");
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let glm_entry = picker
+            .entries
+            .iter()
+            .find(|m| m.name == "glm-51-nvfp4")
+            .expect("glm-51-nvfp4 should be in picker");
 
-    assert!(
-        glm_entry.options.iter().any(|r| {
-            r.provider == "Comtegra GPU Cloud"
-                && r.api_method == "openai-compatible:comtegra"
-                && !r.available
-                && r.detail.contains("runtime not validated")
-        }),
-        "glm route should be Comtegra/api key but require runtime validation, got: {:?}",
-        glm_entry.options
-    );
-    assert!(
-        !glm_entry.options.iter().any(|r| r.api_method == "copilot"),
-        "glm route should not fall back to Copilot, got: {:?}",
-        glm_entry.options
-    );
+        assert!(
+            glm_entry.options.iter().any(|r| {
+                r.provider == "Comtegra GPU Cloud"
+                    && r.api_method == "openai-compatible:comtegra"
+                    && r.available
+                    && !r.detail.contains("runtime not validated")
+            }),
+            "validated glm route should be Comtegra/api key, got: {:?}",
+            glm_entry.options
+        );
+        assert!(
+            !glm_entry.options.iter().any(|r| r.api_method == "copilot"),
+            "glm route should not fall back to Copilot, got: {:?}",
+            glm_entry.options
+        );
+    });
 }
 
 #[test]
@@ -501,20 +509,14 @@ fn test_remote_model_picker_adds_validated_kimi_and_blocks_failed_zai_routes() {
         .inline_interactive_state
         .as_ref()
         .expect("model picker should be open");
-    let glm_entry = picker
-        .entries
-        .iter()
-        .find(|entry| entry.name == "glm-4.5")
-        .expect("Z.AI GLM route should still be visible");
     assert!(
-        glm_entry.options.iter().any(|route| {
-            route.provider == "Z.AI"
-                && route.api_method == "openai-compatible:zai"
-                && !route.available
-                && route.detail.contains("validation failed")
-        }),
-        "failed Z.AI validation should keep GLM unavailable, got: {:?}",
-        glm_entry.options
+        !picker.entries.iter().any(|entry| entry.name == "glm-4.5"),
+        "failed Z.AI validation should hide GLM route, got: {:?}",
+        picker
+            .entries
+            .iter()
+            .map(|entry| (&entry.name, &entry.options))
+            .collect::<Vec<_>>()
     );
 
     let kimi_entry = picker
@@ -534,7 +536,7 @@ fn test_remote_model_picker_adds_validated_kimi_and_blocks_failed_zai_routes() {
 }
 
 #[test]
-fn test_model_picker_remote_bedrock_model_requires_runtime_validation() {
+fn test_model_picker_remote_bedrock_model_hides_without_runtime_validation() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var("JCODE_HOME").ok();
     let prev_key = std::env::var(crate::provider::bedrock::API_KEY_ENV).ok();
@@ -568,32 +570,11 @@ fn test_model_picker_remote_bedrock_model_requires_runtime_validation() {
     }
     crate::auth::AuthStatus::invalidate_cache();
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let nova_entry = picker
-        .entries
-        .iter()
-        .find(|m| m.name == "us.amazon.nova-micro-v1:0")
-        .expect("Bedrock Nova model should be in picker");
-
     assert!(
-        nova_entry
-            .options
-            .iter()
-            .any(|r| { r.provider == "AWS Bedrock" && r.api_method == "bedrock" && !r.available }),
-        "Bedrock route should stay unavailable until runtime validation, got: {:?}",
-        nova_entry.options
+        app.inline_interactive_state.is_none(),
+        "unvalidated Bedrock route should be hidden from the picker"
     );
-    assert!(
-        nova_entry
-            .options
-            .iter()
-            .any(|r| r.detail.contains("runtime validated")),
-        "unverified Bedrock route should explain validation requirement, got: {:?}",
-        nova_entry.options
-    );
+    assert_eq!(app.status_notice(), Some("No models available".to_string()));
 }
 
 #[test]
