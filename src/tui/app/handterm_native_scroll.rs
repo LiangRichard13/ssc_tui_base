@@ -113,17 +113,23 @@ impl HandtermNativeScrollClient {
 }
 
 impl App {
+    fn native_hidden_history_extent(&self) -> usize {
+        self.compacted_history_lazy.remaining_messages
+    }
+
     fn current_native_scroll_snapshot(&self) -> PaneSnapshot {
         let mut panes = Vec::new();
         if let Some(layout) = crate::tui::ui::last_layout_snapshot() {
             if self.chat_native_scrollbar {
                 let viewport = layout.messages_area.height as usize;
+                let hidden_history = self.native_hidden_history_extent();
                 let max_scroll = crate::tui::ui::last_max_scroll();
-                let position = if self.auto_scroll_paused {
+                let rendered_position = if self.auto_scroll_paused {
                     self.scroll_offset.min(max_scroll)
                 } else {
                     max_scroll
                 };
+                let position = hidden_history.saturating_add(rendered_position);
                 panes.push(PaneState {
                     kind: PaneKind::Chat,
                     x: layout.messages_area.x,
@@ -131,7 +137,9 @@ impl App {
                     width: layout.messages_area.width,
                     height: layout.messages_area.height,
                     position,
-                    content_length: max_scroll.saturating_add(viewport),
+                    content_length: hidden_history
+                        .saturating_add(max_scroll)
+                        .saturating_add(viewport),
                     viewport_length: viewport,
                 });
             }
@@ -292,4 +300,40 @@ fn write_line<T: Serialize>(stream: &mut UnixStream, message: &T) -> Result<()> 
     stream
         .write_all(&bytes)
         .context("failed writing native scroll state")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn native_chat_snapshot_includes_hidden_compacted_history_above_current_window() {
+        let mut app = App::new_for_remote(None);
+        app.chat_native_scrollbar = true;
+        app.replace_display_messages(vec![crate::tui::app::DisplayMessage::system(
+            "Earlier conversation compacted — 128 historical messages hidden from the UI. Scroll to the top to load older history.",
+        )]);
+        app.auto_scroll_paused = true;
+        app.scroll_offset = 0;
+
+        crate::tui::ui::record_layout_snapshot(Rect::new(0, 0, 80, 12), None, None, None);
+        crate::tui::ui::set_last_max_scroll(0);
+
+        let snapshot = app.current_native_scroll_snapshot();
+        let chat = snapshot
+            .panes
+            .iter()
+            .find(|pane| pane.kind == PaneKind::Chat)
+            .expect("expected chat pane snapshot");
+
+        assert!(
+            chat.position > 0,
+            "hidden compacted history should leave scrollable room above the current window"
+        );
+        assert!(
+            chat.content_length > chat.viewport_length,
+            "hidden compacted history should make native content overflow"
+        );
+    }
 }

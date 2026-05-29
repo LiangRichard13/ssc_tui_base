@@ -332,6 +332,38 @@ fn disconnected_up_recalls_message_queued_for_reconnect() {
 }
 
 #[test]
+fn handterm_native_scroll_dispatches_compacted_history_load_immediately() {
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let _guard = rt.enter();
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.replace_display_messages(vec![crate::tui::app::DisplayMessage::system(
+        "Earlier conversation compacted — 128 historical messages hidden from the UI. Scroll to the top to load older history.",
+    )]);
+    app.auto_scroll_paused = true;
+    app.scroll_offset = 0;
+
+    let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+    let needs_redraw = rt.block_on(super::handle_handterm_native_scroll_command(
+        &mut app,
+        &mut remote,
+        super::super::handterm_native_scroll::HostToApp::Scroll {
+            pane: super::super::handterm_native_scroll::PaneKind::Chat,
+            delta: 1,
+        },
+    ));
+
+    assert!(needs_redraw);
+    assert_eq!(app.scroll_offset, 0);
+    assert_eq!(
+        app.compacted_history_lazy_state().pending_request_visible,
+        None,
+        "native scroll should send the compacted-history request without waiting for the next tick"
+    );
+}
+
+#[test]
 fn handle_post_connect_dispatches_reload_followup_even_if_history_snapshot_looks_busy() {
     let _guard = crate::storage::lock_test_env();
     let temp_home = tempfile::TempDir::new().expect("create temp home");

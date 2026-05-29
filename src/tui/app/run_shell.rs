@@ -256,9 +256,12 @@ impl App {
                         }
                     } => {
                         if let Some(command) = command {
-                            self.apply_handterm_native_scroll(command);
-                            self.request_full_redraw();
-                            needs_redraw = true;
+                            needs_redraw |= remote::handle_handterm_native_scroll_command(
+                                &mut self,
+                                &mut remote_conn,
+                                command,
+                            )
+                            .await;
                         } else {
                             handterm_native_scroll = None;
                         }

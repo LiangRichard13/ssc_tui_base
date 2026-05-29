@@ -343,6 +343,17 @@ async fn dispatch_compacted_history_load(app: &mut App, remote: &mut RemoteConne
     }
 }
 
+pub(super) async fn handle_handterm_native_scroll_command(
+    app: &mut App,
+    remote: &mut RemoteConnection,
+    command: super::handterm_native_scroll::HostToApp,
+) -> bool {
+    app.apply_handterm_native_scroll(command);
+    app.request_full_redraw();
+    let _history_redraw = dispatch_compacted_history_load(app, remote).await;
+    true
+}
+
 #[cfg(test)]
 #[path = "remote_tests.rs"]
 mod tests;
