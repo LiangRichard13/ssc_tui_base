@@ -133,28 +133,103 @@ fn test_model_command_trailing_space_shows_model_suggestions() {
 }
 
 #[test]
+fn test_remote_logged_out_model_suggestions_filter_openrouter_catalog_after_logout() {
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        crate::auth::validation::save(
+            "kimi",
+            crate::auth::validation::ProviderValidationRecord {
+                checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: Some(true),
+                validated_models: vec!["kimi-for-coding".to_string()],
+                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+            },
+        )
+        .expect("save previous Kimi validation");
+        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("openrouter".to_string());
+        app.remote_provider_model = Some("openai/gpt-5.4".to_string());
+        app.remote_available_entries = vec![
+            "openai/gpt-5.4".to_string(),
+            "anthropic/claude-sonnet-4".to_string(),
+        ];
+        app.remote_model_options = vec![
+            crate::provider::ModelRoute {
+                model: "openai/gpt-5.4".to_string(),
+                provider: "OpenRouter".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            crate::provider::ModelRoute {
+                model: "kimi-for-coding".to_string(),
+                provider: "Kimi Code".to_string(),
+                api_method: "openai-compatible:kimi".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+        ];
+
+        let suggestions = app.get_suggestions_for("/model ");
+        let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();
+
+        assert!(commands.contains(&"/model deepseek/deepseek-v4-pro"));
+        assert!(commands.contains(&"/model moonshotai/kimi-k2.5"));
+        assert!(!commands.contains(&"/model openai/gpt-5.4"));
+        assert!(!commands.contains(&"/model anthropic/claude-sonnet-4"));
+        assert!(!commands.contains(&"/model kimi-for-coding"));
+        assert!(
+            commands.iter().all(|cmd| cmd
+                .strip_prefix("/model ")
+                .map(crate::subscription_catalog::is_curated_model)
+                .unwrap_or(false)),
+            "remote logged-out /model suggestions leaked non-curated routes: {commands:?}"
+        );
+
+        let provider_suggestions = app.get_suggestions_for("/model openai/gpt-5.4@");
+        assert!(
+            provider_suggestions.is_empty(),
+            "remote logged-out provider suggestions should be hidden: {provider_suggestions:?}"
+        );
+    });
+}
+
+#[test]
 fn test_model_command_provider_suggestions_include_openrouter_routes() {
-    let mut app = create_test_app();
-    configure_test_remote_openrouter_provider_routes(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        let mut app = create_test_app();
+        configure_test_remote_openrouter_provider_routes(&mut app);
 
-    let suggestions = app.get_suggestions_for("/model anthropic/claude-sonnet-4@");
-    let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();
+        let suggestions = app.get_suggestions_for("/model anthropic/claude-sonnet-4@");
+        let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();
 
-    assert!(commands.contains(&"/model anthropic/claude-sonnet-4@auto"));
-    assert!(commands.contains(&"/model anthropic/claude-sonnet-4@Fireworks"));
-    assert!(commands.contains(&"/model anthropic/claude-sonnet-4@OpenAI"));
+        assert!(commands.contains(&"/model anthropic/claude-sonnet-4@auto"));
+        assert!(commands.contains(&"/model anthropic/claude-sonnet-4@Fireworks"));
+        assert!(commands.contains(&"/model anthropic/claude-sonnet-4@OpenAI"));
+    });
 }
 
 #[test]
 fn test_model_command_provider_suggestions_rank_matching_provider_prefix() {
-    let mut app = create_test_app();
-    configure_test_remote_openrouter_provider_routes(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        let mut app = create_test_app();
+        configure_test_remote_openrouter_provider_routes(&mut app);
 
-    let suggestions = app.get_suggestions_for("/model anthropic/claude-sonnet-4@fi");
-    assert_eq!(
-        suggestions.first().map(|(cmd, _)| cmd.as_str()),
-        Some("/model anthropic/claude-sonnet-4@Fireworks")
-    );
+        let suggestions = app.get_suggestions_for("/model anthropic/claude-sonnet-4@fi");
+        assert_eq!(
+            suggestions.first().map(|(cmd, _)| cmd.as_str()),
+            Some("/model anthropic/claude-sonnet-4@Fireworks")
+        );
+    });
 }
 
 #[test]
@@ -243,14 +318,17 @@ fn test_model_autocomplete_completes_unique_match() {
 
 #[test]
 fn test_model_autocomplete_completes_unique_provider_match() {
-    let mut app = create_test_app();
-    configure_test_remote_openrouter_provider_routes(&mut app);
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        let mut app = create_test_app();
+        configure_test_remote_openrouter_provider_routes(&mut app);
 
-    app.input = "/model anthropic/claude-sonnet-4@fi".to_string();
-    app.cursor_pos = app.input.len();
+        app.input = "/model anthropic/claude-sonnet-4@fi".to_string();
+        app.cursor_pos = app.input.len();
 
-    assert!(app.autocomplete());
-    assert_eq!(app.input(), "/model anthropic/claude-sonnet-4@Fireworks");
+        assert!(app.autocomplete());
+        assert_eq!(app.input(), "/model anthropic/claude-sonnet-4@Fireworks");
+    });
 }
 
 #[test]

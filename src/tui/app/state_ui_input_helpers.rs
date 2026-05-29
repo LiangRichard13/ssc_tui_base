@@ -316,7 +316,11 @@ impl App {
         let mut seen = std::collections::HashSet::new();
         let mut models = Vec::new();
 
-        if self.is_remote {
+        if self.use_saitec_logged_out_model_catalog() {
+            for model in crate::subscription_catalog::curated_models() {
+                push_unique(&mut seen, &mut models, model.id.to_string());
+            }
+        } else if self.is_remote {
             if let Some(current) = self.remote_provider_model.clone() {
                 push_unique(&mut seen, &mut models, current);
             }
@@ -331,15 +335,9 @@ impl App {
                 push_unique(&mut seen, &mut models, model.clone());
             }
         } else {
-            if self.use_saitec_logged_out_model_catalog() {
-                for model in crate::subscription_catalog::curated_models() {
-                    push_unique(&mut seen, &mut models, model.id.to_string());
-                }
-            } else {
-                push_unique(&mut seen, &mut models, self.provider.model());
-                for model in self.provider.available_models_display() {
-                    push_unique(&mut seen, &mut models, model);
-                }
+            push_unique(&mut seen, &mut models, self.provider.model());
+            for model in self.provider.available_models_display() {
+                push_unique(&mut seen, &mut models, model);
             }
         }
 
@@ -363,6 +361,9 @@ impl App {
 
         let model = model.trim();
         if model.is_empty() {
+            return Vec::new();
+        }
+        if self.use_saitec_logged_out_model_catalog() {
             return Vec::new();
         }
         let Some(openrouter_model) = crate::provider::openrouter_catalog_model_id(model) else {
