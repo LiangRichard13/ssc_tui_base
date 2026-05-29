@@ -311,6 +311,72 @@ fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
 }
 
 #[test]
+fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_subscription_runtime() {
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        crate::subscription_catalog::clear_runtime_env();
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("openai".to_string());
+        app.remote_provider_model = Some("gpt-5.5".to_string());
+        app.remote_model_options = vec![
+            crate::provider::ModelRoute {
+                model: "gpt-5.5".to_string(),
+                provider: "OpenAI".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: "OpenRouter routed endpoint".to_string(),
+                cheapness: None,
+            },
+            crate::provider::ModelRoute {
+                model: "gpt-5.5".to_string(),
+                provider: "OpenAI".to_string(),
+                api_method: "openai-oauth".to_string(),
+                available: true,
+                detail: String::new(),
+                cheapness: None,
+            },
+            crate::provider::ModelRoute {
+                model: "claude-sonnet-4-6".to_string(),
+                provider: "Anthropic".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: "OpenRouter fallback provider".to_string(),
+                cheapness: None,
+            },
+        ];
+
+        app.open_model_picker();
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let route_text: Vec<String> = picker
+            .entries
+            .iter()
+            .flat_map(|entry| {
+                entry.options.iter().map(move |option| {
+                    format!(
+                        "{}|{}|{}|{}",
+                        entry.name, option.provider, option.api_method, option.detail
+                    )
+                })
+            })
+            .collect();
+
+        assert!(
+            route_text.iter().all(|route| {
+                let lower = route.to_ascii_lowercase();
+                !lower.contains("openrouter")
+            }),
+            "non-subscription /model Provider column leaked OpenRouter-routed options: {route_text:?}"
+        );
+    });
+}
+
+#[test]
 fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout() {
     with_temp_jcode_home(|| {
         crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
@@ -839,33 +905,19 @@ fn test_local_antigravity_model_picker_selection_preserves_antigravity_provider(
 }
 
 #[test]
-fn test_local_model_picker_openrouter_bare_openai_route_uses_openai_catalog_prefix() {
+fn test_local_model_picker_hides_openrouter_bare_openai_route() {
     let (mut app, set_model_calls) = create_openrouter_spec_capture_test_app();
     app.open_model_picker();
     wait_for_model_picker_load(&mut app);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("model picker should be open");
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|entry| entry.name == "gpt-5.4 (high)")
-        .expect("openrouter-backed OpenAI effort entry should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("entry should be in filtered list");
-
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("model picker selection should succeed");
-
-    assert_eq!(
-        set_model_calls.lock().unwrap().as_slice(),
-        ["openai/gpt-5.4@OpenAI"]
+    assert!(
+        app.inline_interactive_state.is_none(),
+        "OpenRouter-backed OpenAI route should not open the SAITEC model picker"
+    );
+    assert_eq!(app.status_notice(), Some("No models available".to_string()));
+    assert!(
+        set_model_calls.lock().unwrap().is_empty(),
+        "hidden OpenRouter route should not be selectable"
     );
 }
 
@@ -912,36 +964,14 @@ fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
 }
 
 #[test]
-fn test_agent_model_picker_openrouter_bare_openai_route_saves_openai_catalog_prefix() {
+fn test_agent_model_picker_hides_openrouter_bare_openai_route() {
     let (mut app, _set_model_calls) = create_openrouter_spec_capture_test_app();
 
     app.open_agent_model_picker(crate::tui::AgentModelTarget::Swarm);
 
-    let picker = app
-        .inline_interactive_state
-        .as_ref()
-        .expect("agent model picker should be open");
-    let model_idx = picker
-        .entries
-        .iter()
-        .position(|entry| entry.name == "gpt-5.4 (high)")
-        .expect("openrouter-backed OpenAI effort entry should be in picker");
-    let filtered_pos = picker
-        .filtered
-        .iter()
-        .position(|&i| i == model_idx)
-        .expect("entry should be in filtered list");
-
-    app.inline_interactive_state.as_mut().unwrap().selected = filtered_pos;
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("agent model picker selection should succeed");
-
-    let last = app.display_messages.last().expect("display message");
-    assert_eq!(last.role, "system");
     assert!(
-        last.content.contains("`openai/gpt-5.4@OpenAI`"),
-        "message should show normalized saved spec, got: {}",
-        last.content
+        app.inline_interactive_state.is_none(),
+        "OpenRouter-backed OpenAI route should not open the SAITEC agent model picker"
     );
 }
 

@@ -108,6 +108,21 @@ impl App {
             .collect()
     }
 
+    fn model_picker_route_mentions_openrouter(route: &crate::provider::ModelRoute) -> bool {
+        [&route.model, &route.provider, &route.api_method, &route.detail]
+            .iter()
+            .any(|value| value.to_ascii_lowercase().contains("openrouter"))
+    }
+
+    fn filter_saitec_model_picker_routes(
+        routes: Vec<crate::provider::ModelRoute>,
+    ) -> Vec<crate::provider::ModelRoute> {
+        routes
+            .into_iter()
+            .filter(|route| !Self::model_picker_route_mentions_openrouter(route))
+            .collect()
+    }
+
     pub(super) fn invalidate_model_picker_cache(&mut self) {
         self.model_picker_cache = None;
         self.model_picker_catalog_revision = self.model_picker_catalog_revision.wrapping_add(1);
@@ -695,6 +710,7 @@ impl App {
             routes
         };
         let routes = crate::provider::models::filtered_model_routes(routes);
+        let routes = Self::filter_saitec_model_picker_routes(routes);
         let routes = Self::apply_model_picker_runtime_validation(routes);
 
         if routes.is_empty() {
