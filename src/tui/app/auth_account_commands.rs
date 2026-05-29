@@ -169,6 +169,7 @@ fn clear_saitec_session_after_confirmation(app: &mut App) {
             crate::auth::AuthStatus::invalidate_cache();
             app.account_picker_overlay = None;
             app.pending_login = None;
+            app.invalidate_model_picker_cache();
             app.trigger_provider_auth_changed();
             app.push_display_message(DisplayMessage::system(
                 "Logged out from Saitec. Local SAITEC credentials were cleared.".to_string(),

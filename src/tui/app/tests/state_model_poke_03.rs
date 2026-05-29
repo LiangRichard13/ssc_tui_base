@@ -66,7 +66,9 @@ struct CountingModelRoutesProvider {
 }
 
 #[derive(Clone)]
-struct UnfilteredSaitecModelProvider;
+struct UnfilteredSaitecModelProvider {
+    name: &'static str,
+}
 
 #[async_trait::async_trait]
 impl Provider for UnfilteredSaitecModelProvider {
@@ -81,7 +83,7 @@ impl Provider for UnfilteredSaitecModelProvider {
     }
 
     fn name(&self) -> &str {
-        "OpenAI"
+        self.name
     }
 
     fn model(&self) -> String {
@@ -159,9 +161,68 @@ impl Provider for CountingModelRoutesProvider {
 }
 
 #[test]
+fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
+    with_temp_jcode_home(|| {
+        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
+            auth_token: None,
+            api_key: "sk-test".to_string(),
+            token_type: "Bearer".to_string(),
+            user_id: Some("user-1".to_string()),
+            email: None,
+            phone: None,
+            display_name: None,
+            api_key_id: None,
+            api_key_name: None,
+            api_key_created_at: None,
+            api_key_expires_at: None,
+            last_validated_at: None,
+        })
+        .expect("save logged-in SAITEC session");
+        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
+
+        let provider: Arc<dyn Provider> =
+            Arc::new(UnfilteredSaitecModelProvider { name: "Copilot" });
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+        let mut app = App::new_for_test_harness(provider, registry);
+        app.queue_mode = false;
+        app.diff_mode = crate::config::DiffDisplayMode::Inline;
+
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+
+        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
+        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(!names.contains(&"gpt-5.4"));
+        assert!(
+            names
+                .iter()
+                .all(|name| crate::subscription_catalog::is_curated_model(name)),
+            "logged-out /model leaked non-curated models after logout: {names:?}"
+        );
+        assert!(
+            picker
+                .entries
+                .iter()
+                .flat_map(|entry| entry.options.iter())
+                .all(|option| !option.available),
+            "logged-out /model should not expose selectable provider routes: {:?}",
+            picker.entries
+        );
+    });
+}
+
+#[test]
 fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
     with_temp_jcode_home(|| {
-        let provider: Arc<dyn Provider> = Arc::new(UnfilteredSaitecModelProvider);
+        let provider: Arc<dyn Provider> =
+            Arc::new(UnfilteredSaitecModelProvider { name: "OpenAI" });
         let rt = tokio::runtime::Runtime::new().unwrap();
         let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
         let mut app = App::new_for_test_harness(provider, registry);

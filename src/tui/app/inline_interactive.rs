@@ -221,7 +221,17 @@ impl App {
 
         let can_leak_static_catalog = matches!(
             self.provider.name().trim().to_ascii_lowercase().as_str(),
-            "openai" | "claude" | "anthropic" | "openrouter" | "saitec subscription"
+            "openai"
+                | "claude"
+                | "anthropic"
+                | "openrouter"
+                | "saitec subscription"
+                | "copilot"
+                | "antigravity"
+                | "gemini"
+                | "cursor"
+                | "bedrock"
+                | "aws bedrock"
         );
 
         can_leak_static_catalog && crate::saitec::auth::ensure_logged_in().is_err()
