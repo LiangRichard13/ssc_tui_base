@@ -694,6 +694,7 @@ impl App {
         } else {
             routes
         };
+        let routes = crate::provider::models::filtered_model_routes(routes);
         let routes = Self::apply_model_picker_runtime_validation(routes);
 
         if routes.is_empty() {

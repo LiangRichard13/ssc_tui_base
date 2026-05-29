@@ -1223,6 +1223,25 @@ fn test_login_openrouter_is_rejected_by_saitec_allowlist() {
 }
 
 #[test]
+fn test_inline_login_provider_picker_hides_openrouter() {
+    let mut app = create_test_app();
+    app.open_login_picker_inline();
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("login picker should be open");
+    let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+
+    assert!(
+        names
+            .iter()
+            .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
+        "SAITEC Provider picker leaked OpenRouter: {names:?}"
+    );
+}
+
+#[test]
 fn test_set_pending_saitec_login_for_tests_uses_form_variant() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_for_tests();

@@ -246,6 +246,71 @@ fn test_subscription_model_provider_suggestions_hide_openrouter_pins() {
 }
 
 #[test]
+fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
+    with_temp_jcode_home(|| {
+        save_test_saitec_session();
+        crate::subscription_catalog::apply_runtime_env();
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("openrouter".to_string());
+        app.remote_provider_model = Some("deepseek/deepseek-v4-pro".to_string());
+        app.remote_model_options = vec![
+            crate::provider::ModelRoute {
+                model: "deepseek/deepseek-v4-pro".to_string(),
+                provider: "auto".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: "OpenRouter internal route".to_string(),
+                cheapness: None,
+            },
+            crate::provider::ModelRoute {
+                model: "anthropic/claude-sonnet-4".to_string(),
+                provider: "OpenRouter".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: "non-curated OpenRouter route".to_string(),
+                cheapness: None,
+            },
+        ];
+
+        app.open_model_picker();
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let route_text: Vec<String> = picker
+            .entries
+            .iter()
+            .flat_map(|entry| {
+                entry.options.iter().map(move |option| {
+                    format!(
+                        "{}|{}|{}|{}",
+                        entry.name, option.provider, option.api_method, option.detail
+                    )
+                })
+            })
+            .collect();
+
+        assert!(
+            route_text.iter().all(|route| {
+                let lower = route.to_ascii_lowercase();
+                !lower.contains("openrouter") && !lower.contains("|auto|")
+            }),
+            "subscription Provider column leaked OpenRouter routes: {route_text:?}"
+        );
+        assert!(
+            route_text
+                .iter()
+                .all(|route| route.contains("Saitec Subscription|saitec")),
+            "subscription Provider column should only expose Saitec routes: {route_text:?}"
+        );
+
+        crate::subscription_catalog::clear_runtime_env();
+    });
+}
+
+#[test]
 fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout() {
     with_temp_jcode_home(|| {
         crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
