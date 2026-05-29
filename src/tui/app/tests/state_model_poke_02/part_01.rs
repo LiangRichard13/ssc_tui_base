@@ -208,24 +208,26 @@ fn test_mouse_scroll_events_are_classified_as_scroll_only() {
 
 #[test]
 fn test_handterm_native_scroll_command_updates_chat_offset() {
-    let mut app = create_test_app();
-    let (_scroll_app, mut terminal) = create_scroll_test_app(50, 12, 0, 24);
-    terminal
-        .draw(|f| crate::tui::ui::draw(f, &app))
-        .expect("draw failed");
-    crate::tui::ui::record_layout_snapshot(Rect::new(0, 0, 50, 12), None, None, None);
+    let _render_lock = scroll_render_test_lock();
+    let (mut app, mut terminal) = create_scroll_test_app(50, 12, 0, 24);
+
+    render_and_snap(&app, &mut terminal);
+    assert!(
+        crate::tui::ui::last_max_scroll() > 7,
+        "expected enough scroll range for native delta checks"
+    );
 
     app.auto_scroll_paused = true;
     app.scroll_offset = 6;
     app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
         pane: super::handterm_native_scroll::PaneKind::Chat,
-        delta: -2,
+        delta: 2,
     });
     assert_eq!(app.scroll_offset, 4);
 
     app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
         pane: super::handterm_native_scroll::PaneKind::Chat,
-        delta: 3,
+        delta: -3,
     });
     assert_eq!(app.scroll_offset, 7);
 }
@@ -266,7 +268,7 @@ fn test_handterm_native_scroll_client_roundtrips_over_socket() {
     assert!(line.contains("\"position\":6"));
 
     server
-        .write_all(b"{\"type\":\"scroll\",\"pane\":\"chat\",\"delta\":-2}\n")
+        .write_all(b"{\"type\":\"scroll\",\"pane\":\"chat\",\"delta\":2}\n")
         .expect("write host scroll command");
 
     let runtime = tokio::runtime::Runtime::new().expect("runtime");
@@ -284,6 +286,34 @@ fn test_handterm_native_scroll_client_roundtrips_over_socket() {
     unsafe {
         std::env::remove_var("HANDTERM_NATIVE_SCROLL_SOCKET");
     }
+}
+
+#[test]
+fn test_handterm_positive_scroll_delta_reveals_older_chat_history() {
+    let _render_lock = scroll_render_test_lock();
+    let (mut app, mut terminal) = create_scroll_test_app(50, 12, 0, 24);
+
+    render_and_snap(&app, &mut terminal);
+    assert!(
+        crate::tui::ui::last_max_scroll() > 2,
+        "expected scrollable chat content"
+    );
+    assert_eq!(app.scroll_offset, 0);
+    assert!(!app.auto_scroll_paused);
+
+    app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
+        pane: super::handterm_native_scroll::PaneKind::Chat,
+        delta: 2,
+    });
+
+    assert!(
+        app.auto_scroll_paused,
+        "native positive scroll should leave bottom follow mode"
+    );
+    assert!(
+        app.scroll_offset > 0,
+        "native positive scroll should reveal older chat history"
+    );
 }
 
 #[test]

@@ -157,9 +157,10 @@ impl App {
     }
 
     pub(super) fn apply_handterm_native_scroll(&mut self, command: HostToApp) {
+        // Host deltas describe content movement: positive reveals earlier content above.
         match command {
-            HostToApp::Scroll { pane, delta } if delta < 0 => {
-                let amount = delta.unsigned_abs() as usize;
+            HostToApp::Scroll { pane, delta } if delta > 0 => {
+                let amount = delta as usize;
                 match pane {
                     PaneKind::Chat => self.scroll_up(amount),
                     PaneKind::SidePanel => {
@@ -173,8 +174,8 @@ impl App {
                     }
                 }
             }
-            HostToApp::Scroll { pane, delta } if delta > 0 => {
-                let amount = delta as usize;
+            HostToApp::Scroll { pane, delta } if delta < 0 => {
+                let amount = delta.unsigned_abs() as usize;
                 match pane {
                     PaneKind::Chat => self.scroll_down(amount),
                     PaneKind::SidePanel => {
