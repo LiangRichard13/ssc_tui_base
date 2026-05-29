@@ -1,741 +1,561 @@
-<div align="center">
-
-# jcode
-
-[![Latest Release](https://img.shields.io/github/v/release/1jehuang/jcode?style=flat-square)](https://github.com/1jehuang/jcode/releases)
-[![License](https://img.shields.io/github/license/1jehuang/jcode?style=flat-square)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=flat-square)](https://github.com/1jehuang/jcode/releases)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/1jehuang/jcode?style=flat-square)](https://github.com/1jehuang/jcode/commits/master)
-[![GitHub Stars](https://img.shields.io/github/stars/1jehuang/jcode?style=flat-square)](https://github.com/1jehuang/jcode/stargazers)
-
-The next generation coding agent harness to raise the skill ceiling. <br>
-Built for multi-session workflows, infinite customizability, and performance. 
-
-<br>
-
-<a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-memory-demo.mp4">
-  <img src="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-memory-demo.webp" alt="jcode memory demonstration" width="800">
-</a>
-
-<br>
-
-[Features](#features) · [Install](#installation) · [Quick Start](#quick-start) · [Further Reading](#further-reading) · [Contributing](CONTRIBUTING.md)
-
-</div>
-
----
-
-<div align="center">
-
-## Installation
-
-</div>
-
-```bash
-# macOS & Linux
-curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash
-```
-
-Need Windows, Homebrew, source builds, provider setup, or tell your agent to set it up for you?
-[Jump to detailed installation](#detailed-installation).
-
----
-
-
-<div align="center">
-
-## Performance & Resource Efficiency
-
-</div>
-
-jcode is built to be as performant and resource efficient as possible. Every metric is optimized to the bone, which is important for scaling multi-session workflows. Here we sample a few metrics to show the difference: RAM usage and boot up.
-
-### RAM comparison
-
-<div align="center">
-
-<table>
-  <tr>
-    <td valign="top" align="center" width="50%">
-      <strong>1 active session</strong>
-      <table>
-        <thead>
-          <tr>
-            <th>Tool</th>
-            <th>PSS</th>
-            <th>Comparison</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>jcode (local embedding off)</strong></td>
-            <td align="right"><strong>27.8 MB</strong></td>
-            <td align="right">baseline</td>
-          </tr>
-          <tr>
-            <td><strong>jcode</strong></td>
-            <td align="right"><strong>167.1 MB</strong></td>
-            <td align="right"><strong>6.0× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>pi</strong></td>
-            <td align="right"><strong>144.4 MB</strong></td>
-            <td align="right"><strong>5.2× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Codex CLI</strong></td>
-            <td align="right"><strong>140.0 MB</strong></td>
-            <td align="right"><strong>5.0× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>OpenCode</strong></td>
-            <td align="right"><strong>371.5 MB</strong></td>
-            <td align="right"><strong>13.4× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>GitHub Copilot CLI</strong></td>
-            <td align="right"><strong>333.3 MB</strong></td>
-            <td align="right"><strong>12.0× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Cursor Agent</strong></td>
-            <td align="right"><strong>214.9 MB</strong></td>
-            <td align="right"><strong>7.7× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Claude Code</strong></td>
-            <td align="right"><strong>386.6 MB</strong></td>
-            <td align="right"><strong>13.9× more RAM</strong></td>
-          </tr>
-        </tbody>
-      </table>
-    </td>
-    <td width="24"></td>
-    <td valign="top" align="center" width="50%">
-      <strong>10 active sessions</strong>
-      <table>
-        <thead>
-          <tr>
-            <th>Tool</th>
-            <th>PSS</th>
-            <th>Comparison</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>jcode (local embedding off)</strong></td>
-            <td align="right"><strong>117.0 MB</strong></td>
-            <td align="right">baseline</td>
-          </tr>
-          <tr>
-            <td><strong>jcode</strong></td>
-            <td align="right"><strong>260.8 MB</strong></td>
-            <td align="right"><strong>2.2× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>pi</strong></td>
-            <td align="right"><strong>833.0 MB</strong></td>
-            <td align="right"><strong>7.1× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Codex CLI</strong></td>
-            <td align="right"><strong>334.8 MB</strong></td>
-            <td align="right"><strong>2.9× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>OpenCode</strong></td>
-            <td align="right"><strong>3237.2 MB</strong></td>
-            <td align="right"><strong>27.7× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>GitHub Copilot CLI</strong></td>
-            <td align="right"><strong>1756.5 MB</strong></td>
-            <td align="right"><strong>15.0× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Cursor Agent</strong></td>
-            <td align="right"><strong>1632.4 MB</strong></td>
-            <td align="right"><strong>14.0× more RAM</strong></td>
-          </tr>
-          <tr>
-            <td><strong>Claude Code</strong></td>
-            <td align="right"><strong>2300.6 MB</strong></td>
-            <td align="right"><strong>19.7× more RAM</strong></td>
-          </tr>
-        </tbody>
-      </table>
-    </td>
-  </tr>
-</table>
-
-</div>
-
-### Time to first frame
-
-<div align="center">
-
-| Tool | Time to first frame | Range | Comparison |
-|---|---:|---:|---:|
-| **jcode** | **14.0 ms** | 10.1–19.3 ms | baseline |
-| **pi** | **590.7 ms** | 369.6–934.8 ms | **42.2× slower** |
-| **Codex CLI** | **882.8 ms** | 742.3–1640.9 ms | **63.1× slower** |
-| **OpenCode** | **1035.9 ms** | 922.5–1104.4 ms | **74.0× slower** |
-| **GitHub Copilot CLI** | **1518.6 ms** | 1357.4–1826.8 ms | **108.5× slower** |
-| **Cursor Agent** | **1949.7 ms** | 1711.0–2104.8 ms | **139.3× slower** |
-| **Claude Code** | **3436.9 ms** | 2032.7–8927.2 ms | **245.5× slower** |
-
-</div>
-
-Measured on this Linux machine across 10 interactive PTY launches.
-
-### Time to first input
-(time until typed probe text appears on the rendered screen.)
-<div align="center">
-
-| Tool | Time to first input | Range | Comparison |
-|---|---:|---:|---:|
-| **jcode** | **48.7 ms** | 30.3–62.7 ms | baseline |
-| **pi** | **596.4 ms** | 373.9–955.2 ms | **12.2× slower** |
-| **Codex CLI** | **905.8 ms** | 760.1–1675.7 ms | **18.6× slower** |
-| **OpenCode** | **1047.9 ms** | 931.1–1116.9 ms | **21.5× slower** |
-| **GitHub Copilot CLI** | **1583.4 ms** | 1422.8–1880.0 ms | **32.5× slower** |
-| **Cursor Agent** | **1978.7 ms** | 1727.3–2130.0 ms | **40.6× slower** |
-| **Claude Code** | **3512.8 ms** | 2137.4–9002.0 ms | **72.2× slower** |
-
-</div>
-
-Measured on this Linux machine across 10 interactive PTY launches.
-
-### Additional clients / memory scaling
-
-<div align="center">
-
-| Tool | Extra PSS per added session | Comparison |
-|---|---:|---:|
-| **jcode (local embedding off)** | **~9.9 MB** | baseline |
-| **jcode** | **~10.4 MB** | **1.1× more RAM** |
-| **pi** | **~76.5 MB** | **7.7× more RAM** |
-| **Codex CLI** | **~21.6 MB** | **2.2× more RAM** |
-| **OpenCode** | **~318.4 MB** | **32.2× more RAM** |
-| **GitHub Copilot CLI** | **~158.1 MB** | **16.0× more RAM** |
-| **Cursor Agent** | **~157.5 MB** | **15.9× more RAM** |
-| **Claude Code** | **~212.7 MB** | **21.5× more RAM** |
-
-</div>
-versions tested for this corrected memory rerun:
-
-- `jcode v0.9.1888-dev (be386f2)`
-- `pi 0.62.0`
-- `codex-cli 0.120.0`
-- `opencode 1.0.203`
-- `GitHub Copilot CLI 1.0.24` for the 1-session rerun, `GitHub Copilot CLI 1.0.27` for the 10-session rerun
-- `Cursor Agent 2026.04.08-a41fba1`
-- `Claude Code 2.1.86 (Claude Code)`
-
-<div align="center">
-
-  <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-performance-demo.mp4">
-    <img src="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-performance-demo.webp" alt="jcode performance demonstration" width="900">
-  </a>
-
-  <p><em>jcode performance demonstration</em></p>
-
-</div>
-
-
----
-
-## Memory (Agent memory)
-
-Jcode embeds each turn/response as a semantic vector. Every turn does queries a graph of memories to efficiently find related memory entries via a cosine similarity check. The embedding hits are fed into the conversation, or optionally uses a memory sideagent which verifies the memories are relevant, and potentially does more work for information retreival before injecting into the conversation. This results in a human like memory system which allows the agent to automatically recall relevant information to the conversation without actively calling memory tools or being a token burner. 
-ot 
-To have memories which are retrieved, they must also be extracted and stored. Every so often (semantic drift, K turns since last extraction, session end, etc), memories are extracted via a memory sideagent, and put into the memory graph. 
-
-The harness also provides explicit memory tools to allow the agent to actively search or store the memory without relying on a passive background process. The harness also provides session search for traditional RAG on previous sessions. 
-
-Memories are automatically consolidated every so often via the ambient mode. This reorganizes, checks for staleness and conflicts, etc
-
-<div align="center">
-
-  <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-memory-demo.mp4">
-    <img src="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-memory-demo.webp" alt="jcode memory demonstration" width="900">
-  </a>
-
-  <p><em>jcode memory demonstration</em></p>
-
-</div>
-
-<!-- Memory demo media is hosted in the readme-assets release. -->
-
----
-
-## UI: Side panels, Diagrams, Info Widgets, rendering, scrolling, alignment
-
-The side panel is a place for auxiliary information. Tell your jcode agent to load a file into the side panel and see it update in real time, or tell your agent to write directly to the side panel, or use it as a diff viewer. The side panel (and chat) is able to render mermaid diagrams inline. 
-<img width="2877" height="1762" alt="image" src="https://github.com/user-attachments/assets/6c7bec81-ef3f-434d-8a7b-d55f8a54e5cf" />
-
-To make this possible, I created a new mermaid rendering library to render diagrams 1800x faster. It has no browser or Typescript dependency. See https://github.com/1jehuang/mermaid-rs-renderer
-
-To show you important information without taking space away from the screen that could be used for responses, I developed info widgets. Info widgets will only ever take up the negative space on the screen to show you information, and will get out of the way if there isn't any. 
-
-Jcode can render at over a thousand fps. Your monitor will not have the refresh rate to show you, but this means you will not have silly flicker problems. 
-
-The custom scrollback implementation of jcode allows it to do much more than a native scrollback. However, it is a terminal-level limitation that I cannot have smooth, partial line scrolling with a custom scrollback. To fix this, I made my own terminal. Handterm https://github.com/1jehuang/handterm implements a native scroll api, and also happens to be very effiecent. This is a work in progress. Scrolling is still well implemented for normal terminals.
-
-Jcode is left-aligned by default. You can switch to centered mode with the `Alt+C` hotkey, with the `/alignment` command, or in the config.
-
----
-
-## Swarm
-
-Spawn two or more agents in the same repo, and they will automatically be managed by the server to allow native collaboration. When agent A edits a file that agent B has read (code shifting under its feet), the server notifies agent B. Agent B can ignore it if it is not relevant, or it can check the diff to make sure that it doesn't conflict. Each agent has messaging abilities, capable of DMing just one agent, broadcasting to all other agents hosted by the server, or just agents working in that repo. This allows you to spawn multiple sessions in the same repo, and have all conflicts automatically resolved.
-
-<div align="center">
-
-  <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/swarm-demo.mp4">
-    <img src="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-swarm-demonstration.webp" alt="jcode swarm demonstration" width="900">
-  </a>
-
-  <p><em>jcode swarm demonstration</em></p>
-
-</div>
-
-Agents are also able to spawn their own swarms autonomously. They have a swarm tool which allows them to spawn in their own teamates to accomplish tasks in parallel. Doing so turns the main agent into a coordinator and the spawned agents into workers. Groups of agents, their messaging channels, their completion statuses, etc are all automatically managed. This can be done headlessly or headed.
-
----
-
-## OAuth and Providers
-
-jcode works with subscription-backed OAuth flows and many provider integrations, so you can use the models you already pay for and still fall back to direct API providers when needed.
-
-### Supported built-in login flows
-
-- **Claude** (`jcode login --provider claude`)
-- **OpenAI / ChatGPT / Codex** (`jcode login --provider openai`)
-- **Google Gemini** (`jcode login --provider gemini`)
-- **GitHub Copilot** (`jcode login --provider copilot`)
-- **Azure OpenAI** (`jcode login --provider azure`)
-- **Alibaba Cloud Coding Plan** (`jcode login --provider alibaba-coding-plan`)
-- **Fireworks** (`jcode login --provider fireworks`)
-- **MiniMax** (`jcode login --provider minimax`)
-- **LM Studio** (`jcode login --provider lmstudio`)
-- **Ollama** (`jcode login --provider ollama`)
-- **Custom OpenAI-compatible endpoint** (`jcode login --provider openai-compatible`)
-
-For custom OpenAI-compatible endpoints, jcode now prompts for the API base and supports local localhost servers without requiring an API key.
-
-### Config-file setup for self-hosted endpoints and MCP
-
-If you prefer to configure things by editing files instead of using the login UI, jcode supports both a custom OpenAI-compatible endpoint config and MCP config files.
-
-#### Self-hosted OpenAI-compatible endpoints, including vLLM
-
-For agents and scripts, the preferred path is the one-shot provider profile command. It writes a named profile to `~/.jcode/config.toml`, stores secrets in jcode's private app config directory when requested, and prints exact run/validation commands:
-
-```bash
-# Secret-safe setup for a hosted OpenAI-compatible API.
-printf '%s' "$MY_API_KEY" | jcode provider add my-api \
-  --base-url https://llm.example.com/v1 \
-  --model my-model-id \
-  --api-key-stdin \
-  --set-default \
-  --json
-
-# Smoke test the profile.
-jcode --provider-profile my-api auth-test --prompt 'Reply exactly JCODE_PROVIDER_SETUP_OK'
-
-# Use it directly.
-jcode --provider-profile my-api run 'hello'
-```
-
-For local servers that do not require auth:
-
-```bash
-jcode provider add local-vllm \
-  --base-url http://localhost:8000/v1 \
-  --model Qwen/Qwen3-Coder-30B-A3B-Instruct \
-  --no-api-key \
-  --set-default
-```
-
-Useful flags:
-
-- `--api-key-env NAME`: reference an existing environment variable instead of storing a key.
-- `--api-key-stdin`: read and store a key without putting it in shell history.
-- `--context-window TOKENS`: persist the model context window for model selection and routing.
-- `--overwrite`: replace an existing profile of the same name.
-- `--model-catalog`: use the endpoint's `/models` response in addition to configured models.
-
-The generated profile can also be edited manually in `~/.jcode/config.toml`:
-
-```toml
-[provider]
-default_provider = "my-api"
-default_model = "my-model-id"
-
-[providers.my-api]
-type = "openai-compatible"
-base_url = "https://llm.example.com/v1"
-api_key_env = "JCODE_PROVIDER_MY_API_API_KEY"
-env_file = "provider-my-api.env"
-default_model = "my-model-id"
-
-[[providers.my-api.models]]
-id = "my-model-id"
-context_window = 128000
-```
-
-The custom OpenAI-compatible provider reads overrides from environment variables or from an env file in jcode's app config directory. On Linux this is usually `~/.config/jcode/`, so the default file is usually:
+# SAITEC-TUI
+
+SAITEC-TUI 是一个 AI 原生的终端集成工具，面向大模型评测与治理、AIGC 内容检测、任务编排和后续数据处理/数据评估场景。它把 SAITEC 平台账号、基座模型账号、评测工具、检测工具、文件产物和任务状态统一放进一个 TUI 工作台里，让用户可以用自然语言完成从登录、配置模型到执行检测/评测的完整流程。
+
+本项目不再是通用代码代理工具的 README。SAITEC-TUI 的产品定位是:
+
+- 为 SAITEC 平台用户提供统一的 AI 能力入口。
+- 让用户先登录 SAITEC 并获得平台 API Key，再登录或配置可用的基座模型。
+- 内置 AIGC 文本、图片、视频检测能力。
+- 内置大模型通用能力评测、安全评测和语料安全评测能力。
+- 逐步承载数据处理、数据质检、数据评估、评测报告和治理工作流。
+
+## 目录
+
+- [产品定位](#产品定位)
+- [核心能力](#核心能力)
+- [使用流程](#使用流程)
+- [安装与启动](#安装与启动)
+- [登录与账号](#登录与账号)
+- [内置评测与检测能力](#内置评测与检测能力)
+- [数据与产物](#数据与产物)
+- [常用命令](#常用命令)
+- [本地配置与安全](#本地配置与安全)
+- [开发与打包](#开发与打包)
+- [路线图](#路线图)
+- [故障排查](#故障排查)
+
+## 产品定位
+
+SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆多个 API、脚本和评测工具，只需要在终端中启动 TUI，完成两类登录，然后通过自然语言或内置命令使用平台能力。
+
+第一类登录是 SAITEC 登录。用户使用 SAITEC 账号登录后，系统会向 SAITEC Core 申请并保存一个业务 API Key。这个 API Key 用于访问平台侧的检测、评测、文件和任务接口。
+
+第二类登录是基座模型登录。模型评测、Agent 推理和部分治理流程需要调用大模型。SAITEC-TUI 当前面向产品场景收敛到一组受支持的基座模型供应商，避免用户在过宽的供应商列表里迷路。
+
+完成这两类登录后，用户可以在同一个 TUI 内执行:
+
+- 检测一段文本是否可能由 AI 生成。
+- 检测图片是否为 AI 生成、篡改或 DeepFake。
+- 检测视频是否为 AI 生成或 DeepFake。
+- 对大模型做通用能力评测。
+- 对大模型做安全评测和攻击测试。
+- 对文本语料做安全性评测。
+- 上传数据集、图片、视频，查询任务状态，下载检测或评测产物。
+
+## 核心能力
+
+| 能力域 | 当前支持 | 说明 |
+|---|---|---|
+| SAITEC 平台登录 | 支持 | 登录 SAITEC 后自动创建并保存业务 API Key |
+| 基座模型登录 | 支持 | 支持 OpenAI、Claude、Z.AI、Kimi、Alibaba Cloud Coding 等产品允许的模型入口 |
+| AIGC 文本检测 | 支持 | 单条文本和批量文本检测 |
+| AIGC 图片检测 | 支持 | AI 生成图片检测、篡改检测、可视化产物 |
+| AIGC 视频检测 | 支持 | 视频 AIGC/DeepFake 检测，适合异步长任务 |
+| 大模型安全评测 | 支持 | 评估模型在风险提示、攻击样本下的安全表现 |
+| 语料安全评测 | 支持 | 不调用被测模型，直接评估语料文本是否有风险 |
+| 通用能力评测 | 支持 | 使用 prompts 或 dataset 对模型能力做结构化评测 |
+| 文件与产物管理 | 支持 | 上传图片、视频、dataset，下载报告和任务产物 |
+| 数据处理与数据评估 | 规划中 | 未来纳入数据清洗、转换、质检、数据集评估和治理报告 |
+
+## 使用流程
+
+典型用户路径如下:
+
+1. 启动 SAITEC-TUI。
+2. 选择 SAITEC 登录，使用邮箱或手机号加密码完成平台登录。
+3. 登录成功后，SAITEC-TUI 自动向 SAITEC Core 创建业务 API Key，并写入本地安全存储。
+4. 选择基座模型登录，配置 OpenAI、Claude、Z.AI、Kimi 或 Alibaba Cloud Coding 等模型供应商。
+5. 使用 `/model` 选择实际运行模型。
+6. 用自然语言发起任务，例如检测文本、上传图片检测、评测模型安全性、用 JSONL 数据集跑通用评测。
+7. 对异步任务使用任务查询能力查看状态，必要时下载报告、结果 JSON、可视化文件或其他产物。
+
+一个最小上手流程:
 
 ```text
-~/.config/jcode/openai-compatible.env
+启动 SAITEC-TUI
+-> /login
+-> 选择 SAITEC
+-> 填写邮箱或手机号以及密码
+-> /login base-models
+-> 选择并登录一个基座模型
+-> /model
+-> 选择可用模型
+-> 输入你的检测或评测需求
 ```
 
-Example for a local or LAN vLLM server:
+## 安装与启动
 
-```bash
-JCODE_OPENAI_COMPAT_API_BASE=http://192.168.1.50:8000/v1
-JCODE_OPENAI_COMPAT_DEFAULT_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
-# Optional if your server expects auth
-OPENAI_COMPAT_API_KEY=your-token-here
-```
+### Windows 安装包
 
-Notes:
-
-- `jcode login --provider openai-compatible` can create or update this for you.
-- Plain `http://` is accepted for `localhost` and private LAN IPs. Public remote HTTP is still rejected.
-- HTTPS endpoints work as usual.
-
-#### MCP config files
-
-MCP config is separate from `config.toml`.
-
-Primary config files:
-
-- `~/.jcode/mcp.json` for global MCP servers
-- `.jcode/mcp.json` for project-local MCP servers
-
-Compatibility fallback:
-
-- `.claude/mcp.json`
-
-Example MCP config:
-
-```json
-{
-  "servers": {
-    "filesystem": {
-      "command": "/path/to/mcp-server",
-      "args": ["--root", "/workspace"],
-      "env": {},
-      "shared": true
-    }
-  }
-}
-```
-
-On first run, jcode also tries to import MCP servers from `~/.claude/mcp.json` and `~/.codex/config.toml` if `~/.jcode/mcp.json` does not exist yet.
-
-For headless or SSH sessions, OAuth-style providers support `jcode login --provider <provider> --no-browser` (alias: `--headless`) so jcode prints the auth URL/QR and falls back to manual code or callback paste instead of trying to launch a local browser.
-
-For more scriptable remote flows, `claude`, `openai`, `gemini`, and `antigravity` also support a two-step pattern:
-
-```bash
-# Step 1: print a resumable auth URL
-jcode login --provider openai --print-auth-url --json
-
-# Step 2: complete later with the callback URL or auth code
-jcode login --provider openai --callback-url 'http://localhost:1455/auth/callback?...'
-jcode login --provider gemini --auth-code '...'
-```
-
-Additional scriptable cases:
-
-```bash
-# Copilot device flow: print URL + user code, then complete later
-jcode login --provider copilot --print-auth-url --json
-jcode login --provider copilot --complete
-
-# Gmail/Google OAuth after credentials are already configured
-jcode login --provider google --print-auth-url --google-access-tier readonly
-jcode login --provider google --callback-url 'http://127.0.0.1:8456?...'
-```
-
-Pending scriptable login state is stored under `~/.jcode/pending-login/`, automatically expires, and stale entries are cleaned up when new scriptable logins start or resume.
-
-For the built-in OpenAI login flow, jcode opens a local callback on
-`http://localhost:1455/auth/callback` by default.
-
-<img width="2877" height="1762" alt="Screenshot from 2026-04-02 14-28-51" src="https://github.com/user-attachments/assets/530684c0-9d12-4363-aa0e-1b39a0d4e1be" />
-The above image is the first page of provider logins
-
-### Supported provider
-
-- **Native / first-party style providers:** `claude`, `openai`, `copilot`, `gemini`, `azure`, `alibaba-coding-plan`
-- **Aggregator / compatibility providers:** `openrouter`, `openai-compatible`
-- **Additional provider integrations:** `opencode`, `opencode-go`, `zai` / `kimi`, `302ai`, `baseten`, `cortecs`, `deepseek`, `firmware`, `huggingface`, `moonshotai`, `nebius`, `scaleway`, `stackit`, `groq`, `mistral`, `perplexity`, `togetherai`, `deepinfra`, `fireworks`, `minimax`, `xai`, `lmstudio`, `ollama`, `chutes`, `cerebras`, `cursor`, `antigravity`, `google`
-
-Jcode also supports easy multi-account switching. Ran out of tokens on your first ChatGPT Pro subscription? /account and quickly switch to your second. 
-
----
-
-## Customizability / Self-Dev
-
-Jcode is inventing a new form of customizability. One that doesn't limit you to what a plugin or extension can do. Tell your jcode agent to enter self dev mode, and it will start modifying its own source code. Jcode is optimized to iterate on itself. There is significant infrastructure around self developement, which allows it to edit, build, and test its own source code, then reload its own binary and continue work in your (potentially many) sessions, fully automatically. 
-
-It is reccomended that you use a frontier model for this. The jcode codebase is not a simple one, and weaker models can make subtle, breaking changes. GPT 5.5 or the latest available frontier model works well.
-
-<!-- Add self-dev demo thumbnail/video and fuller writeup here. -->
-
----
-
-## Misc.
-
-The devil is in the details. There are many undocumented optimizations and niceties that jcode implements. Some examples: 
-
-Anthropic's Claude cache goes cold after 5 minutes. If you initiate Claude after these 5 minutes, you have a cache miss, potentially costing you lots of tokens. The ui warns you when the cache went cold, and notfies you if there was an unexpected cache miss. 
-
-jcode comes with instructions on how to set up Firefox Agent Bridge. Ask you agent to set it up, and then you will have browser automation in jcode as well. 
-
-Agent grep is a grep tool I made for the jcode agent. It adds file strucuture information (ie the list of functions, their displacement, etc) to the grep return, so that the agent can infer more of what the file doesn without actually reading the file. It also implements a harness-level integration that adaptively truncates returns based on what the agent has already seen. This saves on context a lot. 
-
-Inputs are by default interleaved with the working agent. It sends the input as soon as it safely can without breaking the KV cache. Submit with shift enter instead, and it will send a queue send, and wait for the agent to fully finish its turn before sending.
-
-Resume sessions from different harnesses. Claude code broke on you? Resume the session from jcode and continue where you left off. Session resume is supported for codex, claude code, opencode, and pi. 
-
-<img width="2877" height="1762" alt="Screenshot from 2026-04-11 16-28-52" src="https://github.com/user-attachments/assets/c2b383cf-2531-4217-85ae-6a863354dc97" />
-image of /Resume for codex sessions
-
-
-Skills are not all loaded on startup. The conversation is embedded as a semantic vector, and will automatically inject a skill if there is an embedding hit similar to memories. The agent has a skill tool for you to manually activate a skill at anytime. You may also activate via slash commands. 
-
----
-
-## iOS Application / Native OpenClaw
-
-A native iOS application version of jcode is coming soon. This will allow you to work with jcode on your personal machine's environment from your phone, via Tailscale. Openclaw like features will be bundled with this iOS application. 
-
----
-
-## Other planned features
-
-Agents dont like to commit in dirty git state with active changes. Git was clearly not built for multi-agent workflows, and git worktrees is not a good solution. Given this, I believe that is an opporunity for a new git like primitive to be born. 
-
-Build speed improvements: An incremental debug cargo build with cache enabled takes about 1 minute on my machine. The goal is 5-20 seconds. Refactors and crates seams should be able to make this happen. 
-
-<!-- Add iOS / native OpenClaw preview and fuller writeup here. -->
-
----
-
-<div align="center">
-
-## Quick Start
-
-</div>
-
-```bash
-# Launch the TUI
-jcode
-
-# Run a single command non-interactively
-jcode run "say hello"
-
-# Resume a previous session by memorable name
-jcode --resume fox
-
-# Run as a persistent background server, then attach more clients
-jcode serve
-jcode connect
-
-# Send voice input from your configured STT command
-jcode dictate
-```
-
-jcode supports interactive TUI use, non-interactive runs, persistent server/client workflows,
-and hotkey-friendly dictation without requiring a bundled speech-to-text stack.
-
-<div align="center">
-
-  <a href="https://github.com/1jehuang/jcode/releases/download/readme-assets/workflow.mp4">
-    <img src="https://github.com/1jehuang/jcode/releases/download/readme-assets/jcode-workflow-demonstration.webp" alt="jcode workflow demonstration" width="900">
-  </a>
-
-  <p><em>jcode workflow demonstration</em></p>
-
-</div>
-
----
-
-## Browser Automation
-
-jcode includes a first-class built-in `browser` tool for browser control inside agent sessions.
-
-Current built-in backend:
-- Firefox via Firefox Agent Bridge
-
-Current built-in tool actions include:
-- `status`
-- `setup`
-- `open`
-- `snapshot`
-- `get_content`
-- `interactables`
-- `click`
-- `type`
-- `fill_form`
-- `select`
-- `wait`
-- `screenshot`
-- `eval`
-- `scroll`
-- `upload`
-- `press`
-
-Quick setup:
-
-```bash
-jcode browser status
-jcode browser setup
-```
-
-Once setup is complete, the model can use the built-in `browser` tool directly. The UI also summarizes browser tool calls compactly, for example opening a URL, clicking a selector, or typing into a field without echoing sensitive typed text.
-
-Notes:
-- the provider/tool architecture is in place for additional backends
-- Firefox is the wired built-in backend today
-- Chrome bridge / remote debugging style providers can be added on top of the same browser tool later
-
----
-
-## Further Reading
-
-- [Ambient Mode / OpenClaw](docs/AMBIENT_MODE.md)
-- [Browser Provider Protocol](docs/BROWSER_PROVIDER_PROTOCOL.md)
-- [Memory Architecture](docs/MEMORY_ARCHITECTURE.md)
-- [Swarm Architecture](docs/SWARM_ARCHITECTURE.md)
-- [Server Architecture](docs/SERVER_ARCHITECTURE.md)
-- [iOS Client Notes](docs/IOS_CLIENT.md)
-- [Safety System](docs/SAFETY_SYSTEM.md)
-- [Windows Notes](docs/WINDOWS.md)
-- [Wrappers and Shell Integration](docs/WRAPPERS.md)
-- [Refactoring Notes](docs/REFACTORING.md)
-
----
-
-## Detailed Installation
-
-### Setup
-
-If you want another agent to set up jcode for you, give it this prompt:
-
-```text
-Set up jcode on this machine for me.
-
-1. Detect the operating system, available package managers, and shell environment, then install jcode using the best matching command below instead of referring me somewhere else:
-
-   - macOS with Homebrew available:
-     brew tap 1jehuang/jcode
-     brew install jcode
-
-   - macOS or Linux via install script:
-     curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash
-
-   - Windows PowerShell:
-     irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 | iex
-
-   - From source if the above paths are not appropriate:
-     git clone https://github.com/1jehuang/jcode.git
-     cd jcode
-     cargo build --release
-     scripts/install_release.sh
-
-   - For local self-dev / refactor work on Linux x86_64, prefer:
-     scripts/dev_cargo.sh build --release -p jcode --bin jcode
-     scripts/dev_cargo.sh --print-setup
-     scripts/install_release.sh
-
-2. Verify that `jcode` is on my `PATH`.
-3. Launch `jcode` once in a new terminal window/session to confirm it starts successfully.
-4. Before attempting any interactive login flow, assess which providers are already available non-interactively and prefer those first. Check existing local credentials, config files, CLI sessions, and environment variables such as:
-   - Claude: `~/.jcode/auth.json`, `~/.claude/.credentials.json`, `~/.local/share/opencode/auth.json`, `ANTHROPIC_API_KEY`
-   - OpenAI: `~/.jcode/openai-auth.json`, `~/.codex/auth.json`, `OPENAI_API_KEY`
-   - Gemini: `~/.jcode/gemini_oauth.json`, `~/.gemini/oauth_creds.json`
-   - GitHub Copilot: existing auth under `~/.config/github-copilot/`
-   - Azure OpenAI: `~/.config/jcode/azure-openai.env`, `AZURE_OPENAI_*`, or an existing `az login`
-   - OpenRouter: `OPENROUTER_API_KEY`
-   - Fireworks: `~/.config/jcode/fireworks.env`, `FIREWORKS_API_KEY`
-   - MiniMax: `~/.config/jcode/minimax.env`, `MINIMAX_API_KEY`
-   - Alibaba Cloud Coding Plan: existing jcode config/env if present
-5. Prefer whichever provider is already configured and verify it with `jcode auth-test --all-configured` or a provider-specific auth test when appropriate.
-6. Only if no usable provider is already configured, guide me through the minimal manual step needed:
-   - Claude: `jcode login --provider claude`
-   - GitHub Copilot: `jcode login --provider copilot`
-   - OpenAI: `jcode login --provider openai`
-   - Gemini: `jcode login --provider gemini`
-   - Azure OpenAI: `jcode login --provider azure`
-   - Fireworks: `jcode login --provider fireworks`
-   - MiniMax: `jcode login --provider minimax`
-   - Alibaba Cloud Coding Plan: `jcode login --provider alibaba-coding-plan`
-   - OpenRouter: help me set `OPENROUTER_API_KEY`
-   - Anthropic direct API: help me set `ANTHROPIC_API_KEY`
-7. After setup, run a simple smoke test with `jcode run "say hello"` and confirm it works.
-8. If I want browser automation, also check `jcode browser status`. If browser automation is not ready, run `jcode browser setup`, verify the built-in `browser` tool works, and explain any remaining manual step.
-9. Explain any manual step that still needs me, especially browser OAuth, device login, API key entry, or browser extension approval.
-```
-
-This is intended to be a copy-paste bootstrap prompt for jcode itself or any other coding agent.
-
-### Quick Install
-
-```bash
-# macOS & Linux
-curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash
-```
+如果你已经拿到 `dist/saitec-tui` 目录，可以在 PowerShell 中执行:
 
 ```powershell
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 | iex
+.\dist\saitec-tui\install.ps1
 ```
 
-### macOS via Homebrew
+安装脚本会把 `saitec-tui.exe` 安装到用户目录下，并把启动目录加入用户 `PATH`。安装完成后打开新的终端窗口:
 
-```bash
-brew tap 1jehuang/jcode
-brew install jcode
+```powershell
+saitec-tui
 ```
 
-### From Source (all platforms)
+### 从源码启动开发版本
 
-```bash
-git clone https://github.com/1jehuang/jcode.git
-cd jcode
+开发机需要准备:
+
+- Rust 工具链。
+- PowerShell。
+- Python 3，用于本地 SAITEC-Skills MCP 运行环境。
+- 能访问 SAITEC Core API 的网络环境。
+
+在仓库根目录运行:
+
+```powershell
+.\scripts\dev_saitec_tui.ps1
+```
+
+这个脚本会:
+
+- 准备 SAITEC-Skills 所需 Python 环境。
+- 构建开发版本。
+- 将运行时复制到 `dist\dev-saitec-tui`。
+- 启动一个隔离的开发运行时。
+
+如只想停止当前记录的开发运行时:
+
+```powershell
+.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild
+```
+
+### 从源码打包
+
+先构建 release 产物:
+
+```powershell
 cargo build --release
 ```
 
-For local self-dev / refactor work on Linux x86_64, prefer:
+然后生成 SAITEC-TUI 分发目录:
 
-```bash
-scripts/dev_cargo.sh build --release -p jcode --bin jcode
-scripts/dev_cargo.sh --print-setup
+```powershell
+.\scripts\package_saitec.ps1
 ```
 
-That wrapper automatically uses `sccache` when available, prefers a fast
-working local linker setup (`clang + lld`) instead of assuming every machine's
-`mold` configuration is valid, and can print the active linker/cache setup via
-`--print-setup` so slow-path builds are easier to diagnose.
+打包结果位于:
 
-Then symlink to your PATH:
-
-```bash
-scripts/install_release.sh
+```text
+dist\saitec-tui\
 ```
 
-### Platform Support
+其中包含:
 
-| Platform | Status |
+- `saitec-tui.exe`: 产品可执行文件。
+- `install.ps1`: 自包含安装脚本。
+- `SAITEC_logo.png`: 产品 Logo 资源，如果仓库中存在该文件。
+
+如果本机资源不足导致构建被终止，可以使用仓库内的远程构建脚本:
+
+```bash
+scripts/remote_build.sh
+```
+
+## 登录与账号
+
+SAITEC-TUI 的登录分为两层。
+
+### 1. SAITEC 平台登录
+
+SAITEC 登录用于访问平台侧的检测、评测、任务和文件能力。用户可以在 TUI 内执行:
+
+```text
+/login
+```
+
+然后选择 SAITEC 登录。登录表单支持:
+
+- 邮箱 + 密码。
+- 手机号 + 密码。
+
+邮箱和手机号至少填写一个。登录成功后，SAITEC-TUI 会:
+
+- 调用 SAITEC Core 登录接口获取用户身份令牌。
+- 使用身份令牌创建一个业务 API Key。
+- 将业务 API Key 和必要的用户元数据保存到本地。
+- 将 API Key 注入 SAITEC-Skills 运行环境，供内置能力调用。
+
+默认 SAITEC Core 地址可通过环境变量覆盖:
+
+```powershell
+$env:SAITEC_AUTH_BASE = "https://your-saitec-auth.example.com"
+$env:CORE_API_BASE = "https://your-saitec-core.example.com"
+```
+
+也可以直接提供平台 API Key:
+
+```powershell
+$env:SAITEC_API_KEY = "your-saitec-api-key"
+```
+
+### 2. 基座模型登录
+
+基座模型用于承载推理、评测、Judge 和 Agent 工作流。用户可以在 TUI 内执行:
+
+```text
+/login base-models
+```
+
+当前产品模式支持的基座模型入口:
+
+| Provider | 用途 |
 |---|---|
-| **Linux** x86_64 / aarch64 | Fully supported |
-| **macOS** Apple Silicon & Intel | Supported |
-| **Windows** x86_64 | Supported (native + WSL2) |
+| OpenAI | 通用推理、评测、Judge、Agent 任务 |
+| Claude | 通用推理、长上下文分析、评测辅助 |
+| Z.AI | 国产模型入口与兼容模型调用 |
+| Kimi | Kimi Code 等模型入口 |
+| Alibaba Cloud Coding | 阿里云 Coding 计划模型入口 |
 
-</div>
+登录或配置完成后，使用:
+
+```text
+/model
+```
+
+选择具体模型。模型列表会结合已登录供应商、已验证模型和缓存模型目录展示。
+
+## 内置评测与检测能力
+
+SAITEC-TUI 内置的 SAITEC-Skills MCP 服务负责把用户意图转换为平台任务。用户通常不需要直接记忆工具名，只需要描述任务目标。Agent 会根据任务类型选择正确的检测或评测流程。
+
+### AIGC 文本检测
+
+适用于:
+
+- 判断一段文章、评论、摘要是否疑似 AI 生成。
+- 批量检测多段文本的 AIGC 概率。
+- 生成结构化检测结果并关联任务记录。
+
+示例:
+
+```text
+帮我检测这段文字是否 AI 生成，并给出置信度。
+```
+
+```text
+批量检测下面 20 条评论是否是 AIGC 内容。
+```
+
+### AIGC 图片检测
+
+适用于:
+
+- 检测图片是否 AI 生成。
+- 检测图片是否存在篡改、合成或修图痕迹。
+- 生成检测框、可视化结果和报告产物。
+
+本地图片需要先上传到平台文件服务，获得可供任务使用的 `storage_uri` 后再执行检测。SAITEC-TUI 会在工作流里处理这个步骤。
+
+示例:
+
+```text
+帮我检测 C:\data\images\sample.jpg 是否为 AI 生成图片。
+```
+
+```text
+检测这张图有没有被篡改，并下载检测报告。
+```
+
+### AIGC 视频检测
+
+适用于:
+
+- 检测视频是否由 AI 生成。
+- 检测 DeepFake 或合成视频风险。
+- 对视频文件执行异步分析并查询任务结果。
+
+视频检测通常耗时更长，用户可以先提交任务，再查询状态和下载产物。
+
+示例:
+
+```text
+帮我检测这个视频是不是 DeepFake: D:\videos\demo.mp4。
+```
+
+### 大模型安全评测
+
+适用于:
+
+- 评估模型是否会在攻击提示下输出有害内容。
+- 测试模型安全边界和拒答能力。
+- 使用被测模型与 Judge 模型形成自动评测闭环。
+
+当评测需要调用第三方模型时，需要先配置对应模型的 API Key。SAITEC-TUI 会根据用户选择的模型和 Judge 模型提示所需凭证。
+
+示例:
+
+```text
+用这些攻击样本评测 deepseek-chat 的安全性，并生成报告。
+```
+
+### 语料安全评测
+
+适用于:
+
+- 直接评估已有文本语料是否包含有害、违法、歧视、暴力等风险。
+- 批量扫描 JSON 或 JSONL 数据集。
+- 在不调用被测模型的情况下做内容治理。
+
+示例:
+
+```text
+帮我评测 data/corpus.jsonl 里的文本安全性。
+```
+
+### 通用 LLM 能力评测
+
+适用于:
+
+- 使用 prompts 直接评估模型回答能力。
+- 使用 dataset 对模型做批量评测。
+- 按字段、任务类别或关键词汇总结果。
+- 生成 Markdown 报告和结构化结果。
+
+示例:
+
+```text
+用这个 cases.jsonl 评测 Kimi 的通用问答能力，并按 field 汇总得分。
+```
+
+## 数据与产物
+
+SAITEC-TUI 的检测与评测任务通常会产生结构化结果和文件产物。
+
+### 支持的输入
+
+| 输入类型 | 说明 |
+|---|---|
+| 纯文本 | 可直接用于文本 AIGC 检测、语料安全评测、prompt 评测 |
+| 图片文件 | 需要上传，支持图片 AIGC 检测和篡改检测 |
+| 视频文件 | 需要上传，支持视频 AIGC/DeepFake 检测 |
+| JSON/JSONL 数据集 | 需要上传，支持通用能力评测、模型安全评测和语料安全评测 |
+
+### 产物类型
+
+常见产物包括:
+
+- 结构化结果 JSON。
+- Markdown 评测报告。
+- 图片或视频检测可视化文件。
+- 任务 trace 和运行元数据。
+- 数据集解析结果和样本级评分。
+
+涉及本地文件时，推荐工作流是:
+
+```text
+确认本地文件路径
+-> 上传文件
+-> 获得 storage_uri
+-> 创建检测或评测任务
+-> 查询任务状态
+-> 下载报告或结果产物
+```
+
+## 常用命令
+
+| 命令 | 说明 |
+|---|---|
+| `/login` | 打开登录选择器，可选择 SAITEC 登录或基座模型配置 |
+| `/login base-models` | 打开基座模型登录/配置选择器 |
+| `/logout` | 清除 SAITEC 登录状态并回到登录流程 |
+| `/auth` | 查看 SAITEC 与基座模型认证状态 |
+| `/model` | 打开模型选择器 |
+| `/models` | `/model` 的别名 |
+| `/refresh-model-list` | 刷新模型目录和可用路由 |
+| `/clear` | 清空当前对话显示 |
+| `/resume` | 恢复历史会话 |
+| `/sessions` | 打开会话列表 |
+| `/usage` | 查看用量信息 |
+| `/version` | 查看版本信息 |
+| `/help` | 查看帮助 |
+| `/quit` | 退出 SAITEC-TUI |
+
+## 本地配置与安全
+
+### 本地目录
+
+SAITEC-TUI 默认使用用户主目录下的专用目录:
+
+```text
+~/.saitec_tui/
+```
+
+常见文件:
+
+| 路径 | 说明 |
+|---|---|
+| `~/.saitec_tui/auth.json` | SAITEC 平台登录信息、业务 API Key 和用户元数据 |
+| `~/.saitec_tui/saitec.env` | SAITEC API Key 的环境变量桥接文件 |
+| `~/.saitec_tui/mcp.json` | SAITEC-Skills MCP 服务器配置 |
+| `~/.saitec_tui/config.toml` | 产品配置 |
+| `~/.saitec_tui/logs/` | 运行日志 |
+| `~/.saitec_tui/sessions/` | 会话记录 |
+
+### 环境变量
+
+| 变量 | 说明 |
+|---|---|
+| `SAITEC_API_KEY` | 平台 API Key，可用于非交互或外部注入 |
+| `SAITEC_API_BASE` | SAITEC API 地址兼容变量 |
+| `SAITEC_AUTH_BASE` | SAITEC 登录页或登录服务地址 |
+| `CORE_API_BASE` | SAITEC Core API 地址，内置能力会访问该地址 |
+| `SAITEC_TUI_PYTHON` | 指定 SAITEC-Skills MCP 使用的 Python 可执行文件 |
+| `SAITEC_SKILLS_ROOT` | 指定 SAITEC-Skills 资源目录 |
+| `SAITEC_TUI_HOME` | 运行时注入给 SAITEC-Skills 的本地产品目录 |
+
+### 安全策略
+
+- SAITEC API Key 只写入本地安全存储和运行时环境，不应出现在对话正文里。
+- 本地凭证文件会尽量使用仅当前用户可读写的权限。
+- SAITEC-Skills 请求通过 SAITEC Core 代理 API，携带平台 API Key 进行鉴权。
+- 检测与评测任务由平台侧负责用户归属、任务归属和数据库事务管理。
+- 对于图片、视频和 dataset，本地文件会先上传到平台文件服务，再通过平台侧 URI 创建任务。
+
+## 开发与打包
+
+### 快速检查
+
+文档或小改动后可先运行:
+
+```powershell
+cargo check
+```
+
+涉及发布、运行时或产品行为变更时，完成后应构建源码:
+
+```powershell
+cargo build
+```
+
+如果构建耗时过长或被系统终止，优先检查本机资源，必要时使用:
+
+```bash
+scripts/remote_build.sh
+```
+
+### 开发运行
+
+```powershell
+.\scripts\dev_saitec_tui.ps1
+```
+
+常用参数:
+
+```powershell
+.\scripts\dev_saitec_tui.ps1 -Profile selfdev
+.\scripts\dev_saitec_tui.ps1 -Profile release
+.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild
+```
+
+### Windows 打包
+
+```powershell
+cargo build --release
+.\scripts\package_saitec.ps1
+```
+
+生成目录:
+
+```text
+dist\saitec-tui\
+```
+
+安装:
+
+```powershell
+.\dist\saitec-tui\install.ps1
+```
+
+## 路线图
+
+SAITEC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计划包括:
+
+- 数据集上传后的结构化预览、字段识别和格式校验。
+- JSON/JSONL/CSV 等常见数据格式的清洗、抽样、切分和转换。
+- 数据质量评估，包括重复率、缺失值、异常样本、标签一致性和分布偏移。
+- 数据安全与合规扫描，包括敏感信息、风险内容和版权风险提示。
+- 数据集版本管理和评测结果对比。
+- 模型评测、语料评测、AIGC 检测结果的统一报告面板。
+- 面向治理场景的审计记录、任务追踪和可导出报告。
+
+## 故障排查
+
+### 启动后要求登录
+
+这是预期行为。SAITEC-TUI 在没有有效 SAITEC 登录状态时会阻止普通任务执行。运行:
+
+```text
+/login
+```
+
+完成 SAITEC 登录后再继续。
+
+### SAITEC 登录失败
+
+检查:
+
+- 邮箱或手机号至少填写一个。
+- 密码不为空。
+- `CORE_API_BASE` 或 `SAITEC_AUTH_BASE` 是否指向正确服务。
+- 网络是否能访问 SAITEC Core。
+- 账号是否有创建 API Key 的权限。
+
+### 基座模型不可用
+
+运行:
+
+```text
+/auth
+/login base-models
+/refresh-model-list
+/model
+```
+
+确认供应商已登录、API Key 有效、模型目录已刷新，并选择一个可用模型。
+
+### SAITEC-Skills 未加载
+
+检查:
+
+- 仓库或安装包中是否包含 `SAITEC-Skills` 资源。
+- `~/.saitec_tui/mcp.json` 是否存在并包含 `SAITEC-Skills`。
+- Python 是否可用。
+- `SAITEC_TUI_PYTHON` 是否指向正确 Python。
+- `SAITEC_SKILLS_ROOT` 是否指向正确资源目录。
+
+开发环境可重新运行:
+
+```powershell
+.\scripts\dev_saitec_tui.ps1
+```
+
+### 文件检测任务失败
+
+检查:
+
+- 文件路径是否为绝对路径。
+- 文件是否存在且当前用户可读。
+- 图片、视频或 dataset 是否先完成上传。
+- dataset 是否为任务支持的 JSON 或 JSONL 格式。
+- 任务参数中是否使用上传后返回的 `storage_uri`。
+
+### 构建失败或被终止
+
+先检查 CPU、内存、磁盘空间和杀毒软件占用。若本机资源不足，使用远程构建:
+
+```bash
+scripts/remote_build.sh
+```
+
+## 贡献说明
+
+提交代码或文档时，请保持变更聚焦。完成一项功能或修复后及时提交，任务结束时推送到远端。涉及源码行为变化时，优先使用 `cargo check`、目标测试和开发构建快速迭代，收尾时执行完整构建。
