@@ -1,6 +1,59 @@
 use super::*;
 
 impl App {
+    pub(in crate::tui::app) fn inline_picker_debug_json(&self) -> serde_json::Value {
+        let Some(picker) = self.inline_interactive_state.as_ref() else {
+            return serde_json::Value::Null;
+        };
+
+        let entries: Vec<serde_json::Value> = picker
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let options: Vec<serde_json::Value> = entry
+                    .options
+                    .iter()
+                    .enumerate()
+                    .map(|(option_index, option)| {
+                        serde_json::json!({
+                            "index": option_index,
+                            "provider": option.provider,
+                            "api_method": option.api_method,
+                            "available": option.available,
+                            "detail": option.detail,
+                            "estimated_reference_cost_micros": option.estimated_reference_cost_micros,
+                        })
+                    })
+                    .collect();
+
+                serde_json::json!({
+                    "index": index,
+                    "name": entry.name,
+                    "selected_option": entry.selected_option,
+                    "is_current": entry.is_current,
+                    "is_default": entry.is_default,
+                    "recommended": entry.recommended,
+                    "recommendation_rank": entry.recommendation_rank,
+                    "old": entry.old,
+                    "created_date": entry.created_date,
+                    "effort": entry.effort,
+                    "options": options,
+                })
+            })
+            .collect();
+
+        serde_json::json!({
+            "kind": format!("{:?}", picker.kind),
+            "preview": picker.preview,
+            "filter": picker.filter,
+            "selected": picker.selected,
+            "column": picker.column,
+            "filtered": picker.filtered,
+            "entries": entries,
+        })
+    }
+
     pub(in crate::tui::app) fn build_debug_snapshot(&self) -> DebugSnapshot {
         let frame = crate::tui::visual_debug::latest_frame();
         let recent_messages = self
@@ -56,6 +109,7 @@ impl App {
                 "diagram_zoom": self.diagram_zoom,
                 "version": env!("JCODE_VERSION"),
             }),
+            picker: self.inline_picker_debug_json(),
             frame,
             recent_messages,
             queued_messages: self.queued_messages.clone(),

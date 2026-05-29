@@ -643,6 +643,50 @@ fn test_debug_command_message_respects_queue_mode() {
 }
 
 #[test]
+fn test_debug_command_picker_returns_inline_picker_options() {
+    let mut app = create_test_app();
+    app.open_model_picker();
+
+    let result = app.handle_debug_command("picker");
+    let value: serde_json::Value =
+        serde_json::from_str(&result).expect("picker debug command should return JSON");
+
+    assert_eq!(value["kind"].as_str(), Some("Model"));
+    assert_eq!(value["preview"].as_bool(), Some(false));
+    let entries = value["entries"]
+        .as_array()
+        .expect("picker entries should be an array");
+    assert!(!entries.is_empty(), "picker should expose entries: {result}");
+    assert!(
+        entries.iter().any(|entry| {
+            entry["options"]
+                .as_array()
+                .is_some_and(|options| options.iter().any(|option| option.get("provider").is_some()))
+        }),
+        "picker should expose option provider metadata: {result}"
+    );
+
+    let snapshot_result = app.handle_debug_command("snapshot");
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&snapshot_result).expect("snapshot debug command should return JSON");
+    assert_eq!(snapshot["picker"]["kind"].as_str(), Some("Model"));
+}
+
+#[test]
+fn test_debug_command_submit_text_opens_model_picker() {
+    let mut app = create_test_app();
+
+    let result = app.handle_debug_command("submit:/model");
+
+    assert_eq!(result, "OK: submitted /model");
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("submit:/model should open the inline model picker");
+    assert_eq!(picker.kind, crate::tui::PickerKind::Model);
+}
+
+#[test]
 fn test_debug_command_side_panel_latency_bench_reports_immediate_redraw() {
     let mut app = create_test_app();
     let result = app.handle_debug_command(

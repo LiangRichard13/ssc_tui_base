@@ -134,6 +134,9 @@ impl App {
         } else if cmd == "snapshot" {
             let snapshot = self.build_debug_snapshot();
             serde_json::to_string_pretty(&snapshot).unwrap_or_else(|_| "{}".to_string())
+        } else if cmd == "picker" {
+            serde_json::to_string_pretty(&self.inline_picker_debug_json())
+                .unwrap_or_else(|_| "null".to_string())
         } else if cmd.starts_with("wait:") {
             let raw = cmd.strip_prefix("wait:").unwrap_or("0");
             if let Ok(ms) = raw.parse::<u64>() {
@@ -439,6 +442,18 @@ impl App {
             self.debug_trace
                 .record("input", format!("set:{}", self.input));
             format!("OK: input set to {:?}", self.input)
+        } else if cmd.starts_with("submit:") {
+            let new_input = cmd.strip_prefix("submit:").unwrap_or("");
+            if new_input.trim().is_empty() {
+                "submit error: input is empty".to_string()
+            } else {
+                self.input = new_input.to_string();
+                self.cursor_pos = self.input.len();
+                self.submit_input();
+                self.debug_trace
+                    .record("input", format!("submitted:{}", new_input));
+                format!("OK: submitted {}", new_input.trim())
+            }
         } else if cmd == "submit" {
             if self.input.is_empty() {
                 "submit error: input is empty".to_string()
@@ -525,6 +540,7 @@ impl App {
                  - reload - trigger /reload\n\
                  - state - get basic state info\n\
                  - snapshot - get combined state + frame snapshot JSON\n\
+                 - picker - get current inline picker entries/options as JSON\n\
                  - assert:<json> - run assertions (see docs)\n\
                  - run:<json> - run scripted steps + assertions\n\
                  - trace-start - start recording trace events\n\
@@ -568,6 +584,7 @@ impl App {
                  - keys:<keyspec> - inject key events (e.g. keys:ctrl+r)\n\
                  - input - get current input buffer\n\
                  - set_input:<text> - set input buffer\n\
+                 - submit:<text> - set input and submit it\n\
                  - submit - submit current input\n\
                  - record-start - start event recording\n\
                  - record-stop - stop event recording\n\

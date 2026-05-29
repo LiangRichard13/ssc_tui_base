@@ -177,10 +177,12 @@ async fn execute_tester_subcommand(
         "history" => "history".to_string(),
         "wait" => "wait".to_string(),
         "input" => "input".to_string(),
+        "picker" => "picker".to_string(),
         "message" => format!("message:{}", arg.unwrap_or("")),
         "inject" => format!("inject:{}", arg.unwrap_or("")),
         "keys" => format!("keys:{}", arg.unwrap_or("")),
         "set_input" => format!("set_input:{}", arg.unwrap_or("")),
+        "submit" => format!("submit:{}", arg.unwrap_or("")),
         "scroll" => format!("scroll:{}", arg.unwrap_or("down")),
         "scroll-test" => match arg {
             Some(raw) => format!("scroll-test:{}", raw),

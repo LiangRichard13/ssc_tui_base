@@ -78,6 +78,7 @@ fn summarize_mermaid_ui_bench(
 #[derive(Debug, Clone, Serialize)]
 pub(super) struct DebugSnapshot {
     state: serde_json::Value,
+    picker: serde_json::Value,
     frame: Option<crate::tui::visual_debug::FrameCapture>,
     recent_messages: Vec<DebugMessage>,
     queued_messages: Vec<String>,

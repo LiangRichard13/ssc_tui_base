@@ -134,8 +134,10 @@ CLIENT COMMANDS (client: prefix):
   client:flicker-frames [n] - Recent frame-stability / flicker records
   client:slow-frames [n]  - Recent slow-frame records
   client:overlay:on/off    - Toggle overlay boxes
+  client:picker            - Get current inline picker entries/options as JSON
   client:input             - Get current input buffer
   client:set_input:<text>  - Set input buffer
+  client:submit:<text>     - Set input and submit it
   client:keys:<keyspec>    - Inject key events
   client:message:<text>    - Inject and submit message
   client:inject:<role>:<t> - Inject display message (no send)
