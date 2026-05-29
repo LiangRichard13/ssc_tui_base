@@ -215,12 +215,13 @@ impl App {
     }
 
     pub(super) fn use_saitec_logged_out_model_catalog(&self) -> bool {
-        if self.is_remote {
-            return false;
-        }
-
+        let provider_name = if self.is_remote {
+            self.remote_provider_name.as_deref().unwrap_or_default()
+        } else {
+            self.provider.name()
+        };
         let can_leak_static_catalog = matches!(
-            self.provider.name().trim().to_ascii_lowercase().as_str(),
+            provider_name.trim().to_ascii_lowercase().as_str(),
             "openai"
                 | "claude"
                 | "anthropic"
@@ -233,8 +234,12 @@ impl App {
                 | "bedrock"
                 | "aws bedrock"
         );
+        let remote_has_catalog =
+            !self.remote_model_options.is_empty() || !self.remote_available_entries.is_empty();
 
-        can_leak_static_catalog && crate::saitec::auth::ensure_logged_in().is_err()
+        can_leak_static_catalog
+            && (!self.is_remote || remote_has_catalog)
+            && crate::saitec::auth::ensure_logged_in().is_err()
     }
 
     fn saitec_logged_out_model_routes_for_picker() -> Vec<crate::provider::ModelRoute> {
