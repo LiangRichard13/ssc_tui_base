@@ -197,9 +197,15 @@ fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
             .expect("model picker should be open");
         let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
 
-        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
-        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(names.contains(&"DeepSeek V4 Pro"));
+        assert!(names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"gpt-5.4"));
+        assert!(
+            names
+                .iter()
+                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
+            "logged-out /model leaked OpenRouter model names after logout: {names:?}"
+        );
         assert!(
             names
                 .iter()
@@ -215,6 +221,23 @@ fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
             "logged-out /model should not expose selectable provider routes: {:?}",
             picker.entries
         );
+    });
+}
+
+#[test]
+fn test_subscription_model_provider_suggestions_hide_openrouter_pins() {
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::apply_runtime_env();
+        let (app, _set_model_calls) = create_openrouter_spec_capture_test_app();
+
+        let suggestions = app.get_suggestions_for("/model DeepSeek V4 Pro@");
+
+        assert!(
+            suggestions.is_empty(),
+            "subscription /model suggestions exposed OpenRouter pins: {suggestions:?}"
+        );
+
+        crate::subscription_catalog::clear_runtime_env();
     });
 }
 
@@ -284,11 +307,17 @@ fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout()
             .expect("model picker should be open");
         let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
 
-        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
-        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(names.contains(&"DeepSeek V4 Pro"));
+        assert!(names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"openai/gpt-5.4"));
         assert!(!names.contains(&"anthropic/claude-sonnet-4"));
         assert!(!names.contains(&"kimi-for-coding"));
+        assert!(
+            names
+                .iter()
+                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
+            "remote logged-out /model leaked OpenRouter model names: {names:?}"
+        );
         assert!(
             names
                 .iter()
@@ -364,11 +393,17 @@ fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_l
             .expect("model picker should be open");
         let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
 
-        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
-        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(names.contains(&"DeepSeek V4 Pro"));
+        assert!(names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"openai/gpt-5.4"));
         assert!(!names.contains(&"anthropic/claude-sonnet-4"));
         assert!(!names.contains(&"kimi-for-coding"));
+        assert!(
+            names
+                .iter()
+                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
+            "remote logged-out /model leaked OpenRouter model names: {names:?}"
+        );
         assert!(
             names
                 .iter()
@@ -404,10 +439,16 @@ fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
         let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
 
         assert!(!picker.preview);
-        assert!(names.contains(&"deepseek/deepseek-v4-pro"));
-        assert!(names.contains(&"moonshotai/kimi-k2.5"));
+        assert!(names.contains(&"DeepSeek V4 Pro"));
+        assert!(names.contains(&"Kimi K2.5"));
         assert!(!names.contains(&"gpt-5.4"));
         assert!(!names.contains(&"claude-opus-4-7"));
+        assert!(
+            names
+                .iter()
+                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
+            "logged-out /model preview leaked OpenRouter model names: {names:?}"
+        );
         assert!(
             names
                 .iter()

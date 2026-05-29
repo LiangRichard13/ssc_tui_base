@@ -1,5 +1,7 @@
 use super::*;
-use crate::provider::models::{ensure_model_allowed_for_subscription, filtered_display_models};
+use crate::provider::models::{
+    ensure_model_allowed_for_subscription, filtered_display_models, filtered_model_routes,
+};
 
 fn with_clean_provider_test_env<T>(f: impl FnOnce() -> T) -> T {
     let _guard = crate::storage::lock_test_env();

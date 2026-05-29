@@ -180,11 +180,17 @@ fn test_remote_logged_out_model_suggestions_filter_openrouter_catalog_after_logo
         let suggestions = app.get_suggestions_for("/model ");
         let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();
 
-        assert!(commands.contains(&"/model deepseek/deepseek-v4-pro"));
-        assert!(commands.contains(&"/model moonshotai/kimi-k2.5"));
+        assert!(commands.contains(&"/model DeepSeek V4 Pro"));
+        assert!(commands.contains(&"/model Kimi K2.5"));
         assert!(!commands.contains(&"/model openai/gpt-5.4"));
         assert!(!commands.contains(&"/model anthropic/claude-sonnet-4"));
         assert!(!commands.contains(&"/model kimi-for-coding"));
+        assert!(
+            commands
+                .iter()
+                .all(|cmd| !cmd.to_ascii_lowercase().contains("openrouter")),
+            "remote logged-out /model suggestions leaked OpenRouter names: {commands:?}"
+        );
         assert!(
             commands.iter().all(|cmd| cmd
                 .strip_prefix("/model ")

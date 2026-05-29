@@ -318,7 +318,7 @@ impl App {
 
         if self.use_saitec_logged_out_model_catalog() {
             for model in crate::subscription_catalog::curated_models() {
-                push_unique(&mut seen, &mut models, model.id.to_string());
+                push_unique(&mut seen, &mut models, model.display_name.to_string());
             }
         } else if self.is_remote {
             if let Some(current) = self.remote_provider_model.clone() {
@@ -364,6 +364,9 @@ impl App {
             return Vec::new();
         }
         if self.use_saitec_logged_out_model_catalog() {
+            return Vec::new();
+        }
+        if crate::subscription_catalog::is_runtime_mode_enabled() {
             return Vec::new();
         }
         let Some(openrouter_model) = crate::provider::openrouter_catalog_model_id(model) else {

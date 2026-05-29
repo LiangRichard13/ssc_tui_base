@@ -236,11 +236,43 @@ fn test_filtered_display_models_respects_curated_subscription_catalog() {
 
     assert_eq!(
         filtered,
-        vec![
-            "moonshotai/kimi-k2.5".to_string(),
-            "openrouter/healer-alpha".to_string()
-        ]
+        vec!["Kimi K2.5".to_string(), "Healer Alpha".to_string()]
     );
+
+    crate::subscription_catalog::clear_runtime_env();
+}
+
+#[test]
+fn test_filtered_model_routes_hide_internal_openrouter_provider_in_subscription_mode() {
+    let _guard = crate::storage::lock_test_env();
+    crate::subscription_catalog::clear_runtime_env();
+    crate::subscription_catalog::apply_runtime_env();
+
+    let filtered = filtered_model_routes(vec![
+        ModelRoute {
+            model: "deepseek/deepseek-v4-pro".to_string(),
+            provider: "auto".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: "internal OpenRouter route".to_string(),
+            cheapness: None,
+        },
+        ModelRoute {
+            model: "gpt-5.4".to_string(),
+            provider: "OpenAI".to_string(),
+            api_method: "openai-oauth".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+        },
+    ]);
+
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].model, "DeepSeek V4 Pro");
+    assert_eq!(filtered[0].provider, "Saitec Subscription");
+    assert_eq!(filtered[0].api_method, "saitec");
+    assert!(!filtered[0].model.to_ascii_lowercase().contains("openrouter"));
+    assert!(!filtered[0].detail.to_ascii_lowercase().contains("openrouter"));
 
     crate::subscription_catalog::clear_runtime_env();
 }

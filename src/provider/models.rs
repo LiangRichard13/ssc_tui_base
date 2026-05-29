@@ -41,9 +41,12 @@ struct PersistedModelCatalogScope {
 pub(crate) fn filtered_display_models(models: impl IntoIterator<Item = String>) -> Vec<String> {
     models
         .into_iter()
-        .filter(|model| {
-            !crate::subscription_catalog::is_runtime_mode_enabled()
-                || crate::subscription_catalog::is_curated_model(model)
+        .filter_map(|model| {
+            if !crate::subscription_catalog::is_runtime_mode_enabled() {
+                return Some(model);
+            }
+            crate::subscription_catalog::find_curated_model(&model)
+                .map(|curated| curated.display_name.to_string())
         })
         .collect()
 }
@@ -56,7 +59,18 @@ pub(crate) fn filtered_model_routes(routes: Vec<ModelRoute>) -> Vec<ModelRoute> 
     routes
         .into_iter()
         .filter(|route| crate::subscription_catalog::is_curated_model(&route.model))
+        .map(subscription_visible_route)
         .collect()
+}
+
+fn subscription_visible_route(mut route: ModelRoute) -> ModelRoute {
+    if let Some(curated) = crate::subscription_catalog::find_curated_model(&route.model) {
+        route.model = curated.display_name.to_string();
+    }
+    route.provider = "Saitec Subscription".to_string();
+    route.api_method = "saitec".to_string();
+    route.detail.clear();
+    route
 }
 
 pub(crate) fn ensure_model_allowed_for_subscription(model: &str) -> Result<()> {

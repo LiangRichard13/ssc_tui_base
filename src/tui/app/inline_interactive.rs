@@ -253,7 +253,7 @@ impl App {
         crate::subscription_catalog::curated_models()
             .iter()
             .map(|model| crate::provider::ModelRoute {
-                model: model.id.to_string(),
+                model: model.display_name.to_string(),
                 provider: "Saitec Subscription".to_string(),
                 api_method: "saitec".to_string(),
                 available: false,
@@ -292,6 +292,20 @@ impl App {
         let mut routes = Vec::new();
 
         for model in self.provider.available_models_display() {
+            if crate::subscription_catalog::is_runtime_mode_enabled()
+                && crate::subscription_catalog::is_curated_model(&model)
+            {
+                routes.push(crate::provider::ModelRoute {
+                    model,
+                    provider: "Saitec Subscription".to_string(),
+                    api_method: "saitec".to_string(),
+                    available: true,
+                    detail: String::new(),
+                    cheapness: None,
+                });
+                continue;
+            }
+
             if !model.contains('/') && crate::provider::provider_for_model(&model) == Some("openai")
             {
                 if auth.openai_has_oauth {
