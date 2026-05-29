@@ -101,10 +101,10 @@ fn picker_entry_display_name(entry: &crate::tui::PickerEntry) -> String {
 }
 
 fn picker_row_marker(is_row_selected: bool, unavailable: bool) -> &'static str {
-    if unavailable {
-        "×"
-    } else if is_row_selected {
+    if is_row_selected {
         "▸"
+    } else if unavailable {
+        "×"
     } else {
         " "
     }
@@ -515,10 +515,10 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
         let mut spans: Vec<Span> = Vec::new();
         spans.push(Span::styled(
             format!(" {} ", marker),
-            if unavailable {
-                Style::default().fg(rgb(180, 120, 120)).bold()
-            } else if is_row_selected {
+            if is_row_selected {
                 Style::default().fg(Color::White).bold()
+            } else if unavailable {
+                Style::default().fg(rgb(180, 120, 120)).bold()
             } else {
                 Style::default().fg(dim_color())
             },
@@ -536,10 +536,10 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
             }) => Some(rgb(150, 190, 255)),
             _ => None,
         };
-        let primary_style = if unavailable {
-            Style::default().fg(rgb(80, 80, 80))
-        } else if is_row_selected && col == 0 {
+        let primary_style = if is_row_selected && col == 0 {
             Style::default().fg(Color::White).bg(rgb(60, 60, 80)).bold()
+        } else if unavailable {
+            Style::default().fg(rgb(80, 80, 80))
         } else if let Some(color) = account_action_color {
             Style::default().fg(color).bold()
         } else if entry.is_current {
@@ -596,10 +596,10 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
                 result
             };
 
-            let state_style = if unavailable {
-                Style::default().fg(rgb(80, 80, 80))
-            } else if is_row_selected {
+            let state_style = if is_row_selected {
                 Style::default().fg(Color::White).bg(rgb(60, 60, 80)).bold()
+            } else if unavailable {
+                Style::default().fg(rgb(80, 80, 80))
             } else if entry.is_current {
                 Style::default().fg(accent_color()).bold()
             } else if let Some(color) = account_action_color {
@@ -688,10 +688,10 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
         };
         let pw = provider_width.saturating_sub(1);
         let provider_display = format!(" {}", pad_left_display(provider_label.as_str(), pw));
-        let provider_style = if unavailable {
-            Style::default().fg(rgb(80, 80, 80))
-        } else if is_row_selected && col == 1 {
+        let provider_style = if is_row_selected && col == 1 {
             Style::default().fg(Color::White).bg(rgb(60, 60, 80)).bold()
+        } else if unavailable {
+            Style::default().fg(rgb(80, 80, 80))
         } else {
             Style::default().fg(rgb(140, 180, 255))
         };
@@ -701,10 +701,10 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
             .unwrap_or("—");
         let vw = via_width.saturating_sub(1);
         let via_display = format!(" {}", pad_left_display(via_raw, vw));
-        let via_style = if unavailable {
-            Style::default().fg(rgb(80, 80, 80))
-        } else if is_row_selected && col == 2 {
+        let via_style = if is_row_selected && col == 2 {
             Style::default().fg(Color::White).bg(rgb(60, 60, 80)).bold()
+        } else if unavailable {
+            Style::default().fg(rgb(80, 80, 80))
         } else if is_usage_picker {
             Style::default().fg(rgb(196, 170, 255))
         } else {
@@ -868,8 +868,8 @@ mod tests {
     }
 
     #[test]
-    fn picker_row_marker_uses_explicit_unavailable_marker() {
-        assert_eq!(picker_row_marker(true, true), "×");
+    fn picker_row_marker_keeps_selection_visible_on_unavailable_rows() {
+        assert_eq!(picker_row_marker(true, true), "▸");
         assert_eq!(picker_row_marker(false, true), "×");
         assert_eq!(picker_row_marker(true, false), "▸");
         assert_eq!(picker_row_marker(false, false), " ");

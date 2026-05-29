@@ -382,6 +382,48 @@ fn startup_splash_does_not_hide_inline_model_picker() {
 }
 
 #[test]
+fn selected_unavailable_model_picker_row_still_shows_cursor() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(90, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut picker = sample_model_picker();
+    picker.entries[0].name = "unverified-model".to_string();
+    picker.entries[0].is_current = false;
+    picker.entries[0].options[0].available = false;
+    picker.entries[0].options[0].detail = "runtime not validated".to_string();
+    let state = TestState {
+        inline_interactive_state: Some(picker),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered_lines = buffer_to_text(&terminal);
+    let rendered = rendered_lines.join("\n");
+    let selected_y = rendered_lines
+        .iter()
+        .position(|line| line.contains("unverified-model"))
+        .expect("render should include selected unavailable model row");
+    let selected_line = &rendered_lines[selected_y];
+    assert!(
+        selected_line.contains("▸"),
+        "selected unavailable row should keep the visible row cursor, got:\n{rendered}"
+    );
+
+    let buf = terminal.backend().buffer();
+    let selected_bg = rgb(60, 60, 80);
+    let row_has_selected_bg =
+        (0..buf.area.width).any(|x| buf[(x, selected_y as u16)].bg == selected_bg);
+    assert!(
+        row_has_selected_bg,
+        "selected unavailable row should keep selected-column highlight, got:\n{rendered}"
+    );
+}
+
+#[test]
 fn startup_splash_renders_png_logo_without_external_asset_file() {
     let _guard = viewport_snapshot_test_lock();
     let _env_guard = crate::storage::lock_test_env();
