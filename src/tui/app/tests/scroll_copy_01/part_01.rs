@@ -392,6 +392,47 @@ fn test_chat_mouse_scroll_requests_immediate_redraw_during_streaming() {
 }
 
 #[test]
+fn test_mouse_wheel_does_not_recall_submitted_input_history() {
+    let _lock = scroll_render_test_lock();
+
+    let (mut app, mut terminal) = create_scroll_test_app(80, 16, 0, 48);
+    app.input = "previous prompt".to_string();
+    app.submit_input();
+    assert!(app.input().is_empty());
+    let _ = render_and_snap(&app, &mut terminal);
+
+    app.handle_mouse_event(MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        column: 10,
+        row: 5,
+        modifiers: KeyModifiers::empty(),
+    });
+    app.handle_key(KeyCode::Up, KeyModifiers::empty()).unwrap();
+
+    assert_eq!(
+        app.input(),
+        "",
+        "mouse wheel scrolling must not recall submitted input history"
+    );
+    assert!(
+        app.auto_scroll_paused,
+        "mouse wheel and any adjacent scroll-key event should scroll chat history"
+    );
+}
+
+#[test]
+fn test_keyboard_up_still_recalls_submitted_input_history_after_mouse_scroll_window() {
+    let mut app = create_test_app();
+    app.input = "previous prompt".to_string();
+    app.submit_input();
+    app.last_mouse_scroll = Some(Instant::now() - Duration::from_secs(1));
+
+    app.handle_key(KeyCode::Up, KeyModifiers::empty()).unwrap();
+
+    assert_eq!(app.input(), "previous prompt");
+}
+
+#[test]
 fn test_queued_file_activity_repaint_does_not_leave_trailing_digit_artifact() {
     let _lock = scroll_render_test_lock();
 

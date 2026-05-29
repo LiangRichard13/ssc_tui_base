@@ -664,6 +664,9 @@ pub(super) fn retrieve_pending_message_for_edit(app: &mut App) -> bool {
 }
 
 const SUBMITTED_INPUT_HISTORY_LIMIT: usize = 32;
+// Some terminals can report a wheel gesture and an adjacent Up/Down key event.
+// Keep the wheel gesture in chat scrolling instead of letting that key recall input history.
+const MOUSE_SCROLL_RECALL_SUPPRESSION: Duration = Duration::from_millis(250);
 
 fn push_submitted_input_history(app: &mut App, raw_input: &str) {
     let trimmed = raw_input.trim();
@@ -745,6 +748,13 @@ pub(super) fn handle_submitted_input_recall_key(
     modifiers: KeyModifiers,
 ) -> bool {
     if !modifiers.is_empty() {
+        return false;
+    }
+    if matches!(code, KeyCode::Up | KeyCode::Down)
+        && app
+            .last_mouse_scroll
+            .is_some_and(|last| last.elapsed() <= MOUSE_SCROLL_RECALL_SUPPRESSION)
+    {
         return false;
     }
 
