@@ -195,7 +195,11 @@ fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
 
         assert!(names.contains(&"DeepSeek V4 Pro"));
         assert!(names.contains(&"Kimi K2.5"));
@@ -305,7 +309,11 @@ fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout()
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
 
         assert!(names.contains(&"DeepSeek V4 Pro"));
         assert!(names.contains(&"Kimi K2.5"));
@@ -391,7 +399,11 @@ fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_l
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
 
         assert!(names.contains(&"DeepSeek V4 Pro"));
         assert!(names.contains(&"Kimi K2.5"));
@@ -436,7 +448,11 @@ fn test_logged_out_model_picker_filters_to_saitec_curated_models() {
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
 
         assert!(!picker.preview);
         assert!(names.contains(&"DeepSeek V4 Pro"));

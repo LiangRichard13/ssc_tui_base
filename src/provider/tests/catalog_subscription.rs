@@ -271,8 +271,18 @@ fn test_filtered_model_routes_hide_internal_openrouter_provider_in_subscription_
     assert_eq!(filtered[0].model, "DeepSeek V4 Pro");
     assert_eq!(filtered[0].provider, "Saitec Subscription");
     assert_eq!(filtered[0].api_method, "saitec");
-    assert!(!filtered[0].model.to_ascii_lowercase().contains("openrouter"));
-    assert!(!filtered[0].detail.to_ascii_lowercase().contains("openrouter"));
+    assert!(
+        !filtered[0]
+            .model
+            .to_ascii_lowercase()
+            .contains("openrouter")
+    );
+    assert!(
+        !filtered[0]
+            .detail
+            .to_ascii_lowercase()
+            .contains("openrouter")
+    );
 
     crate::subscription_catalog::clear_runtime_env();
 }
