@@ -221,13 +221,13 @@ fn test_handterm_native_scroll_command_updates_chat_offset() {
     app.scroll_offset = 6;
     app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
         pane: super::handterm_native_scroll::PaneKind::Chat,
-        delta: 2,
+        delta: -2,
     });
     assert_eq!(app.scroll_offset, 4);
 
     app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
         pane: super::handterm_native_scroll::PaneKind::Chat,
-        delta: -3,
+        delta: 3,
     });
     assert_eq!(app.scroll_offset, 7);
 }
@@ -268,7 +268,7 @@ fn test_handterm_native_scroll_client_roundtrips_over_socket() {
     assert!(line.contains("\"position\":6"));
 
     server
-        .write_all(b"{\"type\":\"scroll\",\"pane\":\"chat\",\"delta\":2}\n")
+        .write_all(b"{\"type\":\"scroll\",\"pane\":\"chat\",\"delta\":-2}\n")
         .expect("write host scroll command");
 
     let runtime = tokio::runtime::Runtime::new().expect("runtime");
@@ -289,7 +289,7 @@ fn test_handterm_native_scroll_client_roundtrips_over_socket() {
 }
 
 #[test]
-fn test_handterm_positive_scroll_delta_reveals_older_chat_history() {
+fn test_handterm_negative_scroll_delta_reveals_older_chat_history() {
     let _render_lock = scroll_render_test_lock();
     let (mut app, mut terminal) = create_scroll_test_app(50, 12, 0, 24);
 
@@ -303,16 +303,62 @@ fn test_handterm_positive_scroll_delta_reveals_older_chat_history() {
 
     app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
         pane: super::handterm_native_scroll::PaneKind::Chat,
-        delta: 2,
+        delta: -2,
     });
 
     assert!(
         app.auto_scroll_paused,
-        "native positive scroll should leave bottom follow mode"
+        "native upward wheel scroll should leave bottom follow mode"
     );
     assert!(
         app.scroll_offset > 0,
-        "native positive scroll should reveal older chat history"
+        "native upward wheel scroll should reveal older chat history"
+    );
+}
+
+#[test]
+fn test_handterm_positive_scroll_delta_moves_toward_newer_chat_history() {
+    let _render_lock = scroll_render_test_lock();
+    let (mut app, mut terminal) = create_scroll_test_app(50, 12, 0, 24);
+
+    render_and_snap(&app, &mut terminal);
+    assert!(
+        crate::tui::ui::last_max_scroll() > 8,
+        "expected scrollable chat content"
+    );
+
+    app.auto_scroll_paused = true;
+    app.scroll_offset = 4;
+    app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
+        pane: super::handterm_native_scroll::PaneKind::Chat,
+        delta: 2,
+    });
+
+    assert_eq!(
+        app.scroll_offset, 6,
+        "native downward wheel scroll should move toward newer chat history"
+    );
+}
+
+#[test]
+fn test_handterm_native_scroll_does_not_recall_submitted_input_history() {
+    let _render_lock = scroll_render_test_lock();
+    let (mut app, mut terminal) = create_scroll_test_app(80, 16, 0, 48);
+    app.input = "previous prompt".to_string();
+    app.submit_input();
+    assert!(app.input().is_empty());
+    let _ = render_and_snap(&app, &mut terminal);
+
+    app.apply_handterm_native_scroll(super::handterm_native_scroll::HostToApp::Scroll {
+        pane: super::handterm_native_scroll::PaneKind::Chat,
+        delta: -2,
+    });
+    app.handle_key(KeyCode::Up, KeyModifiers::empty()).unwrap();
+
+    assert_eq!(
+        app.input(),
+        "",
+        "native mouse wheel scrolling must not recall submitted input history"
     );
 }
 

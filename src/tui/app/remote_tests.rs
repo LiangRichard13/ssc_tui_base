@@ -350,7 +350,7 @@ fn handterm_native_scroll_dispatches_compacted_history_load_immediately() {
         &mut remote,
         super::super::handterm_native_scroll::HostToApp::Scroll {
             pane: super::super::handterm_native_scroll::PaneKind::Chat,
-            delta: 1,
+            delta: -1,
         },
     ));
 
