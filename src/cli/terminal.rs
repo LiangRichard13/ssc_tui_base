@@ -13,9 +13,9 @@ pub struct TuiRuntimeState {
 
 fn should_enable_mouse_capture(
     mouse_capture_configured: bool,
-    saitec_login_overlay_visible: bool,
+    _saitec_login_overlay_visible: bool,
 ) -> bool {
-    mouse_capture_configured && !saitec_login_overlay_visible
+    mouse_capture_configured
 }
 
 pub fn set_current_session(session_id: &str) {
@@ -340,8 +340,8 @@ mod tests {
     }
 
     #[test]
-    fn test_saitec_login_overlay_disables_mouse_capture_even_when_configured() {
-        assert!(!should_enable_mouse_capture(true, true));
+    fn test_saitec_login_overlay_keeps_mouse_capture_enabled_when_configured() {
+        assert!(should_enable_mouse_capture(true, true));
     }
 
     #[test]
