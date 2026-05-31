@@ -621,7 +621,7 @@ fn ensure_openai_auth_allowed_for_explicit_choice() -> Result<()> {
     }
 
     anyhow::bail!(
-        "Skipped trusting existing ~/.codex/auth.json credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
+        "Skipped importing existing ~/.codex/auth.json credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
     )
 }
 

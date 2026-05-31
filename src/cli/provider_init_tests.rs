@@ -242,6 +242,14 @@ fn parse_login_provider_selection_supports_skip_and_names() {
 
 #[test]
 fn login_provider_menu_shows_autodetected_auth_and_skip() {
+    let _guard = lock_env();
+    let previous_api_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    crate::env::set_var(
+        crate::subscription_catalog::JCODE_API_KEY_ENV,
+        "sk-test-saitec",
+    );
+    auth::AuthStatus::invalidate_cache();
+
     let providers = vec![provider_catalog::JCODE_LOGIN_PROVIDER];
     let status = auth::AuthStatus {
         jcode: auth::AuthState::Available,
@@ -253,6 +261,13 @@ fn login_provider_menu_shows_autodetected_auth_and_skip() {
     assert!(menu.contains("Saitec Subscription: configured"));
     assert!(menu.contains("[configured"));
     assert!(menu.contains("Skip: press Enter"));
+
+    if let Some(value) = previous_api_key {
+        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, value);
+    } else {
+        crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
+    }
+    auth::AuthStatus::invalidate_cache();
 }
 
 #[test]
@@ -437,6 +452,7 @@ async fn auto_provider_noninteractive_skips_untrusted_external_auth_instead_of_b
     ] {
         crate::env::remove_var(key);
     }
+    auth::AuthStatus::invalidate_cache();
 
     let opencode_path = crate::auth::claude::ExternalClaudeAuthSource::OpenCode
         .path()
@@ -481,6 +497,7 @@ async fn auto_provider_noninteractive_skips_untrusted_external_auth_instead_of_b
             crate::env::remove_var(&key);
         }
     }
+    auth::AuthStatus::invalidate_cache();
 }
 
 #[test]

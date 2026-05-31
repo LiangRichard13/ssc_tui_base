@@ -5,7 +5,6 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-const ALLOW_LEGACY_AUTH_ENV: &str = "JCODE_ALLOW_CODEX_LEGACY_AUTH";
 pub const LEGACY_CODEX_AUTH_SOURCE_ID: &str = "openai_codex_auth_json";
 
 #[derive(Debug, Clone)]
@@ -123,6 +122,7 @@ pub fn legacy_auth_file_path() -> Result<PathBuf> {
 }
 
 pub fn trust_legacy_auth_for_future_use() -> Result<()> {
+    import_legacy_auth_snapshot()?;
     crate::config::Config::allow_external_auth_source_for_path(
         LEGACY_CODEX_AUTH_SOURCE_ID,
         &legacy_auth_path()?,
@@ -131,25 +131,79 @@ pub fn trust_legacy_auth_for_future_use() -> Result<()> {
     Ok(())
 }
 
+fn import_legacy_auth_snapshot() -> Result<()> {
+    let file = load_legacy_auth_file()?;
+    let mut imported_any = false;
+
+    if let Some(tokens) = file.tokens.as_ref() {
+        let credentials = credentials_from_legacy_tokens(tokens);
+        let email = credentials.id_token.as_deref().and_then(extract_email);
+        let label = legacy_import_label_for_credentials(&credentials, email.as_deref())?;
+        upsert_account(account_from_credentials(&label, &credentials, email))?;
+        imported_any = true;
+    }
+
+    if let Some(api_key) = file
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        crate::provider_catalog::save_env_value_to_env_file(
+            "OPENAI_API_KEY",
+            "openai.env",
+            Some(api_key),
+        )?;
+        imported_any = true;
+    }
+
+    if !imported_any {
+        anyhow::bail!("No OAuth tokens or API key found in legacy Codex auth file");
+    }
+
+    Ok(())
+}
+
+fn legacy_import_label_for_credentials(
+    credentials: &CodexCredentials,
+    email: Option<&str>,
+) -> Result<String> {
+    let auth = load_auth_file()?;
+
+    if let Some(account_id) = credentials.account_id.as_deref()
+        && let Some(existing) = auth
+            .openai_accounts
+            .iter()
+            .find(|account| account.account_id.as_deref() == Some(account_id))
+    {
+        return Ok(existing.label.clone());
+    }
+
+    if let Some(email) = email
+        && let Some(existing) = auth
+            .openai_accounts
+            .iter()
+            .find(|account| account.email.as_deref() == Some(email))
+    {
+        return Ok(existing.label.clone());
+    }
+
+    Ok(crate::auth::account_store::next_account_label(
+        ACCOUNT_LABEL_PREFIX,
+        auth.openai_accounts.len(),
+    ))
+}
+
 pub fn legacy_auth_allowed() -> bool {
-    std::env::var(ALLOW_LEGACY_AUTH_ENV)
+    legacy_auth_path()
         .ok()
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
+        .map(|path| {
+            crate::config::Config::external_auth_source_allowed_for_path(
+                LEGACY_CODEX_AUTH_SOURCE_ID,
+                &path,
             )
         })
         .unwrap_or(false)
-        || legacy_auth_path()
-            .ok()
-            .map(|path| {
-                crate::config::Config::external_auth_source_allowed_for_path(
-                    LEGACY_CODEX_AUTH_SOURCE_ID,
-                    &path,
-                )
-            })
-            .unwrap_or(false)
 }
 
 pub fn legacy_auth_source_exists() -> bool {
@@ -311,7 +365,6 @@ pub fn load_credentials() -> Result<CodexCredentials> {
     let env_api_key = load_env_api_key();
     let now_ms = chrono::Utc::now().timestamp_millis();
     let mut expired_candidates: Vec<(&str, CodexCredentials)> = Vec::new();
-    let legacy_allowed = legacy_auth_allowed();
 
     if let Ok(creds) = load_jcode_credentials() {
         if creds
@@ -322,23 +375,6 @@ pub fn load_credentials() -> Result<CodexCredentials> {
             return Ok(creds);
         }
         expired_candidates.push(("jcode", creds));
-    }
-
-    if legacy_allowed {
-        if let Ok(creds) = load_legacy_oauth_credentials() {
-            if creds
-                .expires_at
-                .map(|expires_at| expires_at > now_ms)
-                .unwrap_or(true)
-            {
-                return Ok(creds);
-            }
-            expired_candidates.push(("legacy", creds));
-        }
-
-        if let Ok(creds) = load_legacy_api_key_credentials() {
-            return Ok(creds);
-        }
     }
 
     if let Some(tokens) = crate::auth::external::load_openai_oauth_tokens() {
@@ -422,30 +458,6 @@ fn load_jcode_credentials() -> Result<CodexCredentials> {
         .context("No OpenAI accounts in jcode auth file")?;
 
     Ok(credentials_from_account(account))
-}
-
-fn load_legacy_oauth_credentials() -> Result<CodexCredentials> {
-    let file = load_legacy_auth_file()?;
-    let tokens = file
-        .tokens
-        .context("No OAuth tokens found in legacy Codex auth file")?;
-    Ok(credentials_from_legacy_tokens(&tokens))
-}
-
-fn load_legacy_api_key_credentials() -> Result<CodexCredentials> {
-    let file = load_legacy_auth_file()?;
-    let api_key = file
-        .api_key
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .context("No API key found in legacy Codex auth file")?;
-    Ok(CodexCredentials {
-        access_token: api_key,
-        refresh_token: String::new(),
-        id_token: None,
-        account_id: None,
-        expires_at: None,
-    })
 }
 
 fn load_legacy_auth_file() -> Result<LegacyAuthFile> {

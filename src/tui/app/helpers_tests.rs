@@ -7,6 +7,16 @@ use crate::terminal_launch::{detected_resume_terminal, shell_command};
 use crate::tui::session_picker::ResumeTarget;
 use chrono::{Duration as ChronoDuration, Utc};
 
+fn assert_jcode_executable(program: &std::path::Path) {
+    let stem = program.file_stem().and_then(|name| name.to_str());
+    assert!(
+        stem.map(|value| value.starts_with("jcode"))
+            .unwrap_or(false),
+        "expected a jcode executable path, got {}",
+        program.display()
+    );
+}
+
 struct EnvVarGuard {
     key: &'static str,
     prev: Option<std::ffi::OsString>,
@@ -127,10 +137,7 @@ fn build_resume_command_uses_imported_jcode_session_for_claude_code() {
         None,
     );
 
-    assert_eq!(
-        program.file_name().and_then(|name| name.to_str()),
-        Some("jcode")
-    );
+    assert_jcode_executable(&program);
     assert_eq!(
         args,
         vec![
@@ -153,13 +160,11 @@ fn build_resume_command_uses_imported_jcode_session_for_codex() {
         None,
     );
 
-    assert_eq!(
-        program.file_name().and_then(|name| name.to_str()),
-        Some("jcode")
-    );
+    assert_jcode_executable(&program);
     assert_eq!(
         args,
         vec![
+            "--fresh-spawn".to_string(),
             "--resume".to_string(),
             crate::import::imported_codex_session_id("codex-session-123")
         ]

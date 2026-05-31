@@ -1108,13 +1108,6 @@ fn openai_oauth_source(status: &AuthStatus) -> Option<(AuthCredentialSource, Str
             "~/.jcode/openai-auth.json".to_string(),
         ));
     }
-    if crate::auth::codex::legacy_auth_allowed() && crate::auth::codex::legacy_auth_source_exists()
-    {
-        return Some((
-            AuthCredentialSource::TrustedExternalFile,
-            "trusted legacy Codex auth file".to_string(),
-        ));
-    }
     if crate::auth::external::load_openai_oauth_tokens().is_some() {
         return Some((
             AuthCredentialSource::TrustedExternalFile,
@@ -1128,16 +1121,9 @@ fn openai_api_key_source(status: &AuthStatus) -> Option<(AuthCredentialSource, S
     if !status.openai_has_api_key {
         return None;
     }
-    env_source("OPENAI_API_KEY").or_else(|| {
-        (crate::auth::codex::legacy_auth_allowed()
-            && crate::auth::codex::legacy_auth_source_exists())
-        .then(|| {
-            (
-                AuthCredentialSource::TrustedExternalFile,
-                "trusted legacy Codex API key".to_string(),
-            )
-        })
-    })
+    env_source("OPENAI_API_KEY")
+        .or_else(|| config_source("OPENAI_API_KEY", "openai.env", "~/.config/jcode/openai.env"))
+        .or_else(|| external_api_key_source("OPENAI_API_KEY"))
 }
 
 fn gemini_source() -> Option<(AuthCredentialSource, String)> {

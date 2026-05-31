@@ -13,6 +13,12 @@ impl EnvVarGuard {
         Self { key, previous }
     }
 
+    fn remove(key: &'static str) -> Self {
+        let previous = std::env::var_os(key);
+        crate::env::remove_var(key);
+        Self { key, previous }
+    }
+
     fn set_path(key: &'static str, value: &std::path::Path) -> Self {
         let previous = std::env::var_os(key);
         crate::env::set_var(key, value);
@@ -213,6 +219,7 @@ fn load_credentials_ignores_legacy_oauth_without_consent() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::TempDir::new().unwrap();
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let _api_key = EnvVarGuard::remove("OPENAI_API_KEY");
     set_active_account_override(None);
 
     let legacy_path = temp
@@ -249,11 +256,11 @@ fn load_credentials_ignores_legacy_oauth_without_consent() {
 }
 
 #[test]
-fn load_credentials_reads_legacy_oauth_when_allowed() {
+fn load_credentials_ignores_legacy_oauth_even_when_source_was_trusted() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::TempDir::new().unwrap();
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
-    let _allow = EnvVarGuard::set(ALLOW_LEGACY_AUTH_ENV, "1");
+    let _api_key = EnvVarGuard::remove("OPENAI_API_KEY");
     set_active_account_override(None);
 
     let legacy_path = temp
@@ -275,9 +282,69 @@ fn load_credentials_reads_legacy_oauth_when_allowed() {
     )
     .unwrap();
 
+    crate::config::Config::allow_external_auth_source_for_path(
+        LEGACY_CODEX_AUTH_SOURCE_ID,
+        &legacy_path,
+    )
+    .unwrap();
+
+    let err = load_credentials().unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("No OpenAI tokens or API key found"),
+        "trusted legacy Codex auth should not be read in place: {err:#}"
+    );
+}
+
+#[test]
+fn trust_legacy_auth_imports_snapshot_into_managed_auth_file() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::TempDir::new().unwrap();
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let _api_key = EnvVarGuard::remove("OPENAI_API_KEY");
+    set_active_account_override(None);
+
+    let legacy_path = temp
+        .path()
+        .join("external")
+        .join(".codex")
+        .join("auth.json");
+    std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &legacy_path,
+        r#"{
+            "tokens": {
+                "access_token": "at_imported",
+                "refresh_token": "rt_imported",
+                "account_id": "acct_imported",
+                "expires_at": 9999999999999
+            }
+        }"#,
+    )
+    .unwrap();
+
+    trust_legacy_auth_for_future_use().unwrap();
+
+    std::fs::write(
+        &legacy_path,
+        r#"{
+            "tokens": {
+                "access_token": "at_mutated_codex",
+                "refresh_token": "rt_mutated_codex",
+                "account_id": "acct_mutated",
+                "expires_at": 9999999999999
+            }
+        }"#,
+    )
+    .unwrap();
+
+    let accounts = list_accounts().unwrap();
+    assert_eq!(accounts.len(), 1);
+    assert_eq!(accounts[0].access_token, "at_imported");
+
     let creds = load_credentials().unwrap();
-    assert_eq!(creds.access_token, "at_legacy");
-    assert_eq!(creds.refresh_token, "rt_legacy");
+    assert_eq!(creds.access_token, "at_imported");
+    assert_eq!(creds.refresh_token, "rt_imported");
     assert!(
         legacy_path.exists(),
         "legacy auth file should remain in place"
@@ -286,13 +353,13 @@ fn load_credentials_reads_legacy_oauth_when_allowed() {
 
 #[cfg(unix)]
 #[test]
-fn load_credentials_reads_legacy_oauth_without_changing_external_permissions() {
+fn trust_legacy_auth_imports_without_changing_external_permissions() {
     use std::os::unix::fs::PermissionsExt;
 
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::TempDir::new().unwrap();
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
-    let _allow = EnvVarGuard::set(ALLOW_LEGACY_AUTH_ENV, "1");
+    let _api_key = EnvVarGuard::remove("OPENAI_API_KEY");
     set_active_account_override(None);
 
     let legacy_path = temp
@@ -320,7 +387,8 @@ fn load_credentials_reads_legacy_oauth_without_changing_external_permissions() {
     .unwrap();
     std::fs::set_permissions(&legacy_path, std::fs::Permissions::from_mode(0o644)).unwrap();
 
-    let creds = load_credentials().expect("load legacy oauth");
+    trust_legacy_auth_for_future_use().expect("import legacy oauth");
+    let creds = load_credentials().expect("load imported oauth");
     assert_eq!(creds.access_token, "at_legacy");
 
     let dir_mode = std::fs::metadata(legacy_path.parent().unwrap())
