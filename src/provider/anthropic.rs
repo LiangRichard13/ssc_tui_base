@@ -44,6 +44,46 @@ const API_URL: &str = "https://api.anthropic.com/v1/messages";
 /// OAuth endpoint (with beta=true query param)
 const API_URL_OAUTH: &str = "https://api.anthropic.com/v1/messages?beta=true";
 
+pub(crate) fn has_direct_api_key() -> bool {
+    direct_api_key_from_env().is_some()
+}
+
+pub(crate) fn direct_api_key_from_env() -> Option<String> {
+    let key = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .map(|key| key.trim().to_string())
+        .filter(|key| !key.is_empty())?;
+
+    for env_key in ["ANTHROPIC_BASE_URL", "ANTHROPIC_API_URL"] {
+        if let Ok(base_url) = std::env::var(env_key)
+            && !base_url.trim().is_empty()
+            && !is_official_anthropic_base_url(&base_url)
+        {
+            return None;
+        }
+    }
+
+    Some(key)
+}
+
+fn is_official_anthropic_base_url(raw: &str) -> bool {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    let normalized = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{}", trimmed)
+    };
+
+    url::Url::parse(&normalized)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+        .map(|host| host == "anthropic.com" || host.ends_with(".anthropic.com"))
+        .unwrap_or(false)
+}
+
 /// User-Agent for OAuth requests, matching the official Claude Code CLI.
 pub(crate) const CLAUDE_CLI_USER_AGENT: &str = "claude-cli/2.1.123 (external, sdk-cli)";
 
@@ -458,7 +498,7 @@ impl AnthropicProvider {
     /// Automatically refreshes OAuth tokens when expired
     async fn get_access_token(&self) -> Result<(String, bool)> {
         // First check for direct API key in environment
-        if let Ok(key) = std::env::var("ANTHROPIC_API_KEY") {
+        if let Some(key) = direct_api_key_from_env() {
             return Ok((key, false)); // false = not OAuth
         }
 

@@ -548,7 +548,7 @@ fn test_saitec_startup_does_not_activate_generic_openrouter_credentials() {
 #[test]
 fn test_profile_prefixed_model_switch_reinitializes_direct_compatible_runtime() {
     with_clean_provider_test_env(|| {
-        with_env_var("DEEPSEEK_API_KEY", "test-deepseek-key", || {
+        with_env_var("ZHIPU_API_KEY", "test-zai-key", || {
             with_env_var("KIMI_API_KEY", "test-kimi-key", || {
                 let provider = MultiProvider {
                     claude: RwLock::new(None),
@@ -567,13 +567,13 @@ fn test_profile_prefixed_model_switch_reinitializes_direct_compatible_runtime() 
                 };
 
                 provider
-                    .set_model("deepseek:deepseek-v4-pro")
-                    .expect("DeepSeek profile-prefixed model should initialize direct provider");
+                    .set_model("zai:glm-4.5")
+                    .expect("Z.AI profile-prefixed model should initialize direct provider");
                 assert_eq!(provider.active_provider(), ActiveProvider::OpenRouter);
-                assert_eq!(provider.model(), "deepseek-v4-pro");
+                assert_eq!(provider.model(), "glm-4.5");
                 assert_eq!(
                     crate::provider_catalog::runtime_provider_display_name(provider.name()),
-                    "DeepSeek"
+                    "Z.AI"
                 );
 
                 provider
@@ -586,6 +586,25 @@ fn test_profile_prefixed_model_switch_reinitializes_direct_compatible_runtime() 
                     "Kimi Code"
                 );
             })
+        })
+    });
+}
+
+#[test]
+fn test_direct_anthropic_api_key_initializes_anthropic_provider() {
+    with_clean_provider_test_env(|| {
+        with_env_var("ANTHROPIC_API_KEY", "test-anthropic-key", || {
+            let provider = MultiProvider::new_fast();
+
+            assert!(
+                provider.anthropic_provider().is_some(),
+                "direct Anthropic API keys should initialize the Anthropic runtime"
+            );
+            provider
+                .set_model("claude-sonnet-4-6")
+                .expect("direct Anthropic API key should allow Claude model selection");
+            assert_eq!(provider.active_provider(), ActiveProvider::Claude);
+            assert_eq!(provider.model(), "claude-sonnet-4-6");
         })
     });
 }

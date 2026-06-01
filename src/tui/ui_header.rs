@@ -226,7 +226,8 @@ fn header_provider_auth_tag(name: &str, auth: &AuthStatus) -> &'static str {
         "anthropic" => {
             if auth.anthropic.has_oauth {
                 "oauth"
-            } else if std::env::var("ANTHROPIC_API_KEY").is_ok() || auth.anthropic.has_api_key {
+            } else if auth.anthropic.has_api_key || crate::provider::anthropic::has_direct_api_key()
+            {
                 "api-key"
             } else {
                 ""

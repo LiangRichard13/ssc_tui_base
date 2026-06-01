@@ -1006,6 +1006,77 @@ fn test_saitec_model_picker_hides_generic_openrouter_routes() {
 }
 
 #[test]
+fn test_saitec_model_picker_hides_unconfigured_anthropic_routes_when_kimi_available() {
+    with_temp_jcode_home(|| {
+        let prev_saitec_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+        crate::env::set_var(
+            crate::subscription_catalog::JCODE_API_KEY_ENV,
+            "sk-test-saitec",
+        );
+        crate::auth::validation::save(
+            "kimi",
+            crate::auth::validation::ProviderValidationRecord {
+                checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: Some(true),
+                validated_models: vec!["kimi-for-coding".to_string()],
+                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+            },
+        )
+        .expect("save passing Kimi validation");
+        let (mut app, _set_model_calls) = create_named_openrouter_spec_capture_test_app_with_routes(
+            "OpenRouter",
+            vec![
+                crate::provider::ModelRoute {
+                    model: "claude-sonnet-4-6".to_string(),
+                    provider: "Anthropic".to_string(),
+                    api_method: "api-key".to_string(),
+                    available: false,
+                    detail: "no credentials".to_string(),
+                    cheapness: None,
+                },
+                crate::provider::ModelRoute {
+                    model: "kimi-for-coding".to_string(),
+                    provider: "Kimi Code".to_string(),
+                    api_method: "openai-compatible:kimi".to_string(),
+                    available: true,
+                    detail: "validated Kimi route".to_string(),
+                    cheapness: None,
+                },
+            ],
+        );
+
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+
+        match prev_saitec_key {
+            Some(value) => {
+                crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, value)
+            }
+            None => crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV),
+        }
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
+
+        assert!(names.contains(&"kimi-for-coding"));
+        assert!(
+            !names.contains(&"claude-sonnet-4-6"),
+            "unconfigured Anthropic route should not appear beside Kimi routes: {:?}",
+            picker.entries
+        );
+    });
+}
+
+#[test]
 fn test_saitec_model_command_rejects_generic_openrouter_model() {
     let (mut app, set_model_calls) =
         create_named_openrouter_spec_capture_test_app_with_routes(

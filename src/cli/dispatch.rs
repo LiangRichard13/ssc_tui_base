@@ -691,7 +691,7 @@ async fn detect_bootstrap_credentials() -> BootstrapCredentialState {
     let has_openai = has_openai.unwrap_or(false);
     let has_openrouter = provider::openrouter::OpenRouterProvider::has_credentials();
     let has_copilot = auth::copilot::has_copilot_credentials();
-    let has_api_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
+    let has_api_key = provider::anthropic::has_direct_api_key();
 
     BootstrapCredentialState {
         has_any: has_claude || has_openai || has_openrouter || has_copilot || has_api_key,

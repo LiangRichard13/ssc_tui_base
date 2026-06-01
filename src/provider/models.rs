@@ -224,11 +224,7 @@ fn current_claude_account_scope() -> String {
 }
 
 fn current_anthropic_catalog_scope() -> String {
-    if std::env::var("ANTHROPIC_API_KEY")
-        .ok()
-        .map(|key| !key.trim().is_empty())
-        .unwrap_or(false)
-    {
+    if crate::provider::anthropic::has_direct_api_key() {
         "api-key".to_string()
     } else {
         format!("oauth::{}", current_claude_account_scope())
