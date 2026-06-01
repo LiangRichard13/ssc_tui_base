@@ -2556,6 +2556,9 @@ impl App {
             Ok(()) => {
                 crate::auth::AuthStatus::invalidate_cache();
                 self.invalidate_model_picker_cache();
+                if self.login_picker_overlay.is_some() {
+                    self.refresh_open_saitec_base_model_login_picker();
+                }
                 self.set_status_notice(format!(
                     "Validation: {} ready",
                     target.provider_display_name
