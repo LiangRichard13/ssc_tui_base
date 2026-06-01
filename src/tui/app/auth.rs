@@ -16,6 +16,18 @@ use super::*;
 use crossterm::event::{KeyCode, KeyModifiers};
 use std::sync::Arc;
 
+struct SuccessfulRemoteValidationTarget {
+    provider_id: String,
+    provider_display_name: String,
+    model: String,
+}
+
+fn models_match(left: &str, right: &str) -> bool {
+    let left = left.trim();
+    let right = right.trim();
+    !left.is_empty() && !right.is_empty() && (left == right || left.eq_ignore_ascii_case(right))
+}
+
 impl App {
     fn base_model_picker_selection_snapshot(
         &self,
@@ -2592,6 +2604,127 @@ impl App {
                 event.provider_display_name
             ));
         }
+    }
+
+    pub(in crate::tui::app) fn mark_successful_remote_turn_runtime_validated(&mut self) {
+        let Some(target) = self.successful_remote_openai_compatible_validation_target() else {
+            return;
+        };
+
+        let existing = crate::auth::validation::get(&target.provider_id);
+        let already_validated = existing.as_ref().is_some_and(|record| {
+            record.success
+                && record.provider_smoke_ok == Some(true)
+                && record
+                    .validated_models
+                    .iter()
+                    .any(|model| models_match(model, &target.model))
+        });
+        if already_validated {
+            return;
+        }
+
+        let mut validated_models = existing
+            .as_ref()
+            .filter(|record| record.success)
+            .map(|record| record.validated_models.clone())
+            .unwrap_or_default();
+        if !validated_models
+            .iter()
+            .any(|model| models_match(model, &target.model))
+        {
+            validated_models.push(target.model.clone());
+        }
+
+        let record = crate::auth::validation::ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: true,
+            provider_smoke_ok: Some(true),
+            tool_smoke_ok: existing.as_ref().and_then(|record| record.tool_smoke_ok),
+            validated_models,
+            summary: format!(
+                "Validated by successful remote turn using `{}`.",
+                target.model
+            ),
+        };
+
+        match crate::auth::validation::save(&target.provider_id, record) {
+            Ok(()) => {
+                crate::auth::AuthStatus::invalidate_cache();
+                self.invalidate_model_picker_cache();
+                self.set_status_notice(format!(
+                    "Validation: {} ready",
+                    target.provider_display_name
+                ));
+                crate::bus::Bus::global().publish_models_updated();
+            }
+            Err(error) => {
+                crate::logging::warn(&format!(
+                    "Failed to persist successful remote validation for {}: {}",
+                    target.provider_id, error
+                ));
+            }
+        }
+    }
+
+    fn successful_remote_openai_compatible_validation_target(
+        &self,
+    ) -> Option<SuccessfulRemoteValidationTarget> {
+        let raw_model = self
+            .remote_provider_model
+            .as_deref()
+            .or(self.session.model.as_deref())?
+            .trim();
+        if raw_model.is_empty() {
+            return None;
+        }
+
+        let explicit_profile = raw_model.split_once(':').and_then(|(prefix, model)| {
+            let prefix = prefix.trim();
+            let model = model.trim();
+            if model.is_empty() {
+                return None;
+            }
+            crate::provider_catalog::openai_compatible_profile_by_id(prefix)
+                .map(|profile| (profile, model.to_string()))
+        });
+
+        let (profile, model) = if let Some((profile, model)) = explicit_profile {
+            (profile, model)
+        } else if let Some(route) = self
+            .remote_model_options
+            .iter()
+            .find(|route| {
+                models_match(&route.model, raw_model)
+                    && route.api_method.starts_with("openai-compatible:")
+            })
+            .cloned()
+            .or_else(|| App::remote_openai_compatible_route_for_model(raw_model))
+        {
+            let provider_id = route
+                .api_method
+                .strip_prefix("openai-compatible:")?
+                .trim();
+            let profile = crate::provider_catalog::openai_compatible_profile_by_id(provider_id)?;
+            (profile, route.model)
+        } else {
+            return None;
+        };
+
+        if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
+            return None;
+        }
+
+        let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+        if !resolved.requires_api_key {
+            return None;
+        }
+
+        Some(SuccessfulRemoteValidationTarget {
+            provider_id: resolved.id,
+            provider_display_name: resolved.display_name,
+            model,
+        })
     }
 
     pub(super) fn handle_update_status(&mut self, status: crate::bus::UpdateStatus) {
