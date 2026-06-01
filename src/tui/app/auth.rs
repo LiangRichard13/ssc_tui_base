@@ -729,6 +729,67 @@ impl App {
         self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
     }
 
+    fn load_saved_api_key_for_prefill(key_name: &str, env_file: &str) -> Option<String> {
+        crate::provider_catalog::load_env_value_from_env_or_config(key_name, env_file).or_else(
+            || {
+                if key_name == "ZHIPU_API_KEY" {
+                    crate::provider_catalog::load_env_value_from_env_or_config(
+                        "ZAI_API_KEY",
+                        env_file,
+                    )
+                } else {
+                    None
+                }
+            },
+        )
+    }
+
+    fn clear_saved_api_key_value(key_name: &str, env_file: &str) -> anyhow::Result<()> {
+        crate::provider_catalog::save_env_value_to_env_file(key_name, env_file, None)?;
+        if key_name == "ZHIPU_API_KEY" {
+            crate::provider_catalog::save_env_value_to_env_file("ZAI_API_KEY", env_file, None)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn clear_pending_api_key_login_value(&mut self) {
+        let Some(PendingLogin::ApiKeyProfile {
+            provider,
+            env_file,
+            key_name,
+            ..
+        }) = self.pending_login.as_ref()
+        else {
+            return;
+        };
+        let provider = provider.clone();
+        let env_file = env_file.clone();
+        let key_name = key_name.clone();
+
+        match Self::clear_saved_api_key_value(&key_name, &env_file) {
+            Ok(()) => {
+                crate::auth::AuthStatus::invalidate_cache();
+                self.input.clear();
+                self.cursor_pos = 0;
+                self.clear_input_undo_history();
+                self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+                self.push_display_message(DisplayMessage::system(format!(
+                    "{} API key cleared. Paste a new key or choose Cancel.",
+                    provider
+                )));
+                self.set_status_notice(format!("Login: cleared {} key", provider));
+            }
+            Err(error) => {
+                self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+                self.push_display_message(DisplayMessage::error(format!(
+                    "Failed to clear {} key: {}",
+                    provider, error
+                )));
+                self.set_status_notice(format!("Login: failed to clear {} key", provider));
+            }
+        }
+    }
+
     fn start_claude_login(&mut self) {
         let label = crate::auth::claude::login_target_label(None)
             .unwrap_or_else(|_| crate::auth::claude::primary_account_label());
@@ -1433,6 +1494,7 @@ impl App {
         } else {
             "api_key"
         };
+        let saved_key = Self::load_saved_api_key_for_prefill(key_name, env_file);
         self.begin_pending_login(PendingLogin::ApiKeyProfile {
             provider_id,
             provider: provider.to_string(),
@@ -1445,6 +1507,9 @@ impl App {
             api_key_optional,
             openai_compatible_profile,
         });
+        self.input = saved_key.unwrap_or_default();
+        self.cursor_pos = self.input.len();
+        self.clear_input_undo_history();
     }
 
     fn start_cursor_login(&mut self) {
@@ -2130,6 +2195,11 @@ impl App {
                                 saved_label, env_file, guidance, model_hint
                             ),
                         }));
+                        self.input.clear();
+                        self.cursor_pos = 0;
+                        self.clear_input_undo_history();
+                        self.reset_tab_completion();
+                        self.sync_model_picker_preview_from_input();
                     }
                     Err(e) => {
                         let reason = crate::auth::login_diagnostics::classify_auth_failure_message(
@@ -2652,6 +2722,9 @@ impl App {
             Ok(()) => {
                 crate::auth::AuthStatus::invalidate_cache();
                 self.invalidate_model_picker_cache();
+                if self.login_picker_overlay.is_some() {
+                    self.refresh_open_saitec_base_model_login_picker();
+                }
                 self.set_status_notice(format!(
                     "Validation: {} ready",
                     target.provider_display_name

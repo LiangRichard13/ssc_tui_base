@@ -307,15 +307,33 @@ pub(super) fn draw_pending_text_entry_overlay(
         ),
     ]));
     lines.push(Line::from(""));
+    let clear_label = "[ Clear ]";
     let validate_label = "[ Validate ]";
     let cancel_label = "[ Cancel ]";
     let button_gap = "  ";
-    let button_width = UnicodeWidthStr::width(validate_label)
+    let button_width = if overlay.show_clear_button {
+        UnicodeWidthStr::width(clear_label) + UnicodeWidthStr::width(button_gap)
+    } else {
+        0
+    } + UnicodeWidthStr::width(validate_label)
         + UnicodeWidthStr::width(button_gap)
         + UnicodeWidthStr::width(cancel_label);
     let button_padding = " ".repeat(inner_width.saturating_sub(button_width) / 2);
-    lines.push(Line::from(vec![
-        Span::raw(button_padding),
+    let mut button_spans = vec![Span::raw(button_padding)];
+    if overlay.show_clear_button {
+        button_spans.push(Span::styled(
+            clear_label,
+            if overlay.clear_focused {
+                Style::default()
+                    .fg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(rgb(210, 210, 225))
+            },
+        ));
+        button_spans.push(Span::raw(button_gap));
+    }
+    button_spans.extend([
         Span::styled(
             validate_label,
             if overlay.validate_focused {
@@ -337,7 +355,8 @@ pub(super) fn draw_pending_text_entry_overlay(
                 Style::default().fg(rgb(210, 210, 225))
             },
         ),
-    ]));
+    ]);
+    lines.push(Line::from(button_spans));
     lines.push(Line::from(""));
     lines.extend(markdown::wrap_line(
         Line::from(Span::styled(

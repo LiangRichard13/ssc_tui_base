@@ -55,6 +55,18 @@ pub(in crate::tui::app) async fn begin_remote_send(
     Ok(msg_id)
 }
 
+pub(in crate::tui::app) fn require_saitec_login_for_remote_user_send(app: &mut App) -> bool {
+    if crate::saitec::auth::ensure_logged_in().is_ok() {
+        return true;
+    }
+
+    app.push_display_message(DisplayMessage::error(
+        "Please log in first. Use `/login` to open the Saitec login form.".to_string(),
+    ));
+    app.set_status_notice("Login: required");
+    false
+}
+
 fn restore_prepared_remote_input(app: &mut App, prepared: input::PreparedInput) {
     app.input = prepared.raw_input;
     app.cursor_pos = app.input.len();

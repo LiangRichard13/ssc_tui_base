@@ -164,6 +164,69 @@ fn test_remote_successful_kimi_turn_marks_saved_key_runtime_validated() {
 }
 
 #[test]
+fn test_remote_successful_kimi_turn_refreshes_open_login_picker_validation_state() {
+    with_temp_jcode_home(|| {
+        let config_dir = crate::storage::app_config_dir().expect("config dir");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+        std::fs::write(config_dir.join("kimi.env"), "KIMI_API_KEY=secret-kimi-key\n")
+            .expect("write Kimi env file");
+        crate::auth::AuthStatus::invalidate_cache();
+
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+        app.open_saitec_base_model_login_picker();
+        for _ in 0..4 {
+            app.handle_key(KeyCode::Down, KeyModifiers::empty())
+                .expect("move selection to Kimi");
+        }
+
+        let backend = ratatui::backend::TestBackend::new(120, 40);
+        let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
+        terminal
+            .draw(|frame| crate::tui::ui::draw(frame, &app))
+            .expect("draw login picker before validation");
+        let before = buffer_to_text(&terminal);
+        assert!(
+            before.contains("Kimi Code") && before.contains("not validated yet"),
+            "test precondition should show unvalidated Kimi picker detail, got:\n{before}"
+        );
+
+        app.is_remote = true;
+        app.remote_provider_model = Some("kimi-for-coding".to_string());
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible:kimi".to_string(),
+            available: false,
+            detail: "runtime not validated".to_string(),
+            cheapness: None,
+        }];
+        app.current_message_id = Some(42);
+        app.is_processing = true;
+
+        app.handle_server_event(
+            crate::protocol::ServerEvent::TextDelta {
+                text: "Kimi response".to_string(),
+            },
+            &mut remote,
+        );
+        app.handle_server_event(crate::protocol::ServerEvent::Done { id: 42 }, &mut remote);
+
+        terminal
+            .draw(|frame| crate::tui::ui::draw(frame, &app))
+            .expect("draw login picker after validation");
+        let after = buffer_to_text(&terminal);
+        assert!(
+            after.contains("Kimi Code") && after.contains("runtime validated"),
+            "open login picker should refresh after successful Kimi turn, got:\n{after}"
+        );
+    });
+}
+
+#[test]
 fn test_remote_up_arrow_walks_back_through_multiple_history_entries() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();

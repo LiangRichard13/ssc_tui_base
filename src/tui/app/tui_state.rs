@@ -637,13 +637,16 @@ impl crate::tui::TuiState for App {
                     },
                     detail_lines,
                     footer_hint: if *api_key_optional {
-                        "Enter saves the key, or saves an empty value to skip. Use Up/Down to select Validate or Cancel."
+                        "Enter saves the key, or saves an empty value to skip. Use Up/Down to select Clear, Validate, or Cancel."
                             .to_string()
                     } else {
-                        "Enter saves the key securely. Use Up/Down to select Validate or Cancel."
+                        "Enter saves the key securely. Use Up/Down to select Clear, Validate, or Cancel."
                             .to_string()
                     },
                     mask_input: true,
+                    show_clear_button: true,
+                    clear_focused: self.pending_text_entry_focus
+                        == super::PendingTextEntryFocus::Clear,
                     validate_focused: self.pending_text_entry_focus
                         == super::PendingTextEntryFocus::Validate,
                     cancel_focused: self.pending_text_entry_focus
@@ -663,6 +666,8 @@ impl crate::tui::TuiState for App {
                         "Enter keeps the current value when empty, or saves the pasted base. Use Up/Down to select Validate or Cancel."
                             .to_string(),
                     mask_input: false,
+                    show_clear_button: false,
+                    clear_focused: false,
                     validate_focused: self.pending_text_entry_focus
                         == super::PendingTextEntryFocus::Validate,
                     cancel_focused: self.pending_text_entry_focus
@@ -680,6 +685,8 @@ impl crate::tui::TuiState for App {
                     "Enter saves the key securely. Use Up/Down to select Validate or Cancel."
                         .to_string(),
                 mask_input: true,
+                show_clear_button: false,
+                clear_focused: false,
                 validate_focused: self.pending_text_entry_focus
                     == super::PendingTextEntryFocus::Validate,
                 cancel_focused: self.pending_text_entry_focus

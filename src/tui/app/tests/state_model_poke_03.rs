@@ -946,6 +946,93 @@ fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
 }
 
 #[test]
+fn test_saitec_model_picker_hides_generic_openrouter_routes() {
+    with_temp_jcode_home(|| {
+        crate::subscription_catalog::clear_runtime_env();
+        save_test_saitec_session();
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+        let (mut app, _set_model_calls) = create_named_openrouter_spec_capture_test_app_with_routes(
+            "OpenRouter",
+            vec![
+                crate::provider::ModelRoute {
+                    model: "anthropic/claude-opus-4".to_string(),
+                    provider: "auto".to_string(),
+                    api_method: "openrouter".to_string(),
+                    available: true,
+                    detail: "generic OpenRouter route".to_string(),
+                    cheapness: None,
+                },
+                crate::provider::ModelRoute {
+                    model: "gpt-5.4".to_string(),
+                    provider: "OpenAI".to_string(),
+                    api_method: "openrouter".to_string(),
+                    available: true,
+                    detail: "OpenRouter endpoint route".to_string(),
+                    cheapness: None,
+                },
+                crate::provider::ModelRoute {
+                    model: "kimi-for-coding".to_string(),
+                    provider: "Kimi Code".to_string(),
+                    api_method: "openai-compatible:kimi".to_string(),
+                    available: true,
+                    detail: "validated Kimi route".to_string(),
+                    cheapness: None,
+                },
+            ],
+        );
+
+        app.open_model_picker();
+        wait_for_model_picker_load(&mut app);
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+
+        assert!(names.contains(&"kimi-for-coding"));
+        assert!(!names.contains(&"anthropic/claude-opus-4"));
+        assert!(!names.contains(&"gpt-5.4"));
+        assert!(
+            picker
+                .entries
+                .iter()
+                .flat_map(|entry| entry.options.iter())
+                .all(|route| route.api_method != "openrouter"),
+            "SAITEC model picker leaked OpenRouter routes: {:?}",
+            picker.entries
+        );
+    });
+}
+
+#[test]
+fn test_saitec_model_command_rejects_generic_openrouter_model() {
+    let (mut app, set_model_calls) =
+        create_named_openrouter_spec_capture_test_app_with_routes(
+            "OpenRouter",
+            vec![crate::provider::ModelRoute {
+                model: "anthropic/claude-opus-4".to_string(),
+                provider: "auto".to_string(),
+                api_method: "openrouter".to_string(),
+                available: true,
+                detail: "generic OpenRouter route".to_string(),
+                cheapness: None,
+            }],
+        );
+
+    app.input = "/model anthropic/claude-opus-4".to_string();
+    app.submit_input();
+
+    assert!(
+        set_model_calls.lock().unwrap().is_empty(),
+        "unsupported OpenRouter model should not reach provider.set_model"
+    );
+    let last = app.display_messages().last().expect("missing error message");
+    assert_eq!(last.role, "error");
+    assert!(last.content.contains("SAITEC-TUI"));
+}
+
+#[test]
 fn test_agent_model_picker_hides_openrouter_bare_openai_route() {
     let (mut app, _set_model_calls) = create_openrouter_spec_capture_test_app();
 

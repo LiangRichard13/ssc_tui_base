@@ -270,6 +270,133 @@ impl App {
             && crate::saitec::auth::ensure_logged_in().is_err()
     }
 
+    fn saitec_model_route_filter_provider_name(&self) -> Option<&str> {
+        if self.is_remote {
+            self.remote_provider_name.as_deref()
+        } else {
+            Some(self.provider.name())
+        }
+    }
+
+    fn normalized_saitec_provider_label(value: &str) -> String {
+        value
+            .trim()
+            .to_ascii_lowercase()
+            .replace([' ', '_', '-'], "")
+    }
+
+    pub(super) fn should_filter_saitec_base_model_routes(&self) -> bool {
+        let Some(provider_name) = self.saitec_model_route_filter_provider_name() else {
+            return false;
+        };
+        matches!(
+            Self::normalized_saitec_provider_label(provider_name).as_str(),
+            "openrouter" | "openai" | "anthropic" | "claude" | "saitecsubscription"
+        )
+    }
+
+    pub(super) fn filter_saitec_model_routes_for_picker(
+        &self,
+        routes: Vec<crate::provider::ModelRoute>,
+    ) -> Vec<crate::provider::ModelRoute> {
+        if !self.should_filter_saitec_base_model_routes() {
+            return routes;
+        }
+
+        let outer_provider = self
+            .saitec_model_route_filter_provider_name()
+            .unwrap_or_default();
+        routes
+            .into_iter()
+            .filter(|route| {
+                crate::saitec::product_profile::is_allowed_base_model_route(
+                    outer_provider,
+                    &route.model,
+                    &route.provider,
+                    &route.api_method,
+                )
+            })
+            .collect()
+    }
+
+    pub(super) fn saitec_model_switch_spec_for_route(
+        route: &crate::provider::ModelRoute,
+    ) -> String {
+        if let Some(("openai-compatible", profile_id)) = route.api_method.split_once(':') {
+            let profile_id = profile_id.trim();
+            if !profile_id.is_empty() {
+                return format!("{}:{}", profile_id, route.model);
+            }
+        }
+
+        if route.api_method == "openai-compatible"
+            && let Some(profile_id) =
+                crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                    &route.provider,
+                )
+        {
+            return format!("{}:{}", profile_id, route.model);
+        }
+
+        if route.api_method == "openrouter" && route.provider != "auto" {
+            return format!(
+                "{}@{}",
+                crate::provider::openrouter_catalog_model_id(&route.model)
+                    .unwrap_or_else(|| route.model.clone()),
+                route.provider
+            );
+        }
+
+        route.model.clone()
+    }
+
+    pub(super) fn resolve_saitec_model_switch_spec(
+        &self,
+        input: &str,
+    ) -> std::result::Result<String, String> {
+        let requested = input.trim();
+        if requested.is_empty() {
+            return Err("Usage: /model <name>".to_string());
+        }
+
+        if !self.should_filter_saitec_base_model_routes() {
+            return Ok(requested.to_string());
+        }
+
+        let routes = if self.is_remote {
+            self.remote_model_routes_for_picker()
+        } else {
+            self.provider.model_routes()
+        };
+        let routes = self.filter_saitec_model_routes_for_picker(routes);
+        let requested_lower = requested.to_ascii_lowercase();
+        let matching_route = routes.into_iter().find(|route| {
+            if route.model.eq_ignore_ascii_case(requested) {
+                return true;
+            }
+            Self::saitec_model_switch_spec_for_route(route).to_ascii_lowercase() == requested_lower
+        });
+
+        let Some(route) = matching_route else {
+            return Err(
+                crate::saitec::product_profile::unsupported_base_model_route_message(requested),
+            );
+        };
+
+        if !route.available {
+            return Err(
+                crate::tui::app::model_context::unavailable_model_route_message(
+                    &route.model,
+                    &route.provider,
+                    &route.detail,
+                    self.is_remote,
+                ),
+            );
+        }
+
+        Ok(Self::saitec_model_switch_spec_for_route(&route))
+    }
+
     fn bedrock_picker_availability(model: &str, has_credentials: bool) -> (bool, String) {
         if !has_credentials {
             return (
@@ -472,7 +599,11 @@ impl App {
             return;
         }
 
-        if !self.is_remote && !crate::perf::tui_policy().simplified_model_picker {
+        let needs_saitec_full_routes =
+            !self.is_remote && self.should_filter_saitec_base_model_routes();
+        if !self.is_remote
+            && (!crate::perf::tui_policy().simplified_model_picker || needs_saitec_full_routes)
+        {
             self.open_loading_model_picker(&current_model);
             self.start_model_picker_route_load(cache_signature, picker_started);
             return;
@@ -690,6 +821,7 @@ impl App {
         } else {
             routes
         };
+        let routes = self.filter_saitec_model_routes_for_picker(routes);
         let routes = Self::model_picker_display_routes(
             routes,
             self.requires_strict_model_picker_validation(),

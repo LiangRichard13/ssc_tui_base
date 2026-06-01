@@ -72,16 +72,36 @@ impl App {
             return false;
         }
 
+        let clear_label = "[ Clear ]";
         let validate_label = "[ Validate ]";
         let cancel_label = "[ Cancel ]";
         let button_gap = "  ";
-        let button_width = UnicodeWidthStr::width(validate_label)
+        let button_width = if overlay.show_clear_button {
+            UnicodeWidthStr::width(clear_label) + UnicodeWidthStr::width(button_gap)
+        } else {
+            0
+        } + UnicodeWidthStr::width(validate_label)
             + UnicodeWidthStr::width(button_gap)
             + UnicodeWidthStr::width(cancel_label);
         let button_padding = inner_width.saturating_sub(button_width) / 2;
         let button_row = popup.y + 1 + detail_rows as u16 + blank_after_details as u16 + 2;
         if mouse.row == button_row {
-            let validate_start = popup.x + 1 + button_padding as u16;
+            let mut next_start = popup.x + 1 + button_padding as u16;
+            if overlay.show_clear_button {
+                let clear_start = next_start;
+                let clear_end = clear_start + UnicodeWidthStr::width(clear_label) as u16;
+                next_start = clear_end + UnicodeWidthStr::width(button_gap) as u16;
+                if mouse.column >= clear_start && mouse.column < clear_end {
+                    self.pending_text_entry_focus = super::PendingTextEntryFocus::Clear;
+                    super::input::handle_pending_login_key(
+                        self,
+                        KeyCode::Enter,
+                        KeyModifiers::empty(),
+                    );
+                    return false;
+                }
+            }
+            let validate_start = next_start;
             let validate_end = validate_start + UnicodeWidthStr::width(validate_label) as u16;
             let cancel_start = validate_end + UnicodeWidthStr::width(button_gap) as u16;
             let cancel_end = cancel_start + UnicodeWidthStr::width(cancel_label) as u16;

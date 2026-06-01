@@ -96,6 +96,7 @@ impl App {
                 }),
                 "pending_text_entry_focus": match self.pending_text_entry_focus {
                     PendingTextEntryFocus::Input => "input",
+                    PendingTextEntryFocus::Clear => "clear",
                     PendingTextEntryFocus::Validate => "validate",
                     PendingTextEntryFocus::Cancel => "cancel",
                 },
