@@ -554,6 +554,70 @@ fn test_info_widget_remote_model_falls_back_to_model_provider_detection() {
     );
 }
 
+#[derive(Clone)]
+struct KimiWalletTestProvider;
+
+#[async_trait::async_trait]
+impl Provider for KimiWalletTestProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[crate::message::ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<crate::provider::EventStream> {
+        unimplemented!("KimiWalletTestProvider")
+    }
+
+    fn name(&self) -> &str {
+        "openrouter"
+    }
+
+    fn model(&self) -> String {
+        "kimi-for-coding".to_string()
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
+    }
+}
+
+fn create_kimi_wallet_test_app() -> App {
+    ensure_test_jcode_home_if_unset();
+    clear_persisted_test_ui_state();
+    crate::tui::ui::clear_test_render_state_for_tests();
+
+    let provider: Arc<dyn Provider> = Arc::new(KimiWalletTestProvider);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let mut app = App::new_for_test_harness(provider, registry);
+    app.queue_mode = false;
+    app.diff_mode = crate::config::DiffDisplayMode::Inline;
+    app
+}
+
+#[test]
+fn test_info_widget_local_kimi_subscription_route_hides_cost_wallet_usage() {
+    let mut app = create_kimi_wallet_test_app();
+
+    app.streaming_input_tokens = 1_000_000;
+    app.streaming_output_tokens = 1_000_000;
+    app.update_cost_impl();
+
+    assert_eq!(
+        app.total_cost, 0.0,
+        "Kimi Code subscription routes must not accumulate local dollar cost"
+    );
+
+    let data = crate::tui::TuiState::info_widget_data(&app);
+
+    assert_eq!(data.model.as_deref(), Some("kimi-for-coding"));
+    assert!(
+        data.usage_info.is_none(),
+        "Kimi Code subscription routes must not render JCode's cost wallet widget"
+    );
+}
+
 #[test]
 fn test_info_widget_local_gemini_shows_oauth_auth_method() {
     let _guard = crate::storage::lock_test_env();

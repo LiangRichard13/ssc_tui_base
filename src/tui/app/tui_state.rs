@@ -186,6 +186,12 @@ impl App {
             None
         };
 
+        if matches!(route.provider, WidgetProviderKind::OpenRouter)
+            && self.is_kimi_code_subscription_route()
+        {
+            return None;
+        }
+
         match route.provider {
             WidgetProviderKind::Copilot => Some(crate::tui::info_widget::UsageInfo {
                 provider: crate::tui::info_widget::UsageProvider::Copilot,

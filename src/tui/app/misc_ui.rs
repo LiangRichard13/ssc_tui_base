@@ -2,6 +2,36 @@ use super::*;
 
 /// Update cost calculation based on token usage (for API-key providers)
 impl App {
+    pub(crate) fn is_kimi_code_subscription_route(&self) -> bool {
+        let model = if self.uses_server_or_replay_metadata() {
+            self.remote_provider_model
+                .as_deref()
+                .or(self.session.model.as_deref())
+                .map(str::to_string)
+        } else {
+            Some(self.provider.model())
+        };
+
+        if model
+            .as_deref()
+            .map(is_kimi_code_subscription_model)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        if self
+            .remote_provider_name
+            .as_deref()
+            .map(is_kimi_code_provider_label)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+
+        active_kimi_code_profile()
+    }
+
     pub(super) fn current_streaming_tps_elapsed(&self) -> Duration {
         let mut elapsed = self.streaming_tps_elapsed;
         if let Some(start) = self.streaming_tps_start {
@@ -76,6 +106,10 @@ impl App {
 
     pub(super) fn update_cost_impl(&mut self) {
         let provider_name = self.provider.name().to_lowercase();
+
+        if provider_name.contains("openrouter") && self.is_kimi_code_subscription_route() {
+            return;
+        }
 
         // Only calculate cost for API-key providers
         if !provider_name.contains("openrouter")
@@ -170,4 +204,50 @@ impl App {
         }
         Ok(())
     }
+}
+
+fn is_kimi_code_subscription_model(model: &str) -> bool {
+    let trimmed = model.trim();
+    trimmed.eq_ignore_ascii_case("kimi-for-coding")
+        || trimmed.eq_ignore_ascii_case("kimi:kimi-for-coding")
+}
+
+fn is_kimi_code_provider_label(provider: &str) -> bool {
+    matches!(
+        provider.trim().to_ascii_lowercase().as_str(),
+        "kimi" | "kimi code" | "kimi-code"
+    )
+}
+
+fn active_kimi_code_profile() -> bool {
+    for key in [
+        "JCODE_OPENROUTER_CACHE_NAMESPACE",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "JCODE_PROVIDER_PROFILE_NAME",
+    ] {
+        if std::env::var(key)
+            .ok()
+            .as_deref()
+            .map(is_kimi_code_provider_label)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+
+    let kimi_base =
+        crate::provider_catalog::normalize_api_base(crate::provider_catalog::KIMI_PROFILE.api_base);
+    for key in ["JCODE_OPENROUTER_API_BASE", "JCODE_OPENAI_COMPAT_API_BASE"] {
+        let Some(base) = std::env::var(key)
+            .ok()
+            .and_then(|value| crate::provider_catalog::normalize_api_base(&value))
+        else {
+            continue;
+        };
+        if kimi_base.as_deref() == Some(base.as_str()) {
+            return true;
+        }
+    }
+
+    false
 }
