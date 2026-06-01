@@ -77,6 +77,7 @@ impl MultiProvider {
         }
 
         let has_claude_creds = auth::claude::load_credentials().is_ok();
+        let has_anthropic_api_key = anthropic::has_direct_api_key();
         let has_openai_creds = auth::codex::load_credentials().is_ok();
         let has_copilot_api = auth_status.copilot_has_api_token;
         let has_antigravity_creds = auth::antigravity::load_tokens().is_ok();
@@ -123,7 +124,7 @@ impl MultiProvider {
             None
         };
 
-        let anthropic = if has_claude_creds && !use_claude_cli {
+        let anthropic = if (has_claude_creds || has_anthropic_api_key) && !use_claude_cli {
             Some(Arc::new(anthropic::AnthropicProvider::new()))
         } else {
             None
@@ -442,7 +443,12 @@ impl MultiProvider {
             return;
         };
 
-        tokio::spawn(async move {
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            finish_anthropic_model_catalog_refresh_for_scope(&scope);
+            return;
+        };
+
+        handle.spawn(async move {
             if let Err(err) = provider.prefetch_models().await {
                 crate::logging::info(&format!(
                     "Failed to refresh Anthropic model catalog from provider bootstrap: {}",

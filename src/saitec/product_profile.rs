@@ -147,6 +147,36 @@ fn openai_compatible_route_profile_id(provider: &str, api_method: &str) -> Optio
     None
 }
 
+fn model_matches_profile_model(model: &str, candidate: &str) -> bool {
+    model.trim().eq_ignore_ascii_case(candidate.trim())
+}
+
+fn openai_compatible_profile_allows_model(profile_id: &str, model: &str) -> bool {
+    let profile_id = profile_id.trim().to_ascii_lowercase();
+    let model = model.trim();
+    if model.is_empty() {
+        return false;
+    }
+
+    if let Some(profile) = crate::provider_catalog::openai_compatible_profile_by_id(&profile_id)
+        && crate::provider_catalog::openai_compatible_profile_static_models(profile)
+            .iter()
+            .any(|candidate| model_matches_profile_model(model, candidate))
+    {
+        return true;
+    }
+
+    crate::auth::validation::get(&profile_id)
+        .filter(|record| record.success)
+        .map(|record| {
+            record
+                .validated_models
+                .iter()
+                .any(|candidate| model_matches_profile_model(model, candidate))
+        })
+        .unwrap_or(false)
+}
+
 pub fn is_allowed_base_model_route(
     outer_provider: &str,
     model: &str,
@@ -178,7 +208,8 @@ pub fn is_allowed_base_model_route(
     }
 
     if let Some(profile_id) = openai_compatible_route_profile_id(provider, api_method) {
-        return is_allowed_openai_compatible_profile(&profile_id);
+        return is_allowed_openai_compatible_profile(&profile_id)
+            && openai_compatible_profile_allows_model(&profile_id, model);
     }
 
     false
@@ -247,5 +278,27 @@ mod tests {
     #[test]
     fn product_mode_hides_external_resume_sources() {
         assert!(!show_external_resume_sources());
+    }
+
+    #[test]
+    fn kimi_openai_compatible_route_only_allows_kimi_models() {
+        assert!(is_allowed_base_model_route(
+            "",
+            "kimi-for-coding",
+            "Kimi Code",
+            "openai-compatible"
+        ));
+        assert!(!is_allowed_base_model_route(
+            "",
+            "claude-opus-4-6",
+            "Kimi Code",
+            "openai-compatible"
+        ));
+        assert!(!is_allowed_base_model_route(
+            "",
+            "claude-opus-4-6",
+            "Kimi Code",
+            "openai-compatible:kimi"
+        ));
     }
 }

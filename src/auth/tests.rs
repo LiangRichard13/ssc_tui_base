@@ -196,6 +196,30 @@ fn auth_status_check_returns_valid_struct() {
 }
 
 #[test]
+fn kimi_code_anthropic_env_does_not_count_as_anthropic_auth() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::TempDir::new().expect("create temp dir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_anthropic_key = std::env::var_os("ANTHROPIC_API_KEY");
+    let prev_anthropic_base = std::env::var_os("ANTHROPIC_BASE_URL");
+
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::set_var("ANTHROPIC_API_KEY", "sk-kimi-test-key");
+    crate::env::set_var("ANTHROPIC_BASE_URL", "https://api.kimi.com/coding/");
+    AuthStatus::invalidate_cache();
+
+    let status = AuthStatus::check_fast();
+
+    assert_eq!(status.anthropic.state, AuthState::NotConfigured);
+    assert!(!status.anthropic.has_api_key);
+
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("ANTHROPIC_API_KEY", prev_anthropic_key);
+    restore_env_var("ANTHROPIC_BASE_URL", prev_anthropic_base);
+    AuthStatus::invalidate_cache();
+}
+
+#[test]
 fn auth_status_check_fast_ignores_expired_full_cache() {
     let _lock = crate::storage::lock_test_env();
     AuthStatus::invalidate_cache();

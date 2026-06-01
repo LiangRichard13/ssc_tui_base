@@ -575,7 +575,7 @@ impl AuthStatus {
         }
 
         // Check API key (overrides expired OAuth)
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        if crate::provider::anthropic::has_direct_api_key() {
             anthropic.has_api_key = true;
             anthropic.state = AuthState::Available;
         }
@@ -715,7 +715,7 @@ impl AuthStatus {
                 anthropic.state = AuthState::Expired;
             }
         }
-        if std::env::var("ANTHROPIC_API_KEY").is_ok() {
+        if crate::provider::anthropic::has_direct_api_key() {
             anthropic.has_api_key = true;
             anthropic.state = AuthState::Available;
         }
@@ -855,7 +855,7 @@ fn assessment_for_key(
         LoginProviderAuthStateKey::Anthropic => {
             let (source, detail) = summarize_sources(vec![
                 anthropic_oauth_source(status),
-                env_source("ANTHROPIC_API_KEY"),
+                anthropic_api_key_source(status),
             ]);
             (
                 source,
@@ -1029,6 +1029,15 @@ fn env_source(env_key: &str) -> Option<(AuthCredentialSource, String)> {
         (
             AuthCredentialSource::EnvironmentVariable,
             format!("{env_key} environment variable"),
+        )
+    })
+}
+
+fn anthropic_api_key_source(status: &AuthStatus) -> Option<(AuthCredentialSource, String)> {
+    (status.anthropic.has_api_key && crate::provider::anthropic::has_direct_api_key()).then(|| {
+        (
+            AuthCredentialSource::EnvironmentVariable,
+            "ANTHROPIC_API_KEY environment variable".to_string(),
         )
     })
 }

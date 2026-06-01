@@ -937,7 +937,7 @@ impl Provider for MultiProvider {
         let mut openrouter_endpoint_routes = 0usize;
         let mut openrouter_scheduled_endpoint_refreshes = 0usize;
         let has_oauth = self.has_claude_runtime();
-        let has_api_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
+        let has_api_key = anthropic::has_direct_api_key();
         let anthropic_models = if let Some(anthropic) = self.anthropic_provider() {
             anthropic.available_models_for_switching()
         } else if let Some(claude) = self.claude_provider() {
@@ -1372,7 +1372,7 @@ impl Provider for MultiProvider {
                     Some(Arc::new(claude::ClaudeProvider::new()));
             }
         } else if self.anthropic_provider().is_none()
-            && crate::auth::claude::load_credentials().is_ok()
+            && (crate::auth::claude::load_credentials().is_ok() || anthropic::has_direct_api_key())
         {
             crate::logging::info("Hot-initialized Anthropic provider after auth change");
             *self

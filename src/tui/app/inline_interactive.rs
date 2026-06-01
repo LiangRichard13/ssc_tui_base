@@ -173,11 +173,24 @@ impl App {
 
     pub(super) fn should_filter_saitec_base_model_routes(&self) -> bool {
         let Some(provider_name) = self.saitec_model_route_filter_provider_name() else {
-            return false;
+            return self.is_remote;
         };
+        if crate::provider_catalog::openai_compatible_profile_id_for_display_name(provider_name)
+            .is_some_and(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
+        {
+            return true;
+        }
         matches!(
             Self::normalized_saitec_provider_label(provider_name).as_str(),
-            "openrouter" | "openai" | "anthropic" | "claude" | "saitecsubscription"
+            "openrouter"
+                | "openai"
+                | "anthropic"
+                | "claude"
+                | "saitecsubscription"
+                | "kimicode"
+                | "zai"
+                | "alibabacodingplan"
+                | "alibabacloudcoding"
         )
     }
 
@@ -200,9 +213,13 @@ impl App {
                     &route.model,
                     &route.provider,
                     &route.api_method,
-                )
+                ) && !Self::is_saitec_unconfigured_base_route(route)
             })
             .collect()
+    }
+
+    fn is_saitec_unconfigured_base_route(route: &crate::provider::ModelRoute) -> bool {
+        !route.available && route.detail.trim().eq_ignore_ascii_case("no credentials")
     }
 
     pub(super) fn saitec_model_switch_spec_for_route(

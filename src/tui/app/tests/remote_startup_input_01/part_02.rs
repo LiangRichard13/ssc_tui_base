@@ -534,6 +534,91 @@ fn test_remote_model_picker_adds_validated_kimi_and_blocks_failed_zai_routes() {
 }
 
 #[test]
+fn test_remote_model_picker_filters_kimi_compatible_generic_claude_routes_without_provider_name() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let env_keys = [
+        "JCODE_HOME",
+        "KIMI_API_KEY",
+        "ZHIPU_API_KEY",
+        "ZAI_API_KEY",
+        "BAILIAN_CODING_PLAN_API_KEY",
+        "JCODE_OPENROUTER_API_BASE",
+        "JCODE_OPENROUTER_API_KEY_NAME",
+        "JCODE_OPENROUTER_ENV_FILE",
+        "JCODE_OPENROUTER_CACHE_NAMESPACE",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "JCODE_PROVIDER_PROFILE_ACTIVE",
+    ];
+    let saved_env = env_keys
+        .iter()
+        .map(|key| (*key, std::env::var_os(key)))
+        .collect::<Vec<_>>();
+    crate::env::set_var("JCODE_HOME", temp.path());
+    for key in env_keys.iter().copied().filter(|key| *key != "JCODE_HOME") {
+        crate::env::remove_var(key);
+    }
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.remote_provider_name = None;
+    app.remote_provider_model = Some("kimi-for-coding".to_string());
+    app.remote_model_options = vec![
+        crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible".to_string(),
+            available: true,
+            detail: "custom endpoint".to_string(),
+            cheapness: None,
+        },
+        crate::provider::ModelRoute {
+            model: "claude-opus-4-6".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible".to_string(),
+            available: true,
+            detail: "custom endpoint".to_string(),
+            cheapness: None,
+        },
+        crate::provider::ModelRoute {
+            model: "claude-sonnet-4-6".to_string(),
+            provider: "OpenRouter".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: String::new(),
+            cheapness: None,
+        },
+    ];
+
+    app.open_model_picker();
+
+    for (key, value) in saved_env {
+        match value {
+            Some(value) => crate::env::set_var(key, value),
+            None => crate::env::remove_var(key),
+        }
+    }
+    crate::auth::AuthStatus::invalidate_cache();
+
+    let picker = app
+        .inline_interactive_state
+        .as_ref()
+        .expect("model picker should be open");
+    let names = picker
+        .entries
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(names.contains(&"kimi-for-coding"), "entries: {:?}", names);
+    assert!(
+        !names.iter().any(|name| name.starts_with("claude-")),
+        "Kimi-compatible remote picker should not expose Claude routes: {:?}",
+        names
+    );
+}
+
+#[test]
 fn test_model_picker_remote_bedrock_model_requires_runtime_validation() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var("JCODE_HOME").ok();
