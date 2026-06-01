@@ -133,6 +133,63 @@ pub fn active_openai_compatible_display_name() -> Option<String> {
     None
 }
 
+pub fn active_openai_compatible_profile_id() -> Option<String> {
+    if let Ok(profile_name) = std::env::var("JCODE_NAMED_PROVIDER_PROFILE") {
+        let trimmed = profile_name.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_ascii_lowercase());
+        }
+    }
+
+    if let Ok(namespace) = std::env::var("JCODE_OPENROUTER_CACHE_NAMESPACE") {
+        let trimmed = namespace.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_ascii_lowercase());
+        }
+    }
+
+    let api_base = std::env::var("JCODE_OPENROUTER_API_BASE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| env_override("JCODE_OPENAI_COMPAT_API_BASE"));
+
+    if let Some(api_base) = api_base.and_then(|value| normalize_api_base(&value)) {
+        for profile in openai_compatible_profiles().iter().copied() {
+            if normalize_api_base(profile.api_base).as_deref() == Some(api_base.as_str()) {
+                return Some(profile.id.to_string());
+            }
+        }
+
+        if api_base.contains("openrouter.ai") {
+            return Some("openrouter".to_string());
+        }
+
+        return Some(OPENAI_COMPAT_PROFILE.id.to_string());
+    }
+
+    if std::env::var_os("OPENROUTER_API_KEY").is_some() {
+        return None;
+    }
+
+    let mut configured = openai_compatible_profiles()
+        .iter()
+        .copied()
+        .filter(|profile| profile.id != OPENAI_COMPAT_PROFILE.id)
+        .filter(|profile| {
+            crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
+        })
+        .filter(|profile| openai_compatible_profile_is_configured(*profile))
+        .map(|profile| profile.id.to_string())
+        .collect::<Vec<_>>();
+
+    if configured.len() == 1 {
+        configured.pop()
+    } else {
+        None
+    }
+}
+
 pub fn saitec_visible_base_model_providers() -> Vec<LoginProviderDescriptor> {
     tui_login_providers()
         .into_iter()

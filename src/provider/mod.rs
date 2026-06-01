@@ -551,6 +551,12 @@ impl MultiProvider {
         if model.is_empty() {
             anyhow::bail!("Model cannot be empty");
         }
+        if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id) {
+            anyhow::bail!(
+                "{}",
+                crate::saitec::product_profile::unsupported_base_model_provider_message()
+            );
+        }
         let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
         if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
             anyhow::bail!(
@@ -591,13 +597,35 @@ impl MultiProvider {
             let trimmed = pref.trim();
             (!trimmed.is_empty()).then_some(trimmed)
         }) {
-            if crate::provider_catalog::resolve_openai_compatible_profile_selection(pref).is_some()
-                || crate::config::config().providers.contains_key(pref)
+            if let Some(profile) =
+                crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
+                if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
+                {
+                    anyhow::bail!(
+                        "{}",
+                        crate::saitec::product_profile::unsupported_base_model_provider_message()
+                    );
+                }
                 return self.set_model_on_provider(ActiveProvider::OpenRouter, model);
             }
 
+            if crate::config::config().providers.contains_key(pref) {
+                anyhow::bail!(
+                    "{}",
+                    crate::saitec::product_profile::unsupported_base_model_provider_message()
+                );
+            }
+
             if let Some(provider) = Self::parse_provider_hint(pref) {
+                if !crate::saitec::product_profile::is_allowed_base_model_provider(
+                    Self::provider_key(provider),
+                ) {
+                    anyhow::bail!(
+                        "{}",
+                        crate::saitec::product_profile::unsupported_base_model_provider_message()
+                    );
+                }
                 return self.set_model_on_provider(provider, model);
             }
         }
@@ -1002,6 +1030,9 @@ impl Provider for MultiProvider {
             .iter()
             .copied()
         {
+            if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id) {
+                continue;
+            }
             if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
                 continue;
             }
@@ -1119,6 +1150,7 @@ impl Provider for MultiProvider {
 
         // OpenRouter models (with per-provider endpoints)
         let has_openrouter = self.openrouter_provider().is_some();
+        let mut openrouter_supports_provider_features = false;
         if let Some(openrouter) = self.openrouter_provider() {
             let openai_compatible_provider_label =
                 crate::provider_catalog::active_openai_compatible_display_name()
@@ -1126,72 +1158,78 @@ impl Provider for MultiProvider {
             let current_openrouter_model = openrouter.model();
             let supports_openrouter_provider_features =
                 openrouter.supports_provider_routing_features();
+            openrouter_supports_provider_features = supports_openrouter_provider_features;
             let mut scheduled_endpoint_refreshes = 0usize;
-            for model in openrouter.available_models_display() {
-                openrouter_models += 1;
-                let cached = openrouter::load_endpoints_disk_cache_public(&model);
-                let cache_age = cached.as_ref().map(|(_, age)| *age);
-                if (model == current_openrouter_model || scheduled_endpoint_refreshes < 8)
-                    && openrouter.maybe_schedule_endpoint_refresh_for_display(
-                        &model,
-                        cache_age,
-                        "model picker route hydration",
-                    )
-                {
-                    scheduled_endpoint_refreshes += 1;
-                    openrouter_scheduled_endpoint_refreshes += 1;
-                }
-                let age_str = cached.as_ref().map(|(_, age)| {
-                    if *age < 3600 {
-                        format!("{}m ago", age / 60)
-                    } else if *age < 86400 {
-                        format!("{}h ago", age / 3600)
-                    } else {
-                        format!("{}d ago", age / 86400)
-                    }
-                });
-                // Auto route: hint which provider it would likely pick
-                let auto_detail = cached
-                    .as_ref()
-                    .and_then(|(eps, _)| {
-                        eps.first().map(|ep| {
-                            let endpoint_detail = ep.detail_string();
-                            if endpoint_detail.trim().is_empty() {
-                                format!("→ {}", ep.provider_name)
-                            } else {
-                                format!("→ {} · {}", ep.provider_name, endpoint_detail)
-                            }
-                        })
-                    })
-                    .unwrap_or_default();
-                if supports_openrouter_provider_features {
-                    routes.push(build_openrouter_auto_route(
-                        &model,
-                        has_openrouter,
-                        auto_detail,
-                    ));
-                } else {
-                    routes.push(ModelRoute {
-                        model: model.clone(),
-                        provider: openai_compatible_provider_label.clone(),
-                        api_method: "openai-compatible".to_string(),
-                        available: has_openrouter,
-                        detail: "custom endpoint".to_string(),
-                        cheapness: None,
-                    });
-                }
-                // Add per-provider routes from endpoints cache
-                if let Some((ref endpoints, _)) = cached {
-                    openrouter_endpoint_cache_hits += 1;
-                    let stale_suffix = age_str.as_deref().unwrap_or("");
-                    for ep in endpoints {
-                        openrouter_endpoint_routes += 1;
-                        routes.push(build_openrouter_endpoint_route(
+            let expose_generic_openrouter_routes =
+                crate::saitec::product_profile::expose_generic_openrouter_routes()
+                    || !supports_openrouter_provider_features;
+            if expose_generic_openrouter_routes {
+                for model in openrouter.available_models_display() {
+                    openrouter_models += 1;
+                    let cached = openrouter::load_endpoints_disk_cache_public(&model);
+                    let cache_age = cached.as_ref().map(|(_, age)| *age);
+                    if (model == current_openrouter_model || scheduled_endpoint_refreshes < 8)
+                        && openrouter.maybe_schedule_endpoint_refresh_for_display(
                             &model,
-                            ep,
+                            cache_age,
+                            "model picker route hydration",
+                        )
+                    {
+                        scheduled_endpoint_refreshes += 1;
+                        openrouter_scheduled_endpoint_refreshes += 1;
+                    }
+                    let age_str = cached.as_ref().map(|(_, age)| {
+                        if *age < 3600 {
+                            format!("{}m ago", age / 60)
+                        } else if *age < 86400 {
+                            format!("{}h ago", age / 3600)
+                        } else {
+                            format!("{}d ago", age / 86400)
+                        }
+                    });
+                    // Auto route: hint which provider it would likely pick
+                    let auto_detail = cached
+                        .as_ref()
+                        .and_then(|(eps, _)| {
+                            eps.first().map(|ep| {
+                                let endpoint_detail = ep.detail_string();
+                                if endpoint_detail.trim().is_empty() {
+                                    format!("→ {}", ep.provider_name)
+                                } else {
+                                    format!("→ {} · {}", ep.provider_name, endpoint_detail)
+                                }
+                            })
+                        })
+                        .unwrap_or_default();
+                    if supports_openrouter_provider_features {
+                        routes.push(build_openrouter_auto_route(
+                            &model,
                             has_openrouter,
-                            Some(stale_suffix),
+                            auto_detail,
                         ));
+                    } else {
+                        routes.push(ModelRoute {
+                            model: model.clone(),
+                            provider: openai_compatible_provider_label.clone(),
+                            api_method: "openai-compatible".to_string(),
+                            available: has_openrouter,
+                            detail: "custom endpoint".to_string(),
+                            cheapness: None,
+                        });
+                    }
+                    // Add per-provider routes from endpoints cache
+                    if let Some((ref endpoints, _)) = cached {
+                        openrouter_endpoint_cache_hits += 1;
+                        let stale_suffix = age_str.as_deref().unwrap_or("");
+                        for ep in endpoints {
+                            openrouter_endpoint_routes += 1;
+                            routes.push(build_openrouter_endpoint_route(
+                                &model,
+                                ep,
+                                has_openrouter,
+                                Some(stale_suffix),
+                            ));
+                        }
                     }
                 }
             }
@@ -1210,7 +1248,10 @@ impl Provider for MultiProvider {
         }
 
         // Also add Claude/OpenAI models via openrouter as alternative routes
-        if has_openrouter {
+        if has_openrouter
+            && openrouter_supports_provider_features
+            && crate::saitec::product_profile::expose_generic_openrouter_routes()
+        {
             for model in known_anthropic_model_ids() {
                 let or_model = format!("anthropic/{}", model);
                 if let Some((endpoints, _)) =

@@ -521,6 +521,31 @@ fn test_validated_direct_compatible_models_are_merged_into_model_routes() {
 }
 
 #[test]
+fn test_saitec_startup_does_not_activate_generic_openrouter_credentials() {
+    with_clean_provider_test_env(|| {
+        with_env_var("OPENROUTER_API_KEY", "test-openrouter-key", || {
+            let provider = MultiProvider::new_fast();
+
+            assert_ne!(
+                provider.name(),
+                "OpenRouter",
+                "generic OpenRouter must not become the active SAITEC base-model runtime"
+            );
+
+            let routes = provider.model_routes();
+            assert!(
+                !routes.iter().any(|route| {
+                    crate::provider::is_listable_model_name(&route.model)
+                        && route.api_method == "openrouter"
+                }),
+                "generic OpenRouter routes leaked into SAITEC model routes: {:?}",
+                routes
+            );
+        })
+    });
+}
+
+#[test]
 fn test_profile_prefixed_model_switch_reinitializes_direct_compatible_runtime() {
     with_clean_provider_test_env(|| {
         with_env_var("DEEPSEEK_API_KEY", "test-deepseek-key", || {

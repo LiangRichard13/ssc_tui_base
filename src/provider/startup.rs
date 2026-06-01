@@ -50,7 +50,6 @@ impl MultiProvider {
     pub(super) fn new_with_auth_status(auth_status: auth::AuthStatus) -> Self {
         let provider_init_start = std::time::Instant::now();
         let cfg = crate::config::config();
-        let mut default_named_provider_profile: Option<String> = None;
         if std::env::var_os("JCODE_PROVIDER_PROFILE_ACTIVE").is_none()
             && std::env::var_os("JCODE_NAMED_PROVIDER_PROFILE").is_none()
             && let Some(pref) = cfg.provider.default_provider.as_deref()
@@ -58,21 +57,22 @@ impl MultiProvider {
             if let Some(profile) =
                 crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
-                crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
-            } else if cfg.providers.contains_key(pref) {
-                match crate::provider_catalog::apply_named_provider_profile_env_from_config(
-                    pref, cfg,
-                ) {
-                    Ok(profile_name) => {
-                        crate::env::set_var("JCODE_PROVIDER_PROFILE_NAME", &profile_name);
-                        crate::env::set_var("JCODE_PROVIDER_PROFILE_ACTIVE", "1");
-                        default_named_provider_profile = Some(profile_name);
-                    }
-                    Err(err) => crate::logging::warn(&format!(
-                        "Failed to apply default provider profile '{}': {}",
-                        pref, err
-                    )),
+                if crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
+                {
+                    crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
+                } else {
+                    crate::logging::warn(&format!(
+                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
+                        pref,
+                        crate::saitec::product_profile::unsupported_base_model_provider_message()
+                    ));
                 }
+            } else if cfg.providers.contains_key(pref) {
+                crate::logging::warn(&format!(
+                    "Ignoring unsupported SAITEC named provider profile '{}'. {}",
+                    pref,
+                    crate::saitec::product_profile::unsupported_base_model_provider_message()
+                ));
             }
         }
 
@@ -83,7 +83,27 @@ impl MultiProvider {
         let has_gemini_creds = auth::gemini::load_tokens().is_ok();
         let has_cursor_creds = matches!(auth_status.cursor, auth::AuthState::Available);
         let has_bedrock_creds = bedrock::BedrockProvider::has_credentials();
-        let has_openrouter_creds = openrouter::OpenRouterProvider::has_credentials();
+        let subscription_runtime = crate::subscription_catalog::is_runtime_mode_enabled();
+        let active_compatible_profile =
+            crate::provider_catalog::active_openai_compatible_profile_id();
+        let generic_openrouter_key_present = std::env::var_os("OPENROUTER_API_KEY").is_some();
+        let explicit_compatible_runtime_env = [
+            "JCODE_OPENROUTER_API_BASE",
+            "JCODE_OPENROUTER_API_KEY_NAME",
+            "JCODE_OPENROUTER_ENV_FILE",
+            "JCODE_OPENROUTER_CACHE_NAMESPACE",
+        ]
+        .iter()
+        .any(|key| std::env::var_os(key).is_some());
+        let compatible_runtime_allowed = active_compatible_profile
+            .as_deref()
+            .map(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
+            .unwrap_or(false)
+            && (!generic_openrouter_key_present || explicit_compatible_runtime_env);
+        let openrouter_runtime_allowed = (subscription_runtime || compatible_runtime_allowed)
+            && (!generic_openrouter_key_present || explicit_compatible_runtime_env);
+        let has_openrouter_creds =
+            openrouter_runtime_allowed && openrouter::OpenRouterProvider::has_credentials();
 
         let use_claude_cli = std::env::var("JCODE_USE_CLAUDE_CLI")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -174,9 +194,7 @@ impl MultiProvider {
         };
 
         let openrouter = if has_openrouter_creds {
-            let named_profile = std::env::var("JCODE_NAMED_PROVIDER_PROFILE")
-                .ok()
-                .or_else(|| default_named_provider_profile.clone());
+            let named_profile = std::env::var("JCODE_NAMED_PROVIDER_PROFILE").ok();
             let provider_result = if let Some(profile_name) = named_profile.as_deref() {
                 if let Some(profile) = cfg.providers.get(profile_name) {
                     openrouter::OpenRouterProvider::new_named_openai_compatible(
@@ -248,52 +266,63 @@ impl MultiProvider {
             if let Some(profile) =
                 crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
-                let is_configured = availability.is_configured(ActiveProvider::OpenRouter);
-                if is_configured {
-                    active = ActiveProvider::OpenRouter;
-                    let resolved =
-                        crate::provider_catalog::resolve_openai_compatible_profile(profile);
-                    crate::logging::info(&format!(
-                        "Using preferred provider '{}' from config via OpenAI-compatible profile {}",
-                        pref, resolved.display_name
+                if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
+                {
+                    crate::logging::warn(&format!(
+                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
+                        pref,
+                        crate::saitec::product_profile::unsupported_base_model_provider_message()
                     ));
                 } else {
-                    crate::logging::warn(&format!(
-                        "Preferred provider '{}' is not configured, using auto-detected default",
-                        pref
-                    ));
+                    let is_configured = availability.is_configured(ActiveProvider::OpenRouter);
+                    if is_configured {
+                        active = ActiveProvider::OpenRouter;
+                        let resolved =
+                            crate::provider_catalog::resolve_openai_compatible_profile(profile);
+                        crate::logging::info(&format!(
+                            "Using preferred provider '{}' from config via OpenAI-compatible profile {}",
+                            pref, resolved.display_name
+                        ));
+                    } else {
+                        crate::logging::warn(&format!(
+                            "Preferred provider '{}' is not configured, using auto-detected default",
+                            pref
+                        ));
+                    }
                 }
             } else if cfg.providers.contains_key(pref) {
-                let is_configured = availability.is_configured(ActiveProvider::OpenRouter);
-                if is_configured {
-                    active = ActiveProvider::OpenRouter;
-                    crate::logging::info(&format!(
-                        "Using preferred provider profile '{}' from config",
-                        pref
-                    ));
-                } else {
-                    crate::logging::warn(&format!(
-                        "Preferred provider profile '{}' is not configured, using auto-detected default",
-                        pref
-                    ));
-                }
+                crate::logging::warn(&format!(
+                    "Ignoring unsupported SAITEC named provider profile '{}'. {}",
+                    pref,
+                    crate::saitec::product_profile::unsupported_base_model_provider_message()
+                ));
             } else if let Some(pref_provider) = Self::parse_provider_hint(pref) {
-                let is_configured = availability.is_configured(pref_provider);
-                if is_configured {
-                    active = pref_provider;
-                    crate::logging::info(&format!(
-                        "Using preferred provider '{}' from config",
-                        pref
+                if !crate::saitec::product_profile::is_allowed_base_model_provider(
+                    Self::provider_key(pref_provider),
+                ) {
+                    crate::logging::warn(&format!(
+                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
+                        pref,
+                        crate::saitec::product_profile::unsupported_base_model_provider_message()
                     ));
                 } else {
-                    crate::logging::warn(&format!(
-                        "Preferred provider '{}' is not configured, using auto-detected default",
-                        pref
-                    ));
+                    let is_configured = availability.is_configured(pref_provider);
+                    if is_configured {
+                        active = pref_provider;
+                        crate::logging::info(&format!(
+                            "Using preferred provider '{}' from config",
+                            pref
+                        ));
+                    } else {
+                        crate::logging::warn(&format!(
+                            "Preferred provider '{}' is not configured, using auto-detected default",
+                            pref
+                        ));
+                    }
                 }
             } else {
                 crate::logging::warn(&format!(
-                    "Unknown default_provider '{}' in config (expected: claude|openai|copilot|antigravity|gemini|cursor|bedrock|openrouter or an OpenAI-compatible profile such as deepseek|comtegra|zai|openai-compatible)",
+                    "Unknown default_provider '{}' in config (expected: claude|openai|zai|kimi|alibaba-coding-plan)",
                     pref
                 ));
             }

@@ -1043,7 +1043,15 @@ pub(super) fn handle_model_command(app: &mut App, trimmed: &str) -> bool {
 
     if let Some(model_name) = trimmed.strip_prefix("/model ") {
         let model_name = model_name.trim();
-        match app.provider.set_model(model_name) {
+        let model_spec = match app.resolve_saitec_model_switch_spec(model_name) {
+            Ok(model_spec) => model_spec,
+            Err(message) => {
+                app.push_display_message(DisplayMessage::error(message));
+                app.set_status_notice("Model switch failed");
+                return true;
+            }
+        };
+        match app.provider.set_model(&model_spec) {
             Ok(()) => {
                 app.provider_session_id = None;
                 app.session.provider_session_id = None;
@@ -1061,7 +1069,7 @@ pub(super) fn handle_model_command(app: &mut App, trimmed: &str) -> bool {
                     title: None,
                     tool_data: None,
                 });
-                app.set_status_notice(format!("Model → {}", model_name));
+                app.set_status_notice(format!("Model → {}", model_spec));
             }
             Err(e) => {
                 app.push_display_message(DisplayMessage::error(model_switch_failure_message(

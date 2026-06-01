@@ -34,6 +34,7 @@ struct RefreshSummaryProvider {
 
 #[derive(Clone)]
 struct OpenRouterSpecCaptureProvider {
+    name: &'static str,
     set_model_calls: StdArc<StdMutex<Vec<String>>>,
     routes: Vec<crate::provider::ModelRoute>,
 }
@@ -97,7 +98,7 @@ impl Provider for OpenRouterSpecCaptureProvider {
     }
 
     fn name(&self) -> &str {
-        "openrouter-spec-capture"
+        self.name
     }
 
     fn model(&self) -> String {
@@ -106,6 +107,10 @@ impl Provider for OpenRouterSpecCaptureProvider {
 
     fn model_routes(&self) -> Vec<crate::provider::ModelRoute> {
         self.routes.clone()
+    }
+
+    fn available_models_display(&self) -> Vec<String> {
+        crate::provider::listable_model_names_from_routes(&self.routes)
     }
 
     fn available_providers_for_model(&self, model: &str) -> Vec<String> {
@@ -192,12 +197,20 @@ fn create_openrouter_spec_capture_test_app() -> (App, StdArc<StdMutex<Vec<String
 fn create_openrouter_spec_capture_test_app_with_routes(
     routes: Vec<crate::provider::ModelRoute>,
 ) -> (App, StdArc<StdMutex<Vec<String>>>) {
+    create_named_openrouter_spec_capture_test_app_with_routes("openrouter-spec-capture", routes)
+}
+
+fn create_named_openrouter_spec_capture_test_app_with_routes(
+    name: &'static str,
+    routes: Vec<crate::provider::ModelRoute>,
+) -> (App, StdArc<StdMutex<Vec<String>>>) {
     ensure_test_jcode_home_if_unset();
     clear_persisted_test_ui_state();
     crate::tui::ui::clear_test_render_state_for_tests();
 
     let set_model_calls = StdArc::new(StdMutex::new(Vec::new()));
     let provider: Arc<dyn Provider> = Arc::new(OpenRouterSpecCaptureProvider {
+        name,
         set_model_calls: set_model_calls.clone(),
         routes,
     });
