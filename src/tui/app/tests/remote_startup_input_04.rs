@@ -110,6 +110,60 @@ fn test_remote_tick_dispatches_pending_model_switch_without_extra_keypress() {
 }
 
 #[test]
+fn test_remote_successful_kimi_turn_marks_saved_key_runtime_validated() {
+    with_temp_jcode_home(|| {
+        let config_dir = crate::storage::app_config_dir().expect("config dir");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+        std::fs::write(config_dir.join("kimi.env"), "KIMI_API_KEY=secret-kimi-key\n")
+            .expect("write Kimi env file");
+        crate::auth::AuthStatus::invalidate_cache();
+
+        let mut app = create_test_app();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let mut remote = crate::tui::backend::RemoteConnection::dummy();
+
+        app.is_remote = true;
+        app.remote_provider_model = Some("kimi-for-coding".to_string());
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible:kimi".to_string(),
+            available: false,
+            detail: "runtime not validated".to_string(),
+            cheapness: None,
+        }];
+        app.current_message_id = Some(42);
+        app.is_processing = true;
+
+        app.handle_server_event(
+            crate::protocol::ServerEvent::TextDelta {
+                text: "Kimi response".to_string(),
+            },
+            &mut remote,
+        );
+        app.handle_server_event(crate::protocol::ServerEvent::Done { id: 42 }, &mut remote);
+
+        let record = crate::auth::validation::get("kimi")
+            .expect("successful Kimi turn should persist runtime validation");
+        assert!(record.success);
+        assert_eq!(record.provider_smoke_ok, Some(true));
+        assert!(
+            record
+                .validated_models
+                .iter()
+                .any(|model| model == "kimi-for-coding"),
+            "Kimi validation should include the successful model, got {:?}",
+            record.validated_models
+        );
+
+        let route = App::remote_openai_compatible_route_for_model("kimi-for-coding")
+            .expect("Kimi route should resolve after validation");
+        assert!(route.available, "Kimi route should become selectable");
+    });
+}
+
+#[test]
 fn test_remote_up_arrow_walks_back_through_multiple_history_entries() {
     let mut app = create_test_app();
     let rt = tokio::runtime::Runtime::new().unwrap();

@@ -300,6 +300,7 @@ pub(in crate::tui::app) fn handle_server_event(
                 remote.clear_pending();
                 remote.reset_call_output_tokens_seen();
                 app.note_runtime_memory_event_force("turn_completed", "remote_turn_finished");
+                app.mark_successful_remote_turn_runtime_validated();
                 auto_poked = app.schedule_auto_poke_followup_if_needed()
                     || app.schedule_overnight_poke_followup_if_needed();
                 if !auto_poked {
