@@ -224,7 +224,8 @@ fn openai_compatible_key_save_does_not_mark_hosted_provider_validated_by_presenc
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
 
-    let resolved = save_tui_openai_compatible_key(crate::provider_catalog::ZAI_PROFILE, "zai-test-key")?;
+    let resolved =
+        save_tui_openai_compatible_key(crate::provider_catalog::ZAI_PROFILE, "zai-test-key")?;
     assert_eq!(resolved.id, "zai");
     assert!(
         crate::provider_catalog::openai_compatible_profile_is_configured(
@@ -368,7 +369,9 @@ fn provider_validation_completion_refreshes_open_login_picker_status() {
         app.display_messages()
             .iter()
             .any(|message| message.role == "system"
-                && message.content.contains("Runtime validation passed for Z.AI")),
+                && message
+                    .content
+                    .contains("Runtime validation passed for Z.AI")),
         "successful revalidation should be surfaced to the user"
     );
 }
@@ -456,16 +459,15 @@ fn openai_compatible_post_login_activation_uses_provider_prefixed_kimi_spec() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
-    let (mut app, set_model_calls) = create_activation_spec_capture_test_app(vec![
-        crate::provider::ModelRoute {
+    let (mut app, set_model_calls) =
+        create_activation_spec_capture_test_app(vec![crate::provider::ModelRoute {
             model: "kimi-for-coding".to_string(),
             provider: "Kimi Code".to_string(),
             api_method: "openai-compatible:kimi".to_string(),
             available: true,
             detail: "https://api.kimi.com/coding/v1".to_string(),
             cheapness: None,
-        },
-    ]);
+        }]);
     let runtime = tokio::runtime::Runtime::new().expect("runtime");
     let _enter = runtime.enter();
 
@@ -781,7 +783,10 @@ fn api_key_login_escape_closes_text_entry_overlay() {
     app.handle_key(KeyCode::Esc, KeyModifiers::empty())
         .expect("esc should close the API-key login overlay");
 
-    assert!(app.pending_login.is_none(), "API-key login should be dismissed by esc");
+    assert!(
+        app.pending_login.is_none(),
+        "API-key login should be dismissed by esc"
+    );
     assert_eq!(app.input(), "");
     let last = app
         .display_messages()
@@ -801,7 +806,9 @@ fn api_key_login_down_then_enter_activates_validate_button() {
     app.cursor_pos = app.input.len();
 
     app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("down should move focus to validate");
+        .expect("down should move focus to clear");
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("second down should move focus to validate");
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("enter on validate should submit the overlay");
 
@@ -829,9 +836,11 @@ fn api_key_login_down_twice_then_enter_activates_cancel_button() {
     app.cursor_pos = app.input.len();
 
     app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("first down should move focus to validate");
+        .expect("first down should move focus to clear");
     app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("second down should move focus to cancel");
+        .expect("second down should move focus to validate");
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("third down should move focus to cancel");
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("enter on cancel should dismiss the overlay");
 
@@ -848,6 +857,82 @@ fn api_key_login_down_twice_then_enter_activates_cancel_button() {
 }
 
 #[test]
+fn api_key_login_prefills_saved_key_when_reopened() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let _key_env = EnvVarGuard::remove("KIMI_API_KEY");
+    save_tui_openai_compatible_key(crate::provider_catalog::KIMI_PROFILE, "saved-kimi-key")
+        .expect("save Kimi key");
+
+    let mut app = create_test_app();
+    app.input = "/account kimi login".to_string();
+    app.submit_input();
+
+    match app.pending_login.as_ref() {
+        Some(super::auth::PendingLogin::ApiKeyProfile {
+            provider_id,
+            provider,
+            ..
+        }) => {
+            assert_eq!(provider_id, "kimi");
+            assert_eq!(provider, "Kimi Code");
+        }
+        other => panic!("expected Kimi API-key login, got: {other:?}"),
+    }
+    assert_eq!(app.input(), "saved-kimi-key");
+    assert_eq!(app.cursor_pos, "saved-kimi-key".len());
+}
+
+#[test]
+fn api_key_login_clear_button_removes_saved_key_and_keeps_form_open() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let _key_env = EnvVarGuard::remove("KIMI_API_KEY");
+    let resolved =
+        save_tui_openai_compatible_key(crate::provider_catalog::KIMI_PROFILE, "saved-kimi-key")
+            .expect("save Kimi key");
+
+    let mut app = create_test_app();
+    app.input = "/account kimi login".to_string();
+    app.submit_input();
+    assert_eq!(app.input(), "saved-kimi-key");
+
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("down should focus clear");
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("enter on clear should clear the saved key");
+
+    assert_eq!(app.input(), "");
+    assert_eq!(app.cursor_pos, 0);
+    match app.pending_login.as_ref() {
+        Some(super::auth::PendingLogin::ApiKeyProfile { provider_id, .. }) => {
+            assert_eq!(provider_id, "kimi");
+        }
+        other => panic!("clear should keep the Kimi API-key login open, got: {other:?}"),
+    }
+    assert!(
+        crate::provider_catalog::load_env_value_from_env_or_config(
+            &resolved.api_key_env,
+            &resolved.env_file
+        )
+        .is_none(),
+        "clear should remove the saved API key"
+    );
+    let saved = std::fs::read_to_string(
+        crate::storage::app_config_dir()
+            .expect("config dir")
+            .join(&resolved.env_file),
+    )
+    .expect("saved env file");
+    assert!(
+        !saved.contains("KIMI_API_KEY="),
+        "clear should remove the env-file entry, got:\n{saved}"
+    );
+}
+
+#[test]
 fn api_key_login_submit_does_not_enter_submitted_input_history() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -861,7 +946,9 @@ fn api_key_login_submit_does_not_enter_submitted_input_history() {
     app.input = "secret-api-key".to_string();
     app.cursor_pos = app.input.len();
     app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("down should move focus to validate");
+        .expect("down should move focus to clear");
+    app.handle_key(KeyCode::Down, KeyModifiers::empty())
+        .expect("second down should move focus to validate");
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("enter on validate should submit the overlay");
 

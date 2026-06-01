@@ -63,6 +63,8 @@ pub struct PendingTextEntryOverlay {
     pub detail_lines: Vec<String>,
     pub footer_hint: String,
     pub mask_input: bool,
+    pub show_clear_button: bool,
+    pub clear_focused: bool,
     pub validate_focused: bool,
     pub cancel_focused: bool,
 }

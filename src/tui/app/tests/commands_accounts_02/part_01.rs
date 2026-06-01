@@ -1498,6 +1498,10 @@ fn test_api_key_login_overlay_shows_cancel_button_instead_of_cancel_command() {
 
     let text = buffer_to_text(&terminal);
     assert!(
+        text.contains("[ Clear ]"),
+        "api-key overlay should render a visible clear button, got:\n{text}"
+    );
+    assert!(
         text.contains("[ Validate ]"),
         "api-key overlay should render a visible validate button, got:\n{text}"
     );
@@ -1524,9 +1528,13 @@ fn test_api_key_login_overlay_places_validate_and_cancel_on_one_row() {
 
     let text = buffer_to_text(&terminal);
     assert!(
-        text.lines()
-            .any(|line| line.contains("[ Validate ]") && line.contains("[ Cancel ]")),
-        "api-key overlay should place validate and cancel on one row, got:\n{text}"
+        text.lines().any(|line| {
+            let clear = line.find("[ Clear ]");
+            let validate = line.find("[ Validate ]");
+            let cancel = line.find("[ Cancel ]");
+            matches!((clear, validate, cancel), (Some(c), Some(v), Some(x)) if c < v && v < x)
+        }),
+        "api-key overlay should place clear, validate, and cancel on one row in order, got:\n{text}"
     );
 }
 

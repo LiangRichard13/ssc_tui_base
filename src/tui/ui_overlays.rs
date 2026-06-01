@@ -27,7 +27,10 @@ fn clip_overlay_input_to_single_line(
     let start = clamped_cursor.saturating_sub(max_chars).min(max_start);
     let end = (start + max_chars).min(chars.len());
     let visible = chars[start..end].iter().collect::<String>();
-    (visible, clamped_cursor.saturating_sub(start).min(end - start))
+    (
+        visible,
+        clamped_cursor.saturating_sub(start).min(end - start),
+    )
 }
 
 fn saitec_form_field_value(
@@ -287,8 +290,7 @@ pub(super) fn draw_pending_text_entry_overlay(
         Span::styled(
             label.clone(),
             if overlay.validate_focused || overlay.cancel_focused {
-                Style::default()
-                    .fg(rgb(210, 210, 225))
+                Style::default().fg(rgb(210, 210, 225))
             } else {
                 Style::default()
                     .fg(accent_color())
@@ -305,15 +307,33 @@ pub(super) fn draw_pending_text_entry_overlay(
         ),
     ]));
     lines.push(Line::from(""));
+    let clear_label = "[ Clear ]";
     let validate_label = "[ Validate ]";
     let cancel_label = "[ Cancel ]";
     let button_gap = "  ";
-    let button_width = UnicodeWidthStr::width(validate_label)
+    let button_width = if overlay.show_clear_button {
+        UnicodeWidthStr::width(clear_label) + UnicodeWidthStr::width(button_gap)
+    } else {
+        0
+    } + UnicodeWidthStr::width(validate_label)
         + UnicodeWidthStr::width(button_gap)
         + UnicodeWidthStr::width(cancel_label);
     let button_padding = " ".repeat(inner_width.saturating_sub(button_width) / 2);
-    lines.push(Line::from(vec![
-        Span::raw(button_padding),
+    let mut button_spans = vec![Span::raw(button_padding)];
+    if overlay.show_clear_button {
+        button_spans.push(Span::styled(
+            clear_label,
+            if overlay.clear_focused {
+                Style::default()
+                    .fg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(rgb(210, 210, 225))
+            },
+        ));
+        button_spans.push(Span::raw(button_gap));
+    }
+    button_spans.extend([
         Span::styled(
             validate_label,
             if overlay.validate_focused {
@@ -335,7 +355,8 @@ pub(super) fn draw_pending_text_entry_overlay(
                 Style::default().fg(rgb(210, 210, 225))
             },
         ),
-    ]));
+    ]);
+    lines.push(Line::from(button_spans));
     lines.push(Line::from(""));
     lines.extend(markdown::wrap_line(
         Line::from(Span::styled(
@@ -346,8 +367,7 @@ pub(super) fn draw_pending_text_entry_overlay(
     ));
     let cursor_row = popup_cursor_row(field_row);
 
-    let desired_height =
-        (6usize + lines.len()).min(area.height.saturating_sub(2).max(8) as usize);
+    let desired_height = (6usize + lines.len()).min(area.height.saturating_sub(2).max(8) as usize);
     let height = desired_height.max(8) as u16;
     let popup = Rect {
         x: area.x + area.width.saturating_sub(width) / 2,
@@ -372,7 +392,9 @@ pub(super) fn draw_pending_text_entry_overlay(
         .border_style(Style::default().fg(rgb(90, 120, 110)));
 
     frame.render_widget(
-        Paragraph::new(lines).block(block).wrap(Wrap { trim: false }),
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
         popup,
     );
 

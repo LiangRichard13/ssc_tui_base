@@ -8,6 +8,7 @@ use crate::bus::{
     Bus, BusEvent, ClipboardPasteCompleted, ClipboardPasteContent, ClipboardPasteKind,
     InputShellCompleted,
 };
+use crate::tui::TuiState;
 use crate::util::truncate_str;
 use anyhow::Result;
 use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyModifiers};
@@ -1367,6 +1368,10 @@ pub(super) fn handle_pending_login_key(
         return false;
     }
 
+    let show_clear_button = app
+        .pending_text_entry_overlay()
+        .is_some_and(|overlay| overlay.show_clear_button);
+
     match code {
         KeyCode::Esc => {
             if let Some(pending) = app.pending_login.take()
@@ -1385,22 +1390,56 @@ pub(super) fn handle_pending_login_key(
             true
         }
         KeyCode::Up => {
-            app.pending_text_entry_focus = match app.pending_text_entry_focus {
-                super::PendingTextEntryFocus::Input => super::PendingTextEntryFocus::Cancel,
-                super::PendingTextEntryFocus::Validate => super::PendingTextEntryFocus::Input,
-                super::PendingTextEntryFocus::Cancel => super::PendingTextEntryFocus::Validate,
+            app.pending_text_entry_focus = match (app.pending_text_entry_focus, show_clear_button) {
+                (super::PendingTextEntryFocus::Input, true) => super::PendingTextEntryFocus::Cancel,
+                (super::PendingTextEntryFocus::Clear, true) => super::PendingTextEntryFocus::Input,
+                (super::PendingTextEntryFocus::Validate, true) => {
+                    super::PendingTextEntryFocus::Clear
+                }
+                (super::PendingTextEntryFocus::Cancel, true) => {
+                    super::PendingTextEntryFocus::Validate
+                }
+                (super::PendingTextEntryFocus::Input, false)
+                | (super::PendingTextEntryFocus::Clear, false) => {
+                    super::PendingTextEntryFocus::Cancel
+                }
+                (super::PendingTextEntryFocus::Validate, false) => {
+                    super::PendingTextEntryFocus::Input
+                }
+                (super::PendingTextEntryFocus::Cancel, false) => {
+                    super::PendingTextEntryFocus::Validate
+                }
             };
             true
         }
         KeyCode::Down => {
-            app.pending_text_entry_focus = match app.pending_text_entry_focus {
-                super::PendingTextEntryFocus::Input => super::PendingTextEntryFocus::Validate,
-                super::PendingTextEntryFocus::Validate => super::PendingTextEntryFocus::Cancel,
-                super::PendingTextEntryFocus::Cancel => super::PendingTextEntryFocus::Input,
+            app.pending_text_entry_focus = match (app.pending_text_entry_focus, show_clear_button) {
+                (super::PendingTextEntryFocus::Input, true) => super::PendingTextEntryFocus::Clear,
+                (super::PendingTextEntryFocus::Clear, true) => {
+                    super::PendingTextEntryFocus::Validate
+                }
+                (super::PendingTextEntryFocus::Validate, true) => {
+                    super::PendingTextEntryFocus::Cancel
+                }
+                (super::PendingTextEntryFocus::Cancel, true) => super::PendingTextEntryFocus::Input,
+                (super::PendingTextEntryFocus::Input, false)
+                | (super::PendingTextEntryFocus::Clear, false) => {
+                    super::PendingTextEntryFocus::Validate
+                }
+                (super::PendingTextEntryFocus::Validate, false) => {
+                    super::PendingTextEntryFocus::Cancel
+                }
+                (super::PendingTextEntryFocus::Cancel, false) => {
+                    super::PendingTextEntryFocus::Input
+                }
             };
             true
         }
         KeyCode::Enter => {
+            if app.pending_text_entry_focus == super::PendingTextEntryFocus::Clear {
+                app.clear_pending_api_key_login_value();
+                return true;
+            }
             if app.pending_text_entry_focus == super::PendingTextEntryFocus::Cancel {
                 if let Some(pending) = app.pending_login.take()
                     && let Some((provider, method)) = pending.telemetry_context()
@@ -1463,7 +1502,8 @@ pub(super) fn handle_pending_saitec_login_key(
                 app.pending_login.as_ref(),
                 Some(super::auth::PendingLogin::SaitecForm { form })
                     if form.focus == super::auth::SaitecLoginField::Email
-            ) && (app.input.is_empty() || app.submitted_input_history.recall_index.is_some());
+            ) && (app.input.is_empty()
+                || app.submitted_input_history.recall_index.is_some());
             if recall_allowed {
                 if recall_submitted_input(app, true) {
                     return true;
