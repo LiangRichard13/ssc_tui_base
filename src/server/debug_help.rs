@@ -149,6 +149,10 @@ CLIENT COMMANDS (client: prefix):
   client:diagram-pane:stats - Current pinned diagram pane snapshot, including live Mermaid utilization
   client:wait              - Check if processing
   client:history           - Get display messages
+  client:input-json        - Get input buffer and cursor as JSON
+  client:insert_input:<t>  - Insert text at the current cursor
+  client:append_input:<t>  - Append text to the current input buffer
+  client:replace_input:<t> - Replace the current input buffer
   client:help              - Client command help
 
 TESTER COMMANDS (tester: prefix):

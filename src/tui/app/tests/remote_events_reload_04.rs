@@ -751,6 +751,34 @@ fn test_debug_command_submit_text_opens_model_picker() {
 }
 
 #[test]
+fn test_debug_command_input_edit_commands_are_scriptable() {
+    let mut app = create_test_app();
+    app.input = "hello world".to_string();
+    app.cursor_pos = "hello".len();
+
+    let result = app.handle_debug_command("insert_input:, scripted");
+    assert_eq!(result, "OK: inserted 10 chars");
+    assert_eq!(app.input, "hello, scripted world");
+    assert_eq!(app.cursor_pos, "hello, scripted".len());
+
+    let result = app.handle_debug_command("append_input:!");
+    assert_eq!(result, "OK: appended 1 chars");
+    assert_eq!(app.input, "hello, scripted world!");
+    assert_eq!(app.cursor_pos, app.input.len());
+
+    let result = app.handle_debug_command("replace_input:new draft");
+    assert_eq!(result, "OK: input replaced with \"new draft\"");
+    assert_eq!(app.input, "new draft");
+    assert_eq!(app.cursor_pos, app.input.len());
+
+    let result = app.handle_debug_command("input-json");
+    let value: serde_json::Value =
+        serde_json::from_str(&result).expect("input-json should return JSON");
+    assert_eq!(value["input"].as_str(), Some("new draft"));
+    assert_eq!(value["cursor_pos"].as_u64(), Some("new draft".len() as u64));
+}
+
+#[test]
 fn test_debug_command_side_panel_latency_bench_reports_immediate_redraw() {
     let mut app = create_test_app();
     let result = app.handle_debug_command(
