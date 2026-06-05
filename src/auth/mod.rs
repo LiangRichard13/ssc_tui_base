@@ -256,11 +256,7 @@ impl AuthStatus {
             }
             crate::provider_catalog::LoginProviderTarget::Jcode => {
                 if self.state_for_provider(provider) == AuthState::Available {
-                    if crate::subscription_catalog::has_router_base() {
-                        "Saitec auth token + router base".to_string()
-                    } else {
-                        "Saitec auth token, router base pending".to_string()
-                    }
+                    "SAITEC API key for MCP permissions".to_string()
                 } else {
                     "not configured".to_string()
                 }

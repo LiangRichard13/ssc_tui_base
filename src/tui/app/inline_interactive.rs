@@ -322,6 +322,14 @@ impl App {
         routes
             .into_iter()
             .filter(|route| {
+                if crate::subscription_catalog::is_runtime_mode_enabled()
+                    && crate::subscription_catalog::is_curated_model(&route.model)
+                {
+                    return true;
+                }
+                if self.is_remote {
+                    return Self::remote_saitec_model_route_is_allowed(route);
+                }
                 crate::saitec::product_profile::is_allowed_base_model_route(
                     outer_provider,
                     &route.model,
@@ -330,6 +338,45 @@ impl App {
                 ) && !Self::is_saitec_unconfigured_base_route(route)
             })
             .collect()
+    }
+
+    fn remote_saitec_model_route_is_allowed(route: &crate::provider::ModelRoute) -> bool {
+        if route.api_method == "openrouter" {
+            return false;
+        }
+
+        let profile_id = route
+            .api_method
+            .split_once(':')
+            .and_then(|(kind, profile_id)| {
+                if kind != "openai-compatible" {
+                    return None;
+                }
+                let profile_id = profile_id.trim();
+                (!profile_id.is_empty()).then_some(profile_id)
+            })
+            .or_else(|| {
+                (route.api_method == "openai-compatible")
+                    .then(|| {
+                        crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                            &route.provider,
+                        )
+                    })
+                    .flatten()
+            });
+
+        if profile_id
+            .is_some_and(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
+        {
+            return crate::saitec::product_profile::is_allowed_base_model_route(
+                "",
+                &route.model,
+                &route.provider,
+                &route.api_method,
+            );
+        }
+
+        true
     }
 
     fn is_saitec_unconfigured_base_route(route: &crate::provider::ModelRoute) -> bool {

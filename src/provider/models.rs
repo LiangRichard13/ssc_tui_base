@@ -4,7 +4,6 @@ use crate::provider::cursor;
 #[path = "models_catalog.rs"]
 mod catalog;
 
-use anyhow::Result;
 #[cfg(test)]
 pub(crate) use catalog::parse_anthropic_model_catalog;
 pub use catalog::{
@@ -14,7 +13,7 @@ pub use catalog::{
 use jcode_provider_core::{
     ALL_CLAUDE_MODELS, ALL_OPENAI_MODELS, ModelCapabilities, ModelRoute,
     context_limit_for_model_with_provider_and_cache, core_provider_for_model_with_hint,
-    provider_key_from_hint, shared_http_client,
+    provider_key_from_hint,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -38,6 +37,7 @@ struct PersistedModelCatalogScope {
     observed_at_unix_secs: u64,
 }
 
+#[cfg(test)]
 pub(crate) fn filtered_display_models(models: impl IntoIterator<Item = String>) -> Vec<String> {
     models
         .into_iter()
@@ -58,8 +58,15 @@ pub(crate) fn filtered_model_routes(routes: Vec<ModelRoute>) -> Vec<ModelRoute> 
 
     routes
         .into_iter()
-        .filter(|route| crate::subscription_catalog::is_curated_model(&route.model))
-        .map(subscription_visible_route)
+        .filter_map(|route| {
+            if crate::subscription_catalog::is_curated_model(&route.model) {
+                Some(subscription_visible_route(route))
+            } else if subscription_allows_direct_base_model_route(&route) {
+                Some(route)
+            } else {
+                None
+            }
+        })
         .collect()
 }
 
@@ -73,9 +80,43 @@ fn subscription_visible_route(mut route: ModelRoute) -> ModelRoute {
     route
 }
 
-pub(crate) fn ensure_model_allowed_for_subscription(model: &str) -> Result<()> {
+fn subscription_allows_direct_base_model_route(route: &ModelRoute) -> bool {
+    if !(route.api_method == "openai-compatible"
+        || route.api_method.starts_with("openai-compatible:"))
+    {
+        return false;
+    }
+
+    crate::saitec::product_profile::is_allowed_base_model_route(
+        "",
+        &route.model,
+        &route.provider,
+        &route.api_method,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn subscription_allows_direct_model_spec(model: &str) -> bool {
+    let Some((profile_id, target_model)) = model.trim().split_once(':') else {
+        return false;
+    };
+    let Some(profile) = crate::provider_catalog::openai_compatible_profile_by_id(profile_id) else {
+        return false;
+    };
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+    crate::saitec::product_profile::is_allowed_base_model_route(
+        "",
+        target_model,
+        &resolved.display_name,
+        &format!("openai-compatible:{}", resolved.id),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn ensure_model_allowed_for_subscription(model: &str) -> anyhow::Result<()> {
     if crate::subscription_catalog::is_runtime_mode_enabled()
         && !crate::subscription_catalog::is_curated_model(model)
+        && !subscription_allows_direct_model_spec(model)
     {
         anyhow::bail!(
             "Model '{}' is not included in the current jcode subscription catalog",
@@ -366,7 +407,7 @@ fn system_time_from_unix_secs(secs: u64) -> SystemTime {
     UNIX_EPOCH + Duration::from_secs(secs)
 }
 
-fn model_catalog_cache_path(file_name: &str) -> Result<PathBuf> {
+fn model_catalog_cache_path(file_name: &str) -> anyhow::Result<PathBuf> {
     Ok(crate::storage::app_config_dir()?.join(file_name))
 }
 

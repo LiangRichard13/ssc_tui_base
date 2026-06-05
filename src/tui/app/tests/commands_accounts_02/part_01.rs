@@ -634,10 +634,7 @@ fn test_login_mode_selector_enter_defaults_to_saitec_form() {
 
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!("unexpected pending login state after Enter on selector: {other:?}"),
     }
@@ -661,10 +658,7 @@ fn test_login_mode_selector_clears_stale_saitec_form_before_entering_saitec_bran
 
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!(
             "unexpected pending login state after Enter on selector with stale form: {other:?}"
@@ -698,12 +692,11 @@ fn test_login_mode_selector_up_after_down_returns_to_saitec_without_closing_sele
 
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
-        ref other => panic!("unexpected pending login state after selector up/down navigation: {other:?}"),
+        ref other => {
+            panic!("unexpected pending login state after selector up/down navigation: {other:?}")
+        }
     }
     assert!(app.account_picker_overlay.is_none());
 }
@@ -733,12 +726,11 @@ fn test_login_mode_selector_mouse_click_opens_saitec_form() {
     assert!(!handled, "clicks should request an immediate redraw");
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
-        ref other => panic!("unexpected pending login state after mouse click on SAITEC: {other:?}"),
+        ref other => {
+            panic!("unexpected pending login state after mouse click on SAITEC: {other:?}")
+        }
     }
     assert!(app.account_picker_overlay.is_none());
 }
@@ -850,10 +842,7 @@ fn test_login_mode_selector_mouse_up_opens_saitec_form() {
     assert!(!handled, "clicks should request an immediate redraw");
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!("unexpected pending login state after mouse up on SAITEC: {other:?}"),
     }
@@ -883,10 +872,7 @@ fn test_login_mode_selector_mouse_click_on_blank_separator_still_opens_saitec_fo
     assert!(!handled, "clicks should request an immediate redraw");
     match app.pending_login {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!(
             "unexpected pending login state after blank-separator click on SAITEC: {other:?}"
@@ -980,8 +966,12 @@ fn test_filtered_login_picker_uses_validation_results_for_provider_status_text()
     let previous_home = std::env::var_os("JCODE_HOME");
     crate::env::set_var("JCODE_HOME", temp.path());
 
-    crate::provider_catalog::save_env_value_to_env_file("ZHIPU_API_KEY", "zai.env", Some("zai-test-key"))
-        .expect("save Z.AI key");
+    crate::provider_catalog::save_env_value_to_env_file(
+        "ZHIPU_API_KEY",
+        "zai.env",
+        Some("zai-test-key"),
+    )
+    .expect("save Z.AI key");
     crate::auth::validation::save(
         "zai",
         crate::auth::validation::ProviderValidationRecord {
@@ -1006,8 +996,12 @@ fn test_filtered_login_picker_uses_validation_results_for_provider_status_text()
         },
     )
     .expect("save passing validation");
-    crate::provider_catalog::save_env_value_to_env_file("KIMI_API_KEY", "kimi.env", Some("kimi-test-key"))
-        .expect("save Kimi key");
+    crate::provider_catalog::save_env_value_to_env_file(
+        "KIMI_API_KEY",
+        "kimi.env",
+        Some("kimi-test-key"),
+    )
+    .expect("save Kimi key");
 
     let mut app = create_test_app();
     app.input = "/login base-models".to_string();
@@ -1203,9 +1197,11 @@ fn test_login_openai_starts_allowed_base_model_login() {
     assert!(app.account_picker_overlay.is_none());
     assert!(app.login_picker_overlay.is_none());
     assert!(
-        app.pending_login.is_some() || app.display_messages().iter().any(|msg| {
-            msg.content.contains("OpenAI")
-        }),
+        app.pending_login.is_some()
+            || app
+                .display_messages()
+                .iter()
+                .any(|msg| { msg.content.contains("OpenAI") }),
         "/login openai should start the allowlisted provider flow"
     );
 }
@@ -1219,7 +1215,10 @@ fn test_login_openrouter_is_rejected_by_saitec_allowlist() {
     assert!(app.pending_login.is_none());
     let last = app.display_messages().last().expect("missing response");
     assert_eq!(last.role, "error");
-    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+    assert!(
+        last.content
+            .contains("SAITEC-TUI only supports these base-model providers")
+    );
 }
 
 #[test]
@@ -1231,7 +1230,11 @@ fn test_inline_login_provider_picker_hides_openrouter() {
         .inline_interactive_state
         .as_ref()
         .expect("login picker should be open");
-    let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+    let names: Vec<&str> = picker
+        .entries
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
 
     assert!(
         names
@@ -1251,10 +1254,7 @@ fn test_set_pending_saitec_login_for_tests_uses_form_variant() {
             assert_eq!(form.form.email, "");
             assert_eq!(form.form.phone, "");
             assert_eq!(form.form.password, "");
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!("unexpected pending login state: {other:?}"),
     }
@@ -1293,9 +1293,7 @@ fn test_logout_command_opens_target_selector_without_clearing_saitec_auth() {
     app.submit_input();
 
     assert!(
-        crate::saitec::auth::load_session()
-            .expect("load")
-            .is_some(),
+        crate::saitec::auth::load_session().expect("load").is_some(),
         "/logout should not clear SAITEC credentials before the user chooses a target"
     );
     assert_eq!(
@@ -1366,14 +1364,23 @@ fn test_logout_base_models_opens_lightweight_provider_picker() {
         .expect("base-model logout picker draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("Base-model Logout"), "rendered picker:\n{text}");
+    assert!(
+        text.contains("Base-model Logout"),
+        "rendered picker:\n{text}"
+    );
     assert!(text.contains("OpenAI"), "rendered picker:\n{text}");
     assert!(text.contains("Claude"), "rendered picker:\n{text}");
     assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
     assert!(text.contains("Kimi"), "rendered picker:\n{text}");
     assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
-    assert!(!text.contains("Providers & Quick Actions"), "rendered picker:\n{text}");
-    assert!(!text.contains("Global defaults"), "rendered picker:\n{text}");
+    assert!(
+        !text.contains("Providers & Quick Actions"),
+        "rendered picker:\n{text}"
+    );
+    assert!(
+        !text.contains("Global defaults"),
+        "rendered picker:\n{text}"
+    );
 }
 
 #[test]
@@ -1480,9 +1487,9 @@ fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
         "selected provider runtime validation should be removed on logout"
     );
     assert!(
-        app.display_messages().iter().any(|msg| {
-            msg.role == "system" && msg.content.contains("Logged out from Z.AI")
-        }),
+        app.display_messages()
+            .iter()
+            .any(|msg| { msg.role == "system" && msg.content.contains("Logged out from Z.AI") }),
         "base-model logout confirmation should be present in system messages"
     );
 
@@ -1502,7 +1509,10 @@ fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
         crate::env::remove_var("ZAI_API_KEY");
     }
     if let Some(prev_saitec_key) = prev_saitec_key {
-        crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, prev_saitec_key);
+        crate::env::set_var(
+            crate::subscription_catalog::JCODE_API_KEY_ENV,
+            prev_saitec_key,
+        );
     } else {
         crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);
     }
@@ -1523,9 +1533,7 @@ fn test_logout_jcode_requires_confirmation_before_clearing_saitec_auth() {
     app.submit_input();
 
     assert!(
-        crate::saitec::auth::load_session()
-            .expect("load")
-            .is_some(),
+        crate::saitec::auth::load_session().expect("load").is_some(),
         "/logout jcode should ask for confirmation before clearing credentials"
     );
     assert!(
@@ -1540,7 +1548,10 @@ fn test_logout_jcode_requires_confirmation_before_clearing_saitec_auth() {
         .expect("logout confirmation draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("Log out SAITEC"), "rendered selector:\n{text}");
+    assert!(
+        text.contains("Log out SAITEC"),
+        "rendered selector:\n{text}"
+    );
     assert!(text.contains("Cancel"), "rendered selector:\n{text}");
 
     if let Some(prev_home) = prev_home {
@@ -1574,8 +1585,7 @@ fn test_logout_jcode_confirm_clears_saitec_auth_file() {
     assert!(
         app.display_messages()
             .iter()
-            .any(|msg| msg.role == "system"
-                && msg.content.contains("Logged out from Saitec")),
+            .any(|msg| msg.role == "system" && msg.content.contains("Logged out from Saitec")),
         "logout confirmation should be present in system messages"
     );
     assert!(
@@ -1606,10 +1616,7 @@ fn test_pending_saitec_form_empty_submit_sets_validation_error() {
         Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
             let error = form.error.as_deref().expect("validation error");
             assert!(error.contains("password"), "unexpected error: {error}");
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Submit
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Submit);
             assert!(!form.submitting);
         }
         ref other => panic!("login form should stay pending on validation failure: {other:?}"),
@@ -1627,10 +1634,7 @@ fn test_start_jcode_login_uses_saitec_pending_state() {
             assert_eq!(form.form.email, "");
             assert_eq!(form.form.phone, "");
             assert_eq!(form.form.password, "");
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!("unexpected pending login state: {other:?}"),
     }
@@ -1647,10 +1651,7 @@ fn test_account_jcode_login_uses_saitec_pending_state() {
             assert_eq!(form.form.email, "");
             assert_eq!(form.form.phone, "");
             assert_eq!(form.form.password, "");
-            assert_eq!(
-                form.focus,
-                crate::tui::app::auth::SaitecLoginField::Email
-            );
+            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
         }
         ref other => panic!("unexpected pending login state: {other:?}"),
     }
@@ -1665,9 +1666,13 @@ fn test_account_openai_login_starts_allowed_base_model_login() {
         app.submit_input();
     });
 
-    assert!(app.pending_login.is_some() || app.display_messages().iter().any(|msg| {
-        msg.content.contains("OpenAI")
-    }));
+    assert!(
+        app.pending_login.is_some()
+            || app
+                .display_messages()
+                .iter()
+                .any(|msg| { msg.content.contains("OpenAI") })
+    );
 }
 
 #[test]
@@ -1991,7 +1996,10 @@ fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
     assert!(app.pending_login.is_none());
     let last = app.display_messages().last().expect("missing response");
     assert_eq!(last.role, "error");
-    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+    assert!(
+        last.content
+            .contains("SAITEC-TUI only supports these base-model providers")
+    );
 }
 
 #[test]
@@ -2002,7 +2010,10 @@ fn test_account_openrouter_settings_is_rejected_by_saitec_allowlist() {
 
     let last = app.display_messages().last().expect("missing response");
     assert_eq!(last.role, "error");
-    assert!(last.content.contains("SAITEC-TUI only supports these base-model providers"));
+    assert!(
+        last.content
+            .contains("SAITEC-TUI only supports these base-model providers")
+    );
 }
 
 #[test]
@@ -2012,7 +2023,7 @@ fn test_auth_status_lists_only_saitec_allowlisted_base_model_providers() {
     app.submit_input();
 
     let msg = app.display_messages().last().expect("missing auth status");
-    assert!(msg.content.contains("Saitec Subscription"));
+    assert!(msg.content.contains("SAITEC"));
     assert!(msg.content.contains("OpenAI"));
     assert!(msg.content.contains("Anthropic/Claude"));
     assert!(msg.content.contains("Z.AI"));
@@ -2114,7 +2125,7 @@ fn test_help_overlay_keeps_login_logout_and_model_commands() {
 
 #[test]
 fn test_login_command_after_prior_message_renders_login_selector_without_provider_item_action_table()
-{
+ {
     let mut app = create_test_app();
     app.push_display_message(DisplayMessage::user("hello before login"));
     app.input = "/login".to_string();

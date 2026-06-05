@@ -17,12 +17,23 @@ struct ActivationSpecCaptureProvider {
     routes: Vec<crate::provider::ModelRoute>,
 }
 
+#[derive(Clone)]
+struct AuthChangedCaptureProvider {
+    calls: Arc<Mutex<usize>>,
+}
+
 struct EnvVarGuard {
     key: &'static str,
     previous: Option<OsString>,
 }
 
 impl EnvVarGuard {
+    fn set(key: &'static str, value: &str) -> Self {
+        let previous = std::env::var_os(key);
+        crate::env::set_var(key, value);
+        Self { key, previous }
+    }
+
     fn set_path(key: &'static str, value: &std::path::Path) -> Self {
         let previous = std::env::var_os(key);
         crate::env::set_var(key, value);
@@ -117,6 +128,33 @@ impl Provider for ActivationSpecCaptureProvider {
     }
 }
 
+#[async_trait::async_trait]
+impl Provider for AuthChangedCaptureProvider {
+    async fn complete(
+        &self,
+        _messages: &[crate::message::Message],
+        _tools: &[crate::message::ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<crate::provider::EventStream> {
+        Err(anyhow::anyhow!(
+            "AuthChangedCaptureProvider should not stream completions in auth tests"
+        ))
+    }
+
+    fn name(&self) -> &str {
+        "auth-changed-capture"
+    }
+
+    fn on_auth_changed(&self) {
+        *self.calls.lock().expect("auth changed calls") += 1;
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
+    }
+}
+
 fn create_test_app() -> App {
     let provider: Arc<dyn Provider> = Arc::new(MockProvider);
     let rt = tokio::runtime::Runtime::new().expect("runtime");
@@ -125,6 +163,18 @@ fn create_test_app() -> App {
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
     app
+}
+
+fn create_auth_changed_capture_app() -> (App, Arc<Mutex<usize>>) {
+    let calls = Arc::new(Mutex::new(0));
+    let provider: Arc<dyn Provider> = Arc::new(AuthChangedCaptureProvider {
+        calls: Arc::clone(&calls),
+    });
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let mut app = App::new_for_test_harness(provider, registry);
+    app.queue_mode = false;
+    (app, calls)
 }
 
 fn create_isolated_test_app() -> App {
@@ -500,6 +550,44 @@ fn remote_openai_compatible_post_login_activation_queues_documented_default_mode
         app.pending_model_switch.as_deref(),
         Some("kimi:kimi-for-coding")
     );
+}
+
+#[test]
+fn saitec_provider_openai_compatible_post_login_activation_selects_kimi_default() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let _kimi_key = EnvVarGuard::set("KIMI_API_KEY", "test-kimi-key");
+    crate::subscription_catalog::clear_runtime_env();
+    crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+
+    let provider = Arc::new(crate::provider::jcode::JcodeProvider::new());
+    let provider_for_app: Arc<dyn Provider> = provider.clone();
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let registry = runtime.block_on(crate::tool::Registry::new(provider_for_app.clone()));
+    let mut app = App::new_for_test_harness(provider_for_app, registry);
+    app.queue_mode = false;
+    let _enter = runtime.enter();
+
+    app.start_openai_compatible_post_login_activation("Kimi Code".to_string());
+
+    let start = std::time::Instant::now();
+    loop {
+        if provider.model() == "kimi-for-coding" {
+            break;
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "timed out waiting for SAITEC provider to activate Kimi default; current model={}",
+            provider.model()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    assert_eq!(provider.name(), "OpenRouter");
+    assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
+    crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+    crate::subscription_catalog::clear_runtime_env();
 }
 
 #[test]
@@ -996,6 +1084,34 @@ fn login_jcode_command_shows_visible_saitec_login_prompt_message() {
     assert_eq!(last.role, "system");
     assert!(last.content.contains("Saitec Login"));
     assert!(last.content.contains("email or phone plus password"));
+}
+
+#[test]
+fn saitec_login_success_does_not_refresh_base_model_provider() {
+    let _guard = crate::storage::lock_test_env();
+    crate::subscription_catalog::clear_runtime_env();
+    crate::subscription_catalog::apply_runtime_env();
+    assert!(crate::subscription_catalog::is_runtime_mode_enabled());
+
+    let (mut app, calls) = create_auth_changed_capture_app();
+
+    app.handle_login_completed(crate::bus::LoginCompleted {
+        provider: "jcode".to_string(),
+        success: true,
+        message: "Saitec login successful.".to_string(),
+    });
+
+    assert_eq!(
+        *calls.lock().expect("auth changed calls"),
+        0,
+        "SAITEC login grants MCP permissions and must not mutate the base-model provider"
+    );
+    assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
+    assert!(std::env::var_os("JCODE_OPENROUTER_API_BASE").is_none());
+    assert!(std::env::var_os("JCODE_OPENROUTER_API_KEY_NAME").is_none());
+    assert_eq!(app.status_notice(), Some("Login: jcode ready".to_string()));
+
+    crate::subscription_catalog::clear_runtime_env();
 }
 
 #[test]

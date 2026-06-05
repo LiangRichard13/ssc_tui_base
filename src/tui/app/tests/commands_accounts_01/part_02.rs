@@ -180,12 +180,12 @@ fn test_subscription_command_shows_saitec_status_scaffold() {
         .last()
         .expect("missing /subscription response");
     assert_eq!(msg.role, "system");
-    assert!(msg.content.contains("Saitec Subscription Status"));
+    assert!(msg.content.contains("SAITEC MCP Status"));
     assert!(msg.content.contains("/login jcode"));
-    assert!(msg.content.contains("Healer Alpha"));
-    assert!(msg.content.contains("Kimi K2.5"));
-    assert!(msg.content.contains("$20 Starter"));
-    assert!(msg.content.contains("$100 Pro"));
+    assert!(msg.content.contains("SAITEC-Skills"));
+    assert!(msg.content.contains("/login base-models"));
+    assert!(!msg.content.contains("Healer Alpha"));
+    assert!(!msg.content.contains("$20 Starter"));
 }
 
 #[test]

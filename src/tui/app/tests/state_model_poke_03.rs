@@ -285,7 +285,8 @@ fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
 }
 
 #[test]
-fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_subscription_runtime() {
+fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_subscription_runtime()
+{
     with_temp_jcode_home(|| {
         save_test_saitec_session();
         crate::subscription_catalog::clear_runtime_env();
@@ -822,10 +823,7 @@ fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
         save_test_saitec_session();
-        save_test_provider_validation(
-            "antigravity",
-            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
-        );
+        save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
@@ -852,10 +850,7 @@ fn test_local_antigravity_model_picker_selection_preserves_antigravity_provider(
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
         save_test_saitec_session();
-        save_test_provider_validation(
-            "antigravity",
-            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
-        );
+        save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
@@ -907,15 +902,16 @@ fn test_local_model_picker_hides_openrouter_bare_openai_route() {
 fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
     with_temp_jcode_home(|| {
         save_test_provider_validation("kimi", &["kimi-for-coding"]);
-        let (mut app, set_model_calls) =
-            create_openrouter_spec_capture_test_app_with_routes(vec![crate::provider::ModelRoute {
+        let (mut app, set_model_calls) = create_openrouter_spec_capture_test_app_with_routes(vec![
+            crate::provider::ModelRoute {
                 model: "kimi-for-coding".to_string(),
                 provider: "Kimi Code".to_string(),
                 api_method: "openai-compatible:kimi".to_string(),
                 available: true,
                 detail: "https://api.kimi.com/coding/v1".to_string(),
                 cheapness: None,
-            }]);
+            },
+        ]);
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
 
@@ -988,7 +984,11 @@ fn test_saitec_model_picker_hides_generic_openrouter_routes() {
             .inline_interactive_state
             .as_ref()
             .expect("model picker should be open");
-        let names: Vec<&str> = picker.entries.iter().map(|entry| entry.name.as_str()).collect();
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
 
         assert!(names.contains(&"kimi-for-coding"));
         assert!(!names.contains(&"anthropic/claude-opus-4"));
@@ -1078,18 +1078,17 @@ fn test_saitec_model_picker_hides_unconfigured_anthropic_routes_when_kimi_availa
 
 #[test]
 fn test_saitec_model_command_rejects_generic_openrouter_model() {
-    let (mut app, set_model_calls) =
-        create_named_openrouter_spec_capture_test_app_with_routes(
-            "OpenRouter",
-            vec![crate::provider::ModelRoute {
-                model: "anthropic/claude-opus-4".to_string(),
-                provider: "auto".to_string(),
-                api_method: "openrouter".to_string(),
-                available: true,
-                detail: "generic OpenRouter route".to_string(),
-                cheapness: None,
-            }],
-        );
+    let (mut app, set_model_calls) = create_named_openrouter_spec_capture_test_app_with_routes(
+        "OpenRouter",
+        vec![crate::provider::ModelRoute {
+            model: "anthropic/claude-opus-4".to_string(),
+            provider: "auto".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: "generic OpenRouter route".to_string(),
+            cheapness: None,
+        }],
+    );
 
     app.input = "/model anthropic/claude-opus-4".to_string();
     app.submit_input();
@@ -1098,7 +1097,10 @@ fn test_saitec_model_command_rejects_generic_openrouter_model() {
         set_model_calls.lock().unwrap().is_empty(),
         "unsupported OpenRouter model should not reach provider.set_model"
     );
-    let last = app.display_messages().last().expect("missing error message");
+    let last = app
+        .display_messages()
+        .last()
+        .expect("missing error message");
     assert_eq!(last.role, "error");
     assert!(last.content.contains("SAITEC-TUI"));
 }
@@ -1120,10 +1122,7 @@ fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
         save_test_saitec_session();
-        save_test_provider_validation(
-            "antigravity",
-            &["claude-sonnet-4-6", "gpt-oss-120b-medium"],
-        );
+        save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         let text = render_model_picker_text(&mut app, 90, 24);
 
@@ -1344,7 +1343,7 @@ fn test_login_picker_preview_stays_open_and_updates_filter() {
         picker
             .filtered
             .iter()
-            .any(|&i| picker.entries[i].name == "Saitec Subscription")
+            .any(|&i| picker.entries[i].name == "SAITEC")
     );
     assert_eq!(app.input(), "/login jc");
 }
@@ -1759,10 +1758,23 @@ fn test_overnight_start_runs_as_visible_local_turn() {
             "/overnight 1m hi"
         ));
 
-        assert!(app.pending_turn, "local overnight should start a visible turn");
-        assert!(app.is_processing, "local overnight should enter processing state");
-        assert!(app.queued_messages.is_empty(), "local overnight should not use remote queue");
-        let last_message = app.session.messages.last().expect("overnight prompt message");
+        assert!(
+            app.pending_turn,
+            "local overnight should start a visible turn"
+        );
+        assert!(
+            app.is_processing,
+            "local overnight should enter processing state"
+        );
+        assert!(
+            app.queued_messages.is_empty(),
+            "local overnight should not use remote queue"
+        );
+        let last_message = app
+            .session
+            .messages
+            .last()
+            .expect("overnight prompt message");
         assert!(last_message.content.iter().any(|block| matches!(
             block,
             crate::message::ContentBlock::Text { text, .. }
@@ -1781,8 +1793,14 @@ fn test_overnight_start_queues_remote_turn_without_stuck_sending() {
             "/overnight 1m hi"
         ));
 
-        assert!(!app.pending_turn, "remote overnight should not set local pending_turn");
-        assert!(!app.is_processing, "remote overnight should not get stuck in local Sending");
+        assert!(
+            !app.pending_turn,
+            "remote overnight should not set local pending_turn"
+        );
+        assert!(
+            !app.is_processing,
+            "remote overnight should not get stuck in local Sending"
+        );
         assert_eq!(app.queued_messages.len(), 1);
         assert!(app.queued_messages[0].contains("visible Overnight Coordinator"));
     });

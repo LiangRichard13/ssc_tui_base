@@ -78,7 +78,7 @@ fn test_auto_init_login_selection_preserves_order() {
 }
 
 #[test]
-fn test_init_provider_jcode_delegates_runtime_profile_to_wrapper() {
+fn test_init_provider_jcode_is_mcp_only_and_does_not_set_openrouter_runtime() {
     let _guard = lock_env();
     let _env_guard = crate::storage::lock_test_env();
     crate::subscription_catalog::clear_runtime_env();
@@ -91,20 +91,12 @@ fn test_init_provider_jcode_delegates_runtime_profile_to_wrapper() {
         .block_on(init_provider(&ProviderChoice::Jcode, None))
         .expect("init jcode provider");
 
-    assert_eq!(provider.name(), "Saitec Subscription");
-    assert!(crate::subscription_catalog::is_runtime_mode_enabled());
-    assert_eq!(
-        std::env::var("JCODE_OPENROUTER_MODEL").ok().as_deref(),
-        Some(crate::subscription_catalog::default_model().id)
-    );
-    assert_eq!(
-        std::env::var("JCODE_ACTIVE_PROVIDER").ok().as_deref(),
-        Some("openrouter")
-    );
-    assert_eq!(
-        std::env::var("JCODE_FORCE_PROVIDER").ok().as_deref(),
-        Some("1")
-    );
+    assert_eq!(provider.name(), "SAITEC");
+    assert_eq!(provider.model(), "mcp-only");
+    assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
+    assert!(std::env::var_os("JCODE_OPENROUTER_MODEL").is_none());
+    assert!(std::env::var_os("JCODE_ACTIVE_PROVIDER").is_none());
+    assert!(std::env::var_os("JCODE_FORCE_PROVIDER").is_none());
 
     crate::subscription_catalog::clear_runtime_env();
     crate::env::remove_var("JCODE_OPENROUTER_MODEL");
@@ -258,7 +250,7 @@ fn login_provider_menu_shows_autodetected_auth_and_skip() {
 
     let menu = render_login_provider_selection_menu("Choose a provider:", &providers, &status);
     assert!(menu.contains("Autodetected auth:"));
-    assert!(menu.contains("Saitec Subscription: configured"));
+    assert!(menu.contains("SAITEC: configured"));
     assert!(menu.contains("[configured"));
     assert!(menu.contains("Skip: press Enter"));
 

@@ -7,7 +7,7 @@ use serde::Serialize;
 /// Authentication status for all supported providers
 #[derive(Debug, Clone, Default)]
 pub struct AuthStatus {
-    /// Saitec subscription credentials and router settings
+    /// SAITEC platform credentials used by MCP tools.
     pub jcode: AuthState,
     /// Anthropic provider (Claude models) - via OAuth or API key
     pub anthropic: ProviderAuth,

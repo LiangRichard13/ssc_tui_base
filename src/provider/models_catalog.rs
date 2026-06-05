@@ -1,4 +1,7 @@
-use super::*;
+use super::{normalize_model_id, note_openai_model_catalog_refresh_attempt};
+use anyhow::Result;
+use jcode_provider_core::shared_http_client;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Default)]
 pub struct OpenAIModelCatalog {

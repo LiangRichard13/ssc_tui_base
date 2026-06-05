@@ -530,12 +530,17 @@ pub const AUTO_IMPORT_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDes
 
 pub const JCODE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescriptor {
     id: "jcode",
-    display_name: "Saitec Subscription",
+    display_name: "SAITEC",
     auth_kind: LoginProviderAuthKind::OAuth,
     auth_state_key: LoginProviderAuthStateKey::Jcode,
-    auth_status_method: "browser login",
-    aliases: &["subscription", "jcode-subscription"],
-    menu_detail: "Saitec-managed curated model access",
+    auth_status_method: "platform login",
+    aliases: &[
+        "saitec",
+        "saitec-platform",
+        "subscription",
+        "jcode-subscription",
+    ],
+    menu_detail: "platform login for SAITEC MCP permissions",
     recommended: false,
     target: LoginProviderTarget::Jcode,
     order: LoginProviderSurfaceOrder::new(Some(3), Some(3), Some(3), Some(3), Some(3)),

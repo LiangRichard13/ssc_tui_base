@@ -104,7 +104,7 @@ pub fn unsupported_base_model_provider_message() -> String {
 
 pub fn unsupported_base_model_route_message(model: &str) -> String {
     format!(
-        "SAITEC-TUI cannot use `{}` because it is not routed through an allowed base-model provider. Use `/model` to choose OpenAI, Anthropic/Claude, Z.AI, Kimi, Alibaba Cloud Coding, or Saitec Subscription models.",
+        "SAITEC-TUI cannot use `{}` because it is not routed through an allowed base-model provider. Use `/login base-models` to configure OpenAI, Anthropic/Claude, Z.AI, Kimi, or Alibaba Cloud Coding.",
         model.trim()
     )
 }
@@ -185,6 +185,11 @@ pub fn is_allowed_base_model_route(
 ) -> bool {
     let api_method = api_method.trim();
 
+    if let Some(profile_id) = openai_compatible_route_profile_id(provider, api_method) {
+        return is_allowed_openai_compatible_profile(&profile_id)
+            && openai_compatible_profile_allows_model(&profile_id, model);
+    }
+
     if is_saitec_subscription_label(outer_provider)
         || is_saitec_subscription_label(provider)
         || api_method == "saitec"
@@ -205,11 +210,6 @@ pub fn is_allowed_base_model_route(
             || is_openai_label(outer_provider)
             || is_claude_label(provider)
             || is_claude_label(outer_provider);
-    }
-
-    if let Some(profile_id) = openai_compatible_route_profile_id(provider, api_method) {
-        return is_allowed_openai_compatible_profile(&profile_id)
-            && openai_compatible_profile_allows_model(&profile_id, model);
     }
 
     false
@@ -299,6 +299,16 @@ mod tests {
             "claude-opus-4-6",
             "Kimi Code",
             "openai-compatible:kimi"
+        ));
+    }
+
+    #[test]
+    fn allowed_kimi_provider_allows_kimi_base_model_route() {
+        assert!(is_allowed_base_model_route(
+            "",
+            "kimi-for-coding",
+            "Kimi Code",
+            "openai-compatible:kimi",
         ));
     }
 }

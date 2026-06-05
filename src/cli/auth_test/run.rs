@@ -80,7 +80,10 @@ fn effective_validated_model_for_choice(
     choice: &super::provider_init::ProviderChoice,
     planned_model: Option<&str>,
 ) -> Option<String> {
-    if let Some(model) = planned_model.map(str::trim).filter(|model| !model.is_empty()) {
+    if let Some(model) = planned_model
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+    {
         return Some(model.to_string());
     }
 
@@ -469,17 +472,32 @@ mod tests {
 
     #[test]
     fn validated_model_for_choice_uses_profile_default_when_plan_model_is_none() {
-        let model = effective_validated_model_for_choice(
-            &ProviderChoice::AlibabaCodingPlan,
-            None,
-        );
+        let model = effective_validated_model_for_choice(&ProviderChoice::AlibabaCodingPlan, None);
         assert_eq!(model.as_deref(), Some("qwen3-coder-plus"));
     }
 
     #[test]
     fn validated_model_for_bedrock_uses_native_default_when_plan_model_is_none() {
         let model = effective_validated_model_for_choice(&ProviderChoice::Bedrock, None);
-        assert_eq!(model.as_deref(), Some(crate::provider::bedrock::DEFAULT_MODEL));
+        assert_eq!(
+            model.as_deref(),
+            Some(crate::provider::bedrock::DEFAULT_MODEL)
+        );
+    }
+
+    #[tokio::test]
+    async fn jcode_auth_test_choice_skips_model_smoke() {
+        let plan = auth_test_choice_plan(&ProviderChoice::Jcode, None)
+            .await
+            .expect("jcode auth-test plan");
+
+        match plan {
+            AuthTestChoicePlan::Skip(detail) => {
+                assert!(detail.contains("MCP"));
+                assert!(detail.contains("base-model"));
+            }
+            other => panic!("expected jcode auth-test smoke to be skipped, got {other:?}"),
+        }
     }
 
     #[test]

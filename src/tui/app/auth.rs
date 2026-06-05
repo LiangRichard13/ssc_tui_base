@@ -543,71 +543,21 @@ impl App {
 
     pub(super) fn show_jcode_subscription_status(&mut self) {
         let configured_key = crate::subscription_catalog::configured_api_key().is_some();
-        let configured_base = crate::subscription_catalog::configured_api_base()
-            .unwrap_or_else(|| crate::subscription_catalog::DEFAULT_JCODE_API_BASE.to_string());
-        let runtime_mode = crate::subscription_catalog::is_runtime_mode_enabled();
-
-        let mut message = String::from("**Saitec Subscription Status**\n\n");
+        let core_api_base = crate::saitec::auth::core_api_base();
+        let mut message = String::from("**SAITEC MCP Status**\n\n");
         message.push_str(&format!(
-            "- Credentials: {}\n",
+            "- Platform credentials: {}\n",
             if configured_key {
                 "configured"
             } else {
                 "not configured (`/login jcode`)"
             }
         ));
-        message.push_str(&format!(
-            "- Router base: `{}`{}\n",
-            configured_base,
-            if crate::subscription_catalog::has_router_base() {
-                ""
-            } else {
-                " _(default placeholder)_"
-            }
-        ));
-        message.push_str(&format!(
-            "- Runtime mode: {}\n\n",
-            if runtime_mode {
-                "active for this session"
-            } else {
-                "inactive for this session"
-            }
-        ));
-
-        message.push_str("**Catalog**\n\n");
-        for model in crate::subscription_catalog::curated_models() {
-            let default_suffix = if model.default_enabled {
-                " _(default)_"
-            } else {
-                ""
-            };
-            message.push_str(&format!(
-                "- **{}** — `{}`{}\n  - {}\n  - {}\n",
-                model.display_name,
-                model.id,
-                default_suffix,
-                crate::subscription_catalog::routing_policy_detail(model),
-                model.note
-            ));
-        }
-
-        message.push_str("\n**Planned tiers**\n\n");
-        for tier in [
-            crate::subscription_catalog::JcodeTier::Starter20,
-            crate::subscription_catalog::JcodeTier::Pro100,
-        ] {
-            message.push_str(&format!(
-                "- {} — ${}/mo retail, about ${:.2} usable inference budget\n",
-                tier.display_name(),
-                tier.retail_price_usd(),
-                tier.usable_budget_usd()
-            ));
-        }
-
+        message.push_str(&format!("- Core API base: `{}`\n", core_api_base));
+        message.push_str("- MCP server: `SAITEC-Skills`\n");
         message.push_str(
-            "\nUsage/billing reporting is not live yet; this command is a scaffold for the curated jcode-managed subscription path.",
+            "\nSAITEC login grants platform API permission to MCP tools. It does not configure or switch a base model. Use `/login base-models` for model providers.",
         );
-
         self.push_display_message(DisplayMessage::system(message));
     }
 
@@ -2153,7 +2103,7 @@ impl App {
                         let guidance = if key_name == crate::subscription_catalog::JCODE_API_KEY_ENV
                         {
                             format!(
-                                "Use `/login jcode` to access curated models via your router. If the model list looks stale, run `/refresh-model-list`.\nDocs: {}",
+                                "SAITEC credentials are saved for MCP permissions only. They do not configure or switch a base model. Use `/login base-models` to configure model providers.\nDocs: {}",
                                 docs_url
                             )
                         } else if let Some(resolved) = resolved_openai_compatible.as_ref() {
@@ -2599,7 +2549,11 @@ impl App {
             self.invalidate_model_picker_cache();
             self.push_display_message(DisplayMessage::system(login.message));
             self.set_status_notice(format!("Login: {} ready", login.provider));
-            self.trigger_provider_auth_changed();
+            if login.provider == "jcode" {
+                crate::subscription_catalog::clear_runtime_env();
+            } else {
+                self.trigger_provider_auth_changed();
+            }
             if self.pending_login.is_some() {
                 self.pending_login = None;
             }
@@ -2774,10 +2728,7 @@ impl App {
             .cloned()
             .or_else(|| App::remote_openai_compatible_route_for_model(raw_model))
         {
-            let provider_id = route
-                .api_method
-                .strip_prefix("openai-compatible:")?
-                .trim();
+            let provider_id = route.api_method.strip_prefix("openai-compatible:")?.trim();
             let profile = crate::provider_catalog::openai_compatible_profile_by_id(provider_id)?;
             (profile, route.model)
         } else {

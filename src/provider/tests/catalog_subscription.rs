@@ -288,6 +288,43 @@ fn test_filtered_model_routes_hide_internal_openrouter_provider_in_subscription_
 }
 
 #[test]
+fn test_subscription_filter_keeps_configured_kimi_base_model_route() {
+    let _guard = crate::storage::lock_test_env();
+    crate::subscription_catalog::clear_runtime_env();
+    crate::subscription_catalog::apply_runtime_env();
+
+    let filtered = filtered_model_routes(vec![
+        ModelRoute {
+            model: "openrouter/healer-alpha".to_string(),
+            provider: "Stealth".to_string(),
+            api_method: "openrouter".to_string(),
+            available: true,
+            detail: "subscription route".to_string(),
+            cheapness: None,
+        },
+        ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible:kimi".to_string(),
+            available: true,
+            detail: "https://api.kimi.com/coding/v1".to_string(),
+            cheapness: None,
+        },
+    ]);
+
+    assert!(
+        filtered.iter().any(|route| {
+            route.model == "kimi-for-coding"
+                && route.provider == "Kimi Code"
+                && route.api_method == "openai-compatible:kimi"
+        }),
+        "subscription route filtering should retain configured Kimi base-model routes: {filtered:?}"
+    );
+
+    crate::subscription_catalog::clear_runtime_env();
+}
+
+#[test]
 fn test_subscription_filters_do_not_activate_from_saved_credentials_alone() {
     let _guard = crate::storage::lock_test_env();
     crate::subscription_catalog::clear_runtime_env();
