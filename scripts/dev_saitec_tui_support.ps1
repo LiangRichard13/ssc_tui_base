@@ -6,10 +6,15 @@ function Resolve-DevCargoCommand {
         return $cargoCommand.Source
     }
 
-    $candidatePaths = @(
-        (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"),
-        (Join-Path $env:HOME ".cargo\bin\cargo.exe")
-    )
+    $candidatePaths = @()
+    foreach ($homeRoot in @($env:USERPROFILE, $env:HOME)) {
+        if ([string]::IsNullOrWhiteSpace($homeRoot)) {
+            continue
+        }
+
+        $candidatePaths += (Join-Path $homeRoot ".cargo\bin\cargo.exe")
+        $candidatePaths += (Join-Path $homeRoot ".rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\cargo.exe")
+    }
 
     foreach ($candidate in $candidatePaths) {
         if ([string]::IsNullOrWhiteSpace($candidate)) {
@@ -21,7 +26,7 @@ function Resolve-DevCargoCommand {
         }
     }
 
-    throw "cargo was not found on PATH and no fallback cargo.exe was found under the current user's .cargo\bin directory."
+    throw "cargo was not found on PATH and no fallback cargo.exe was found under the current user's .cargo\bin or .rustup\toolchains directories."
 }
 
 function Get-DevBuildArtifactPaths {

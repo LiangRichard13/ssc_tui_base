@@ -88,6 +88,72 @@ Describe "Resolve-DevCargoCommand" {
             }
         }
     }
+
+    It "falls back to USERPROFILE cargo.exe when HOME is not defined" {
+        $originalPath = $env:Path
+        $fallbackRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("saitec-cargo-userprofile-test-" + [guid]::NewGuid().ToString("N"))
+        $fallbackHome = Join-Path $fallbackRoot "home"
+        $fallbackCargoDir = Join-Path $fallbackHome ".cargo\bin"
+        $fallbackCargoExe = Join-Path $fallbackCargoDir "cargo.exe"
+        $originalUserProfile = $env:USERPROFILE
+        $originalHome = $env:HOME
+
+        try {
+            New-Item -ItemType Directory -Path $fallbackCargoDir -Force | Out-Null
+            New-Item -ItemType File -Path $fallbackCargoExe -Force | Out-Null
+
+            $env:Path = "C:\definitely-missing-from-path"
+            $env:USERPROFILE = $fallbackHome
+            Remove-Item Env:HOME -ErrorAction SilentlyContinue
+
+            Resolve-DevCargoCommand | Should Be $fallbackCargoExe
+        } finally {
+            $env:Path = $originalPath
+            $env:USERPROFILE = $originalUserProfile
+            if ($null -eq $originalHome) {
+                Remove-Item Env:HOME -ErrorAction SilentlyContinue
+            } else {
+                $env:HOME = $originalHome
+            }
+
+            if (Test-Path -LiteralPath $fallbackRoot) {
+                Remove-Item -LiteralPath $fallbackRoot -Recurse -Force
+            }
+        }
+    }
+
+    It "falls back to rustup stable toolchain cargo.exe when the cargo shim is absent" {
+        $originalPath = $env:Path
+        $fallbackRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("saitec-cargo-rustup-test-" + [guid]::NewGuid().ToString("N"))
+        $fallbackHome = Join-Path $fallbackRoot "home"
+        $fallbackCargoDir = Join-Path $fallbackHome ".rustup\toolchains\stable-x86_64-pc-windows-msvc\bin"
+        $fallbackCargoExe = Join-Path $fallbackCargoDir "cargo.exe"
+        $originalUserProfile = $env:USERPROFILE
+        $originalHome = $env:HOME
+
+        try {
+            New-Item -ItemType Directory -Path $fallbackCargoDir -Force | Out-Null
+            New-Item -ItemType File -Path $fallbackCargoExe -Force | Out-Null
+
+            $env:Path = "C:\definitely-missing-from-path"
+            $env:USERPROFILE = $fallbackHome
+            Remove-Item Env:HOME -ErrorAction SilentlyContinue
+
+            Resolve-DevCargoCommand | Should Be $fallbackCargoExe
+        } finally {
+            $env:Path = $originalPath
+            $env:USERPROFILE = $originalUserProfile
+            if ($null -eq $originalHome) {
+                Remove-Item Env:HOME -ErrorAction SilentlyContinue
+            } else {
+                $env:HOME = $originalHome
+            }
+
+            if (Test-Path -LiteralPath $fallbackRoot) {
+                Remove-Item -LiteralPath $fallbackRoot -Recurse -Force
+            }
+        }
+    }
 }
 
 Describe "Write-DevRuntimeState" {
