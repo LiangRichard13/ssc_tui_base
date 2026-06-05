@@ -467,9 +467,9 @@ async fn run_default_command(args: Args) -> Result<()> {
     }
 
     if !server_running {
-        maybe_prompt_server_bootstrap_login(&args.provider).await?;
+        let server_provider = prepare_server_bootstrap_provider(&args.provider).await?;
         spawn_server(
-            &args.provider,
+            &server_provider,
             args.model.as_deref(),
             args.provider_profile.as_deref(),
         )
@@ -650,9 +650,25 @@ async fn acquire_spawn_lock_or_wait(
     }
 }
 
-pub(crate) async fn maybe_prompt_server_bootstrap_login(
+fn server_bootstrap_provider_for_login_result(
+    requested: &ProviderChoice,
+    has_credentials: bool,
+    selected_provider: Option<provider_catalog::LoginProviderDescriptor>,
+) -> ProviderChoice {
+    if let Some(choice) = selected_provider.and_then(provider_init::choice_for_login_provider) {
+        return choice;
+    }
+
+    if *requested != ProviderChoice::Auto || has_credentials {
+        return requested.clone();
+    }
+
+    ProviderChoice::Jcode
+}
+
+pub(crate) async fn prepare_server_bootstrap_provider(
     provider_choice: &ProviderChoice,
-) -> Result<()> {
+) -> Result<ProviderChoice> {
     startup_profile::mark("cred_check_start");
     let mut cred_state = detect_bootstrap_credentials().await;
     startup_profile::mark("cred_check_done");
@@ -666,16 +682,35 @@ pub(crate) async fn maybe_prompt_server_bootstrap_login(
     }
 
     if !cred_state.has_any && *provider_choice == ProviderChoice::Auto {
-        let provider = provider_init::prompt_login_provider_selection(
+        let provider = provider_init::prompt_login_provider_selection_optional(
             &provider_catalog::server_bootstrap_login_providers(),
             "No credentials found. Let's log in!\n\nChoose a provider:",
         )?;
-        login::run_login_provider(provider, None, login::LoginOptions::default()).await?;
-        provider_init::apply_login_provider_profile_env(provider);
+        if let Some(provider) = provider {
+            login::run_login_provider(provider, None, login::LoginOptions::default()).await?;
+            provider_init::apply_login_provider_profile_env(provider);
+            output::stderr_blank_line();
+            return Ok(server_bootstrap_provider_for_login_result(
+                provider_choice,
+                true,
+                Some(provider),
+            ));
+        }
+
+        output::stderr_info("Login skipped; opening TUI so you can sign in there.");
         output::stderr_blank_line();
+        return Ok(server_bootstrap_provider_for_login_result(
+            provider_choice,
+            false,
+            None,
+        ));
     }
 
-    Ok(())
+    Ok(server_bootstrap_provider_for_login_result(
+        provider_choice,
+        cred_state.has_any,
+        None,
+    ))
 }
 
 struct BootstrapCredentialState {

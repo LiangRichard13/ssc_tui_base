@@ -99,6 +99,38 @@ fn resolve_resume_id_imports_raw_codex_session_ids() {
     crate::env::remove_var("JCODE_HOME");
 }
 
+#[test]
+fn server_bootstrap_provider_falls_back_to_jcode_when_auto_login_is_skipped() {
+    assert_eq!(
+        server_bootstrap_provider_for_login_result(&ProviderChoice::Auto, false, None),
+        ProviderChoice::Jcode
+    );
+    assert_eq!(
+        server_bootstrap_provider_for_login_result(&ProviderChoice::Auto, true, None),
+        ProviderChoice::Auto
+    );
+    assert_eq!(
+        server_bootstrap_provider_for_login_result(&ProviderChoice::Claude, false, None),
+        ProviderChoice::Claude
+    );
+    assert_eq!(
+        server_bootstrap_provider_for_login_result(
+            &ProviderChoice::Auto,
+            false,
+            Some(crate::provider_catalog::JCODE_LOGIN_PROVIDER),
+        ),
+        ProviderChoice::Jcode
+    );
+    assert_eq!(
+        server_bootstrap_provider_for_login_result(
+            &ProviderChoice::Auto,
+            true,
+            Some(crate::provider_catalog::JCODE_LOGIN_PROVIDER),
+        ),
+        ProviderChoice::Jcode
+    );
+}
+
 #[tokio::test]
 async fn wait_for_existing_reload_server_uses_reloading_server_instead_of_spawning() {
     let _guard = crate::storage::lock_test_env();
