@@ -1934,7 +1934,11 @@ impl App {
         self.force_full_redraw = true;
     }
 
-    pub(super) fn redraw_now(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+    pub(super) fn redraw_now<B>(&mut self, terminal: &mut ratatui::Terminal<B>) -> Result<()>
+    where
+        B: ratatui::backend::Backend,
+        B::Error: Send + Sync + 'static,
+    {
         if self.force_full_redraw {
             terminal.clear()?;
             self.force_full_redraw = false;

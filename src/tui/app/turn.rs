@@ -2,6 +2,26 @@ use super::*;
 use crate::message::ToolDefinition;
 
 impl App {
+    fn finish_interrupt_without_partial_response(&mut self) {
+        self.cancel_requested = false;
+        self.interleave_message = None;
+        self.pending_soft_interrupts.clear();
+        self.pending_soft_interrupt_requests.clear();
+        self.clear_streaming_render_state();
+        self.stream_buffer.clear();
+        self.streaming_tool_calls.clear();
+        self.schedule_queued_dispatch_after_interrupt();
+        self.push_display_message(DisplayMessage::system("Interrupted"));
+    }
+
+    fn consume_interrupt_without_partial_response(&mut self) -> bool {
+        if !self.cancel_requested {
+            return false;
+        }
+        self.finish_interrupt_without_partial_response();
+        true
+    }
+
     pub(super) fn append_current_turn_system_reminder(
         &self,
         split: &mut crate::prompt::SplitSystemPrompt,
@@ -23,12 +43,16 @@ impl App {
     }
 
     /// Run turn with interactive input handling (redraws UI, accepts input during streaming)
-    pub(super) async fn run_turn_interactive(
+    pub(super) async fn run_turn_interactive<B>(
         &mut self,
-        terminal: &mut DefaultTerminal,
+        terminal: &mut ratatui::Terminal<B>,
         event_stream: &mut EventStream,
         mut bus_receiver: Option<&mut tokio::sync::broadcast::Receiver<crate::bus::BusEvent>>,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        B: ratatui::backend::Backend,
+        B::Error: Send + Sync + 'static,
+    {
         let eager_stream_redraw = !crate::perf::tui_policy().enable_decorative_animations;
         let mut redraw_period = crate::tui::redraw_interval(self);
         let mut redraw_interval = interval(redraw_period);
@@ -43,6 +67,10 @@ impl App {
             self.status = ProcessingStatus::Sending;
             terminal.draw(|frame| crate::tui::ui::draw(frame, self))?;
             self.flush_pending_session_save();
+
+            if self.consume_interrupt_without_partial_response() {
+                return Ok(());
+            }
 
             let repaired = self.repair_missing_tool_outputs();
             if repaired > 0 {
@@ -127,15 +155,7 @@ impl App {
                                     let scroll_only = super::input::is_scroll_only_key(self, key.code, key.modifiers);
                                     let _ = self.handle_key_press_event(key);
                                     if self.cancel_requested {
-                                        self.cancel_requested = false;
-                                        self.interleave_message = None;
-                                        self.pending_soft_interrupts.clear();
-                                        self.pending_soft_interrupt_requests.clear();
-                                        self.clear_streaming_render_state();
-                                        self.stream_buffer.clear();
-                                        self.streaming_tool_calls.clear();
-                                        self.schedule_queued_dispatch_after_interrupt();
-                                        self.push_display_message(DisplayMessage::system("Interrupted"));
+                                        self.finish_interrupt_without_partial_response();
                                         return Ok(());
                                     }
                                     if !scroll_only {

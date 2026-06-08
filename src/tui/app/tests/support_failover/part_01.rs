@@ -28,6 +28,11 @@ pub(super) fn cleanup_reload_context_file(session_id: &str) {
 struct MockProvider;
 
 #[derive(Clone)]
+struct PreCanceledTurnProvider {
+    calls: StdArc<AtomicUsize>,
+}
+
+#[derive(Clone)]
 struct RefreshSummaryProvider {
     summary: crate::provider::ModelCatalogRefreshSummary,
 }
@@ -57,6 +62,31 @@ impl Provider for MockProvider {
 
     fn fork(&self) -> Arc<dyn Provider> {
         Arc::new(MockProvider)
+    }
+}
+
+#[async_trait::async_trait]
+impl Provider for PreCanceledTurnProvider {
+    async fn complete(
+        &self,
+        _messages: &[Message],
+        _tools: &[crate::message::ToolDefinition],
+        _system: &str,
+        _resume_session_id: Option<&str>,
+    ) -> Result<crate::provider::EventStream> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(Box::pin(futures::stream::iter(vec![
+            Ok(StreamEvent::TextDelta("should not send".to_string())),
+            Ok(StreamEvent::MessageEnd { stop_reason: None }),
+        ])))
+    }
+
+    fn name(&self) -> &str {
+        "pre-canceled"
+    }
+
+    fn fork(&self) -> Arc<dyn Provider> {
+        Arc::new(self.clone())
     }
 }
 
@@ -155,6 +185,42 @@ fn create_test_app() -> App {
     app.queue_mode = false;
     app.diff_mode = crate::config::DiffDisplayMode::Inline;
     app
+}
+
+#[test]
+fn test_pending_escape_interrupt_before_turn_start_skips_provider_send() {
+    ensure_test_jcode_home_if_unset();
+    clear_persisted_test_ui_state();
+    crate::tui::ui::clear_test_render_state_for_tests();
+
+    let calls = StdArc::new(AtomicUsize::new(0));
+    let provider: Arc<dyn Provider> = Arc::new(PreCanceledTurnProvider {
+        calls: StdArc::clone(&calls),
+    });
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
+    let mut app = App::new_for_test_harness(provider, registry);
+    app.is_processing = true;
+    app.cancel_requested = true;
+
+    let backend = ratatui::backend::TestBackend::new(80, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut event_stream = EventStream::new();
+
+    rt.block_on(app.run_turn_interactive(&mut terminal, &mut event_stream, None))
+        .expect("pre-canceled turn should finish without calling provider");
+
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "pre-request ESC should stop before provider send"
+    );
+    assert!(!app.cancel_requested);
+    assert!(
+        app.display_messages()
+            .last()
+            .is_some_and(|message| message.content == "Interrupted")
+    );
 }
 
 fn wait_for_model_picker_load(app: &mut App) {
