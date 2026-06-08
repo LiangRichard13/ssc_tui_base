@@ -106,8 +106,14 @@ function Invoke-RepoPackagerIsolated {
     $stagingDist = Join-Path $stagingRoot "dist"
     $stagingOutput = Join-Path $stagingDist "saitec-tui"
     $patchedScript = Join-Path $stagingRoot "package_saitec_isolated.ps1"
+    $packageSupportScript = Join-Path (Split-Path -Parent $PackageScriptPath) "package_saitec_support.ps1"
+    $stagedPackageSupportScript = Join-Path $stagingRoot "package_saitec_support.ps1"
 
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $packageSupportScript)) {
+        throw "Missing packaging support script: $packageSupportScript"
+    }
+    Copy-Item -LiteralPath $packageSupportScript -Destination $stagedPackageSupportScript -Force
 
     $rawScript = Get-Content -LiteralPath $PackageScriptPath -Raw
     $defaultRepoRootLine = '$RepoRoot = Split-Path -Parent $PSScriptRoot'

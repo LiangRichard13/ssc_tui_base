@@ -127,6 +127,46 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
 }
 
 #[test]
+fn test_saitec_bootstrap_prefers_private_installed_mcp_resources() {
+    let _guard = crate::storage::lock_test_env();
+    let prev_home = std::env::var_os("JCODE_HOME");
+    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let prev_local_appdata = std::env::var_os("LOCALAPPDATA");
+    let temp = tempfile::TempDir::new().unwrap();
+    let local_appdata = temp.path().join("local-appdata");
+    let private_skills_root = local_appdata
+        .join("saitec-tui")
+        .join("resources")
+        .join(".saitec-mcp")
+        .join("SAITEC-Skills");
+    let server_dir = private_skills_root.join("mcp_server");
+    std::fs::create_dir_all(&server_dir).unwrap();
+    std::fs::write(server_dir.join("server.py"), "print('private saitec')\n").unwrap();
+
+    crate::env::set_var("JCODE_HOME", temp.path());
+    crate::env::remove_var("SAITEC_SKILLS_ROOT");
+    crate::env::set_var("LOCALAPPDATA", &local_appdata);
+
+    crate::saitec::mcp::ensure_bootstrap().unwrap();
+
+    let mcp_path = temp
+        .path()
+        .join("external")
+        .join(".saitec_tui")
+        .join("mcp.json");
+    let config = McpConfig::load_from_file(&mcp_path).unwrap();
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(
+        saitec.args,
+        vec![server_dir.join("server.py").display().to_string()]
+    );
+
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("SAITEC_SKILLS_ROOT", prev_skills_root);
+    restore_env_var("LOCALAPPDATA", prev_local_appdata);
+}
+
+#[test]
 fn test_saitec_bootstrap_preserves_existing_servers_and_refreshes_saitec_entry() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");

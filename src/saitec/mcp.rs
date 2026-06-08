@@ -148,10 +148,24 @@ fn resolve_skills_root() -> Option<PathBuf> {
         }
     }
 
+    if let Some(path) = private_installed_skills_root()
+        && path.exists()
+    {
+        return Some(path);
+    }
+
     if let Ok(current_exe) = std::env::current_exe() {
         let exe_dir = current_exe.parent();
         if let Some(dir) = exe_dir {
             for ancestor in dir.ancestors().take(4) {
+                let private_release_relative = ancestor
+                    .join("resources")
+                    .join(".saitec-mcp")
+                    .join("SAITEC-Skills");
+                if private_release_relative.exists() {
+                    return Some(private_release_relative);
+                }
+
                 let release_relative = ancestor.join("resources").join("SAITEC-Skills");
                 if release_relative.exists() {
                     return Some(release_relative);
@@ -168,6 +182,16 @@ fn resolve_skills_root() -> Option<PathBuf> {
     std::env::current_dir()
         .ok()
         .and_then(|cwd| find_vendor_root_from(&cwd))
+}
+
+fn private_installed_skills_root() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA").map(|local_appdata| {
+        PathBuf::from(local_appdata)
+            .join("saitec-tui")
+            .join("resources")
+            .join(".saitec-mcp")
+            .join("SAITEC-Skills")
+    })
 }
 
 fn find_vendor_root_from(start: &Path) -> Option<PathBuf> {
