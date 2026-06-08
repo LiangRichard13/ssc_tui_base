@@ -1480,16 +1480,59 @@ impl App {
                 )
             })
             .collect();
+        let mut seen_profile_routes: std::collections::HashMap<(String, String), usize> = routes
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, route)| {
+                Self::openai_compatible_route_profile_key(route).map(|key| (key, idx))
+            })
+            .collect();
         for route in Self::configured_openai_compatible_routes_for_remote_picker() {
             let key = (
                 route.model.clone(),
                 route.provider.clone(),
                 route.api_method.clone(),
             );
-            if seen.insert(key) {
-                routes.push(route);
+            if !seen.insert(key) {
+                continue;
             }
+
+            if let Some(profile_key) = Self::openai_compatible_route_profile_key(&route) {
+                if let Some(existing_idx) = seen_profile_routes.get(&profile_key).copied() {
+                    routes[existing_idx] = route;
+                    continue;
+                }
+                seen_profile_routes.insert(profile_key, routes.len());
+            }
+
+            routes.push(route);
         }
+    }
+
+    fn openai_compatible_route_profile_key(
+        route: &crate::provider::ModelRoute,
+    ) -> Option<(String, String)> {
+        let profile_id = if let Some(profile_id) =
+            route.api_method.strip_prefix("openai-compatible:")
+        {
+            let profile_id = profile_id.trim();
+            if profile_id.is_empty() {
+                return None;
+            }
+            profile_id.to_string()
+        } else if route.api_method == "openai-compatible" {
+            crate::provider_catalog::openai_compatible_profile_id_for_display_name(&route.provider)?
+                .to_string()
+        } else {
+            return None;
+        };
+
+        let model = route.model.trim();
+        if model.is_empty() {
+            return None;
+        }
+
+        Some((profile_id, model.to_ascii_lowercase()))
     }
 
     fn configured_openai_compatible_routes_for_remote_picker() -> Vec<crate::provider::ModelRoute> {

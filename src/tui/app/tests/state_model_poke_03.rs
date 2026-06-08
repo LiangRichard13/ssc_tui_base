@@ -942,6 +942,69 @@ fn test_local_model_picker_openrouter_direct_kimi_route_uses_profile_prefix() {
 }
 
 #[test]
+fn test_remote_model_picker_dedupes_generic_and_profile_kimi_routes() {
+    with_temp_jcode_home(|| {
+        let prev_kimi_key = std::env::var_os("KIMI_API_KEY");
+        crate::env::set_var("KIMI_API_KEY", "test-kimi-key");
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("Kimi Code".to_string());
+        app.remote_provider_model = Some("kimi-for-coding".to_string());
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "openai-compatible".to_string(),
+            available: true,
+            detail: "custom endpoint".to_string(),
+            cheapness: None,
+        }];
+
+        app.open_model_picker();
+
+        match prev_kimi_key {
+            Some(value) => crate::env::set_var("KIMI_API_KEY", value),
+            None => crate::env::remove_var("KIMI_API_KEY"),
+        }
+        crate::auth::AuthStatus::invalidate_cache();
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("model picker should be open");
+        let kimi_entries = picker
+            .entries
+            .iter()
+            .filter(|entry| entry.name == "kimi-for-coding")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kimi_entries.len(),
+            1,
+            "Kimi picker entries should be de-duplicated: {:?}",
+            picker
+                .entries
+                .iter()
+                .map(|entry| {
+                    let route = entry.active_option();
+                    (
+                        entry.name.as_str(),
+                        route.map(|route| route.provider.as_str()).unwrap_or(""),
+                        route.map(|route| route.api_method.as_str()).unwrap_or(""),
+                        route.map(|route| route.detail.as_str()).unwrap_or(""),
+                    )
+                })
+                .collect::<Vec<_>>()
+        );
+        let route = kimi_entries[0]
+            .active_option()
+            .expect("Kimi entry should have a route");
+        assert_eq!(route.provider, "Kimi Code");
+        assert_eq!(route.api_method, "openai-compatible:kimi");
+    });
+}
+
+#[test]
 fn test_saitec_model_picker_hides_generic_openrouter_routes() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
