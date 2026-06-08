@@ -290,6 +290,25 @@ fn fuzzy_match_positions(pattern: &str, text: &str) -> Vec<usize> {
     }
 }
 
+fn model_picker_search_bar(
+    picker: &crate::tui::InlineInteractiveState,
+    width: usize,
+) -> Line<'static> {
+    let query = if picker.filter.is_empty() {
+        "type to filter models".to_string()
+    } else {
+        picker.filter.clone()
+    };
+    let text = format!(
+        " Search: {}  Esc: back/close  Enter: select  Up/Down: move",
+        query
+    );
+    Line::from(Span::styled(
+        truncate_display(&text, width),
+        Style::default().fg(dim_color()),
+    ))
+}
+
 pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, area: Rect) {
     let picker = match app.inline_interactive_state() {
         Some(p) => p,
@@ -308,6 +327,8 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
     let col = picker.column;
     let is_preview = picker.preview;
     let is_account_picker = picker.uses_compact_navigation();
+    let shows_model_search_bar =
+        picker.kind == crate::tui::PickerKind::Model && !picker.is_agent_target_picker();
     let is_usage_picker = picker.kind == crate::tui::PickerKind::Usage;
 
     let col_focus_style = Style::default().fg(accent_color()).bold();
@@ -476,6 +497,9 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
     let detail_width = width.saturating_sub(row_base_width).saturating_sub(2);
 
     let mut lines: Vec<Line> = Vec::new();
+    if shows_model_search_bar {
+        lines.push(model_picker_search_bar(picker, width));
+    }
     lines.push(Line::from(header_spans));
 
     if picker.filtered.is_empty() {
@@ -487,7 +511,7 @@ pub(super) fn draw_inline_interactive(frame: &mut Frame, app: &dyn TuiState, are
         return;
     }
 
-    let list_height = height.saturating_sub(1);
+    let list_height = height.saturating_sub(lines.len());
     if list_height == 0 {
         frame.render_widget(Paragraph::new(lines), inner);
         return;

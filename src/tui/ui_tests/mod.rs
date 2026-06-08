@@ -359,6 +359,71 @@ fn sample_model_picker() -> crate::tui::InlineInteractiveState {
     }
 }
 
+fn sample_account_picker_state() -> crate::tui::InlineInteractiveState {
+    crate::tui::InlineInteractiveState {
+        kind: crate::tui::PickerKind::Account,
+        entries: vec![crate::tui::PickerEntry {
+            name: "work".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "OpenAI".to_string(),
+                api_method: "saved".to_string(),
+                available: true,
+                detail: String::new(),
+                estimated_reference_cost_micros: None,
+            }],
+            action: crate::tui::PickerAction::Account(
+                crate::tui::AccountPickerAction::Switch {
+                    provider_id: "openai".to_string(),
+                    label: "work".to_string(),
+                },
+            ),
+            selected_option: 0,
+            is_current: true,
+            is_default: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            old: false,
+            created_date: None,
+            effort: None,
+        }],
+        filtered: vec![0],
+        selected: 0,
+        column: 0,
+        filter: String::new(),
+        preview: false,
+    }
+}
+
+fn sample_agent_target_picker() -> crate::tui::InlineInteractiveState {
+    crate::tui::InlineInteractiveState {
+        kind: crate::tui::PickerKind::Model,
+        entries: vec![crate::tui::PickerEntry {
+            name: "Swarm / subagent".to_string(),
+            options: vec![crate::tui::PickerOption {
+                provider: "gpt-5 default".to_string(),
+                api_method: "agents.swarm_model".to_string(),
+                available: true,
+                detail: "/agents swarm".to_string(),
+                estimated_reference_cost_micros: None,
+            }],
+            action: crate::tui::PickerAction::AgentTarget(crate::tui::AgentModelTarget::Swarm),
+            selected_option: 0,
+            is_current: false,
+            is_default: false,
+            recommended: false,
+            recommendation_rank: usize::MAX,
+            old: false,
+            created_date: None,
+            effort: None,
+        }],
+        filtered: vec![0],
+        selected: 0,
+        column: 0,
+        filter: String::new(),
+        preview: false,
+    }
+}
+
 #[test]
 fn startup_splash_does_not_hide_inline_model_picker() {
     let _guard = viewport_snapshot_test_lock();
@@ -421,6 +486,88 @@ fn selected_unavailable_model_picker_row_still_shows_cursor() {
         row_has_selected_bg,
         "selected unavailable row should keep selected-column highlight, got:\n{rendered}"
     );
+}
+
+#[test]
+fn model_picker_search_bar_shows_filter_and_escape_hint() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let mut picker = sample_model_picker();
+    picker.filter = "kimi".to_string();
+    let state = TestState {
+        inline_interactive_state: Some(picker),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(rendered.contains("Search: kimi"), "rendered: {rendered}");
+    assert!(rendered.contains("Esc: back/close"), "rendered: {rendered}");
+}
+
+#[test]
+fn model_picker_search_bar_prompts_when_filter_is_empty() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        inline_interactive_state: Some(sample_model_picker()),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(
+        rendered.contains("Search: type to filter models"),
+        "rendered: {rendered}"
+    );
+}
+
+#[test]
+fn account_picker_does_not_render_model_picker_search_bar() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        inline_interactive_state: Some(sample_account_picker_state()),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(!rendered.contains("Search:"), "rendered: {rendered}");
+}
+
+#[test]
+fn agent_target_picker_does_not_render_model_picker_search_bar() {
+    let _guard = viewport_snapshot_test_lock();
+    let backend = ratatui::backend::TestBackend::new(100, 24);
+    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
+    let state = TestState {
+        inline_interactive_state: Some(sample_agent_target_picker()),
+        ..Default::default()
+    };
+
+    clear_test_render_state_for_tests();
+    terminal
+        .draw(|frame| crate::tui::ui::draw(frame, &state))
+        .expect("inline picker draw should succeed");
+
+    let rendered = buffer_to_text(&terminal).join("\n");
+    assert!(!rendered.contains("Search:"), "rendered: {rendered}");
 }
 
 #[test]
