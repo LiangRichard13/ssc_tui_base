@@ -542,6 +542,43 @@ fn openai_compatible_post_login_activation_uses_provider_prefixed_kimi_spec() {
 }
 
 #[test]
+fn openai_compatible_post_login_activation_prefers_documented_kimi_default_over_unrelated_route() {
+    let _lock = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+    let (mut app, set_model_calls) =
+        create_activation_spec_capture_test_app(vec![crate::provider::ModelRoute {
+            model: "anthropic/claude-sonnet-4".to_string(),
+            provider: "OpenRouter".to_string(),
+            api_method: "openai-compatible:openrouter".to_string(),
+            available: true,
+            detail: "https://openrouter.ai/api/v1".to_string(),
+            cheapness: None,
+        }]);
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let _enter = runtime.enter();
+
+    app.start_openai_compatible_post_login_activation("Kimi Code".to_string());
+
+    let start = std::time::Instant::now();
+    loop {
+        if !set_model_calls.lock().expect("set_model calls").is_empty() {
+            break;
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "timed out waiting for post-login activation to select Kimi default"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    assert_eq!(
+        set_model_calls.lock().expect("set_model calls").as_slice(),
+        ["kimi:kimi-for-coding"]
+    );
+}
+
+#[test]
 fn remote_openai_compatible_post_login_activation_queues_documented_default_model() {
     let mut app = App::new_for_remote(None);
     app.start_openai_compatible_post_login_activation("Kimi Code".to_string());

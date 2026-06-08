@@ -2335,6 +2335,20 @@ impl App {
             return;
         }
 
+        if let Some((default_model, default_spec)) =
+            Self::documented_openai_compatible_default_for_label(&provider_label)
+            && let Err(error) = Self::set_provider_model_if_needed(
+                self.provider.as_ref(),
+                &default_model,
+                &default_spec,
+            )
+        {
+            crate::logging::warn(&format!(
+                "Failed to preselect documented {} default `{}`: {}",
+                provider_label, default_model, error
+            ));
+        }
+
         let provider = Arc::clone(&self.provider);
         let session_id = self.session.id.clone();
         let provider_descriptor = crate::provider_catalog::saitec_auth_status_login_providers()
@@ -2346,25 +2360,46 @@ impl App {
                 match result {
                     Ok(summary) => {
                         let routes = provider.model_routes();
+                        let provider_profile_id =
+                            crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                                &provider_label,
+                            );
+                        let provider_api_method = provider_profile_id
+                            .map(|profile_id| format!("openai-compatible:{profile_id}"));
+                        let documented_default = Self::documented_openai_compatible_default_for_label(&provider_label);
                         let selected = routes
                             .iter()
                             .find(|route| {
                                 route.available
-                                    && route.provider == provider_label
                                     && route.api_method.starts_with("openai-compatible")
+                                    && (route.provider == provider_label
+                                        || provider_api_method.as_deref()
+                                            == Some(route.api_method.as_str()))
+                                    && documented_default
+                                        .as_ref()
+                                        .map(|(default_model, _)| {
+                                            route.model == default_model.as_str()
+                                        })
+                                        .unwrap_or(true)
                                     && crate::provider::is_listable_model_name(&route.model)
                             })
                             .or_else(|| {
+                                if documented_default.is_some() {
+                                    return None;
+                                }
                                 routes.iter().find(|route| {
                                     route.available
-                                        && route.api_method.starts_with("openai-compatible")
+                                        && route.provider == provider_label
                                         && crate::provider::is_listable_model_name(&route.model)
                                 })
                             })
                             .or_else(|| {
+                                if documented_default.is_some() {
+                                    return None;
+                                }
                                 routes.iter().find(|route| {
                                     route.available
-                                        && route.provider == provider_label
+                                        && route.api_method.starts_with("openai-compatible")
                                         && crate::provider::is_listable_model_name(&route.model)
                                 })
                             })
@@ -2376,7 +2411,11 @@ impl App {
                             });
 
                         if let Some((model, model_spec)) = selected {
-                            match provider.set_model(&model_spec) {
+                            match Self::set_provider_model_if_needed(
+                                provider.as_ref(),
+                                &model,
+                                &model_spec,
+                            ) {
                                 Ok(()) => {
                                     if let Some(provider_descriptor) = provider_descriptor
                                         && let Err(error) = crate::cli::auth_test::run_post_login_validation_quiet(provider_descriptor).await
@@ -2416,19 +2455,13 @@ impl App {
                                     );
                                 }
                             }
-                        } else if let Some(default_model) = crate::provider_catalog::openai_compatible_profiles()
-                            .iter()
-                            .copied()
-                            .find(|profile| {
-                                let resolved = crate::provider_catalog::resolve_openai_compatible_profile(*profile);
-                                resolved.display_name == provider_label
-                            })
-                            .and_then(|profile| crate::provider_catalog::resolve_openai_compatible_profile(profile).default_model)
+                        } else if let Some((default_model, default_spec)) = documented_default
                         {
-                            let default_spec = crate::provider_catalog::openai_compatible_profile_id_for_display_name(&provider_label)
-                                .map(|profile_id| format!("{profile_id}:{default_model}"))
-                                .unwrap_or_else(|| default_model.clone());
-                            match provider.set_model(&default_spec) {
+                            match Self::set_provider_model_if_needed(
+                                provider.as_ref(),
+                                &default_model,
+                                &default_spec,
+                            ) {
                                 Ok(()) => {
                                     crate::bus::Bus::global().publish_models_updated();
                                     crate::bus::Bus::global().publish(
@@ -2481,6 +2514,30 @@ impl App {
                 }
             });
         }
+    }
+
+    fn documented_openai_compatible_default_for_label(
+        provider_label: &str,
+    ) -> Option<(String, String)> {
+        let profile_id =
+            crate::provider_catalog::openai_compatible_profile_id_for_display_name(provider_label)?;
+        let profile = crate::provider_catalog::openai_compatible_profile_by_id(profile_id)?;
+        let default_model =
+            crate::provider_catalog::resolve_openai_compatible_profile(profile).default_model?;
+        let default_spec = format!("{profile_id}:{default_model}");
+        Some((default_model, default_spec))
+    }
+
+    fn set_provider_model_if_needed(
+        provider: &dyn Provider,
+        model: &str,
+        model_spec: &str,
+    ) -> Result<()> {
+        let current = provider.model();
+        if current == model || current == model_spec {
+            return Ok(());
+        }
+        provider.set_model(model_spec)
     }
 
     fn post_login_model_spec_for_route(

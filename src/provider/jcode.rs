@@ -16,9 +16,11 @@ pub struct JcodeProvider {
 
 impl JcodeProvider {
     pub fn new() -> Self {
-        Self {
+        let provider = Self {
             base_model_provider: RwLock::new(None),
-        }
+        };
+        provider.try_activate_configured_base_model();
+        provider
     }
 
     fn base_model_provider(&self) -> Option<Arc<MultiProvider>> {
@@ -38,6 +40,66 @@ impl JcodeProvider {
             ActiveProvider::Cursor => "Cursor",
             ActiveProvider::Bedrock => "Bedrock",
             ActiveProvider::OpenRouter => "OpenRouter",
+        }
+    }
+
+    fn openai_compatible_default_model_spec_for_profile(profile_id: &str) -> Option<String> {
+        if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(&profile_id) {
+            return None;
+        }
+        let profile = crate::provider_catalog::openai_compatible_profile_by_id(&profile_id)?;
+        let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+        if resolved.requires_api_key
+            && !crate::provider_catalog::openai_compatible_profile_is_configured(profile)
+        {
+            return None;
+        }
+        resolved
+            .default_model
+            .map(|model| format!("{profile_id}:{model}"))
+    }
+
+    fn configured_openai_compatible_default_model_spec() -> Option<String> {
+        if let Some(spec) = crate::provider_catalog::active_openai_compatible_profile_id()
+            .as_deref()
+            .and_then(Self::openai_compatible_default_model_spec_for_profile)
+        {
+            return Some(spec);
+        }
+
+        let mut specs = crate::provider_catalog::openai_compatible_profiles()
+            .iter()
+            .copied()
+            .filter_map(|profile| {
+                Self::openai_compatible_default_model_spec_for_profile(profile.id)
+            })
+            .collect::<Vec<_>>();
+
+        if specs.len() == 1 { specs.pop() } else { None }
+    }
+
+    fn try_activate_configured_base_model(&self) {
+        if self.base_model_provider().is_some() {
+            return;
+        }
+        let Some(model_spec) = Self::configured_openai_compatible_default_model_spec() else {
+            return;
+        };
+        let provider = Arc::new(MultiProvider::new_fast());
+        match provider.set_model(&model_spec) {
+            Ok(()) => {
+                *self
+                    .base_model_provider
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(provider);
+            }
+            Err(error) => {
+                crate::logging::warn(&format!(
+                    "Failed to activate configured SAITEC base model `{}`: {}",
+                    model_spec, error
+                ));
+                crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+            }
         }
     }
 }
@@ -187,6 +249,8 @@ impl Provider for JcodeProvider {
     fn on_auth_changed(&self) {
         if let Some(provider) = self.base_model_provider() {
             provider.on_auth_changed();
+        } else {
+            self.try_activate_configured_base_model();
         }
     }
 
@@ -442,6 +506,59 @@ mod tests {
             crate::env::set_var("KIMI_API_KEY", value);
         } else {
             crate::env::remove_var("KIMI_API_KEY");
+        }
+        crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+        crate::subscription_catalog::clear_runtime_env();
+    }
+
+    #[test]
+    fn jcode_provider_auto_activates_single_configured_kimi_default_model() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let previous_home = std::env::var_os("JCODE_HOME");
+        let previous_kimi_key = std::env::var_os("KIMI_API_KEY");
+        let previous_openrouter_key = std::env::var_os("OPENROUTER_API_KEY");
+        crate::env::set_var("JCODE_HOME", temp.path());
+        crate::env::remove_var("KIMI_API_KEY");
+        crate::env::set_var("OPENROUTER_API_KEY", "test-openrouter-key");
+        crate::subscription_catalog::clear_runtime_env();
+        crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+        crate::provider_catalog::save_env_value_to_env_file(
+            "KIMI_API_KEY",
+            "kimi.env",
+            Some("test-kimi-key"),
+        )
+        .expect("save Kimi key");
+
+        let provider = JcodeProvider::new();
+
+        assert_eq!(provider.name(), "OpenRouter");
+        assert_eq!(provider.model(), "kimi-for-coding");
+        assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
+        assert!(
+            provider
+                .model_routes()
+                .iter()
+                .any(|route| route.model == "kimi-for-coding"
+                    && route.provider == "Kimi Code"
+                    && route.api_method == "openai-compatible:kimi"),
+            "Kimi route should be visible after automatic base-model activation"
+        );
+
+        if let Some(value) = previous_home {
+            crate::env::set_var("JCODE_HOME", value);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+        if let Some(value) = previous_kimi_key {
+            crate::env::set_var("KIMI_API_KEY", value);
+        } else {
+            crate::env::remove_var("KIMI_API_KEY");
+        }
+        if let Some(value) = previous_openrouter_key {
+            crate::env::set_var("OPENROUTER_API_KEY", value);
+        } else {
+            crate::env::remove_var("OPENROUTER_API_KEY");
         }
         crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
         crate::subscription_catalog::clear_runtime_env();
