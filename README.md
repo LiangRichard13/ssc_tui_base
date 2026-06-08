@@ -367,7 +367,6 @@ SAITEC-TUI 的检测与评测任务通常会产生结构化结果和文件产物
 | `/login` | 打开登录选择器，可选择 SAITEC 登录或基座模型配置 |
 | `/login base-models` | 打开基座模型登录/配置选择器 |
 | `/logout` | 清除 SAITEC 登录状态并回到登录流程 |
-| `/auth` | 查看 SAITEC 与基座模型认证状态 |
 | `/model` | 打开模型选择器 |
 | `/models` | `/model` 的别名 |
 | `/refresh-model-list` | 刷新模型目录和可用路由 |
@@ -514,7 +513,6 @@ SAITEC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计
 运行:
 
 ```text
-/auth
 /login base-models
 /refresh-model-list
 /model

@@ -561,38 +561,6 @@ impl App {
         self.push_display_message(DisplayMessage::system(message));
     }
 
-    pub(super) fn show_auth_status(&mut self) {
-        let status = crate::auth::AuthStatus::check();
-        let validation = crate::auth::validation::load_all();
-        let icon = |state: crate::auth::AuthState| match state {
-            crate::auth::AuthState::Available => "ok",
-            crate::auth::AuthState::Expired => "needs attention",
-            crate::auth::AuthState::NotConfigured => "not configured",
-        };
-        let providers = crate::provider_catalog::saitec_auth_status_login_providers();
-        let mut message = String::from(
-            "**Authentication Status:**\n\n| Provider | Status | Method | Health | Validation |\n|----------|--------|--------|--------|------------|\n",
-        );
-        for provider in providers {
-            let assessment = status.assessment_for_provider(provider);
-            message.push_str(&format!(
-                "| {} | {} | {} | {} | {} |\n",
-                provider.display_name,
-                icon(assessment.state),
-                assessment.method_detail,
-                assessment.health_summary(),
-                validation
-                    .get(provider.id)
-                    .map(crate::auth::validation::format_record_label)
-                    .unwrap_or_else(|| "not validated".to_string()),
-            ));
-        }
-        message.push_str(
-            "\nUse `/login` or `/login jcode` to authenticate with Saitec. `/account` opens the provider/account management center, `/account <provider> settings` shows provider-specific controls, and `/auth doctor` or `/account <provider> doctor` shows recovery steps.",
-        );
-        self.push_display_message(DisplayMessage::system(message));
-    }
-
     pub(super) fn show_interactive_login(&mut self) {
         self.open_login_mode_selector();
     }

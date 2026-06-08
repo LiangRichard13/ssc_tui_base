@@ -5,8 +5,7 @@ impl App {
         let trimmed = input.trim();
         if trimmed == "/login"
             || trimmed.starts_with("/login ")
-            || trimmed == "/auth"
-            || trimmed.starts_with("/auth ")
+            || trimmed.starts_with("/auth doctor")
             || trimmed == "/logout"
             || trimmed.starts_with("/logout ")
         {

@@ -2017,20 +2017,17 @@ fn test_account_openrouter_settings_is_rejected_by_saitec_allowlist() {
 }
 
 #[test]
-fn test_auth_status_lists_only_saitec_allowlisted_base_model_providers() {
+fn test_auth_shortcut_command_is_removed() {
     let mut app = create_test_app();
     app.input = "/auth".to_string();
     app.submit_input();
 
-    let msg = app.display_messages().last().expect("missing auth status");
-    assert!(msg.content.contains("SAITEC"));
-    assert!(msg.content.contains("OpenAI"));
-    assert!(msg.content.contains("Anthropic/Claude"));
-    assert!(msg.content.contains("Z.AI"));
-    assert!(msg.content.contains("Kimi"));
-    assert!(msg.content.contains("Alibaba Cloud Coding"));
-    assert!(!msg.content.contains("GitHub Copilot"));
-    assert!(!msg.content.contains("Google"));
+    let msg = app
+        .display_messages()
+        .last()
+        .expect("missing removed shortcut response");
+    assert_eq!(msg.role, "error");
+    assert_eq!(msg.content, "Unknown skill: /auth");
 }
 
 #[test]

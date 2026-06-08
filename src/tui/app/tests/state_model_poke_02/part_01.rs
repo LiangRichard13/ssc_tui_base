@@ -571,7 +571,6 @@ fn test_registered_command_suggestions_match_saitec_public_surface() {
         "/commands",
         "/login",
         "/logout",
-        "/auth",
         "/model",
         "/models",
         "/clear",
@@ -583,6 +582,11 @@ fn test_registered_command_suggestions_match_saitec_public_surface() {
     ] {
         assert!(commands.contains(&public), "missing public command {public}: {commands:?}");
     }
+
+    assert!(
+        !commands.contains(&"/auth"),
+        "removed shortcut /auth should not be suggested: {commands:?}"
+    );
 
     for hidden in [
         "/dictation",

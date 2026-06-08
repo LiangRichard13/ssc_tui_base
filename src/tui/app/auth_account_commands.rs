@@ -5,11 +5,6 @@ fn unsupported_provider_error() -> String {
 }
 
 pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
-    if trimmed == "/auth" {
-        app.show_auth_status();
-        return true;
-    }
-
     if let Some(rest) = trimmed.strip_prefix("/auth doctor") {
         let provider_id = (!rest.trim().is_empty()).then(|| rest.trim().to_string());
         app.push_display_message(DisplayMessage::system(render_auth_doctor_markdown(
@@ -34,10 +29,7 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
         return true;
     }
 
-    if let Some(provider) = trimmed
-        .strip_prefix("/login ")
-        .or_else(|| trimmed.strip_prefix("/auth "))
-    {
+    if let Some(provider) = trimmed.strip_prefix("/login ") {
         let requested = provider.trim();
         if requested.eq_ignore_ascii_case("base-models")
             || requested.eq_ignore_ascii_case("base-model")

@@ -103,7 +103,6 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/transfer", "Compact context into a fresh handoff session"),
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit jcode"),
-    RegisteredCommand::public("/auth", "Show authentication status"),
     RegisteredCommand::public("/login", "Choose SAITEC login or base-model configuration"),
     RegisteredCommand::public("/logout", "Logout from Saitec and clear local auth"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
@@ -720,26 +719,24 @@ impl App {
             return self.rank_suggestions(input, suggestions);
         }
 
-        if prefix.starts_with("/login ") || prefix.starts_with("/auth ") {
-            let base = if prefix.starts_with("/auth ") {
-                "/auth"
-            } else {
-                "/login"
-            };
+        if prefix.starts_with("/auth ") {
+            return self.rank_suggestions(
+                input,
+                vec![("/auth doctor".into(), "Diagnose provider auth issues")],
+            );
+        }
+
+        if prefix.starts_with("/login ") {
+            let base = "/login";
             let mut suggestions: Vec<(String, &'static str)> = Vec::new();
-            if base == "/auth" {
-                suggestions.push(("/auth doctor".into(), "Diagnose provider auth issues"));
-            }
             suggestions.push((
                 format!("{} jcode", base),
                 crate::provider_catalog::JCODE_LOGIN_PROVIDER.menu_detail,
             ));
-            if base == "/login" {
-                suggestions.push((
-                    "/login base-models".into(),
-                    "Open the filtered base-model provider picker",
-                ));
-            }
+            suggestions.push((
+                "/login base-models".into(),
+                "Open the filtered base-model provider picker",
+            ));
             for provider in crate::provider_catalog::saitec_visible_base_model_providers() {
                 suggestions.push((format!("{} {}", base, provider.id), provider.menu_detail));
             }
@@ -1176,7 +1173,6 @@ impl App {
                 | "/fast"
                 | "/transport"
                 | "/login"
-                | "/auth"
                 | "/account"
                 | "/account claude"
                 | "/account switch"
