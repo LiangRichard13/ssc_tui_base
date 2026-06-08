@@ -12,14 +12,7 @@ impl Provider for OpenRouterProvider {
         _resume_session_id: Option<&str>,
     ) -> Result<EventStream> {
         let model = self.model.read().await.clone();
-        let thinking_override = Self::thinking_override();
-        let thinking_enabled = thinking_override.or_else(|| {
-            if Self::is_kimi_model(&model) {
-                Some(true)
-            } else {
-                None
-            }
-        });
+        let thinking_enabled = self.thinking_enabled_for_request(&model);
         let allow_reasoning = thinking_enabled != Some(false);
         let include_reasoning_content =
             thinking_enabled == Some(true) || (allow_reasoning && Self::is_kimi_model(&model));
@@ -525,12 +518,7 @@ impl Provider for OpenRouterProvider {
             request["tool_choice"] = serde_json::json!("auto");
         }
 
-        // Optional thinking override for OpenRouter (provider-specific).
-        if let Some(enable) = thinking_enabled {
-            request["thinking"] = serde_json::json!({
-                "type": if enable { "enabled" } else { "disabled" }
-            });
-        }
+        self.apply_thinking_config_to_request(&mut request, &model);
 
         // Add provider routing if configured and supported by backend.
         let mut provider_obj = None;

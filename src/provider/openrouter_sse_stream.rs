@@ -216,6 +216,7 @@ pub(crate) struct OpenRouterStream {
     current_tool_call: Option<ToolCallAccumulator>,
     /// Track if we've emitted the provider info (only emit once)
     provider_emitted: bool,
+    reasoning_started: bool,
     model: String,
     provider_pin: Arc<Mutex<Option<ProviderPin>>>,
 }
@@ -239,6 +240,7 @@ impl OpenRouterStream {
             pending: VecDeque::new(),
             current_tool_call: None,
             provider_emitted: false,
+            reasoning_started: false,
             model,
             provider_pin,
         }
@@ -283,6 +285,21 @@ impl OpenRouterStream {
         }
     }
 
+    fn push_thinking_delta(&mut self, text: String) {
+        if !self.reasoning_started {
+            self.reasoning_started = true;
+            self.pending.push_back(StreamEvent::ThinkingStart);
+        }
+        self.pending.push_back(StreamEvent::ThinkingDelta(text));
+    }
+
+    fn close_reasoning_if_started(&mut self) {
+        if self.reasoning_started {
+            self.reasoning_started = false;
+            self.pending.push_back(StreamEvent::ThinkingEnd);
+        }
+    }
+
     pub(crate) fn parse_next_event(&mut self) -> Option<StreamEvent> {
         if let Some(event) = self.pending.pop_front() {
             return Some(event);
@@ -306,7 +323,10 @@ impl OpenRouterStream {
             };
 
             if data == "[DONE]" {
-                return Some(StreamEvent::MessageEnd { stop_reason: None });
+                self.close_reasoning_if_started();
+                self.pending
+                    .push_back(StreamEvent::MessageEnd { stop_reason: None });
+                return self.pending.pop_front();
             }
 
             let parsed: Value = match serde_json::from_str(data) {
@@ -361,8 +381,7 @@ impl OpenRouterStream {
                         .and_then(|c| c.as_str())
                         && !reasoning_content.is_empty()
                     {
-                        self.pending
-                            .push_back(StreamEvent::ThinkingDelta(reasoning_content.to_string()));
+                        self.push_thinking_delta(reasoning_content.to_string());
                     }
 
                     // Text content
@@ -437,6 +456,7 @@ impl OpenRouterStream {
                         }
 
                         // Don't emit MessageEnd here - wait for [DONE]
+                        self.close_reasoning_if_started();
                     }
                 }
             }
@@ -530,6 +550,7 @@ impl Stream for OpenRouterStream {
                             .push_back(StreamEvent::ToolInputDelta(tc.arguments));
                         self.pending.push_back(StreamEvent::ToolUseEnd);
                     }
+                    self.close_reasoning_if_started();
                     if let Some(event) = self.pending.pop_front() {
                         return Poll::Ready(Some(Ok(event)));
                     }
@@ -580,6 +601,8 @@ mod tests {
 
         let event = stream.parse_next_event();
 
+        assert!(matches!(event, Some(StreamEvent::ThinkingStart)));
+        let event = stream.parse_next_event();
         assert!(matches!(event, Some(StreamEvent::ThinkingDelta(text)) if text == "thinking"));
     }
 }

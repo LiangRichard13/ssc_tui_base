@@ -323,6 +323,10 @@ fn should_send_kimi_coding_agent_headers(api_base: &str, model: Option<&str>) ->
     is_coding_agent_api_base(api_base) || model.map(is_kimi_for_coding_model).unwrap_or(false)
 }
 
+fn should_disable_kimi_coding_thinking_by_default(api_base: &str, model: &str) -> bool {
+    is_kimi_coding_api_base(api_base) || is_kimi_for_coding_model(model)
+}
+
 fn apply_kimi_coding_agent_headers(
     req: reqwest::RequestBuilder,
     api_base: &str,
@@ -665,6 +669,36 @@ impl OpenRouterProvider {
                 ));
                 None
             }
+        }
+    }
+
+    fn thinking_enabled_for_request(&self, model: &str) -> Option<bool> {
+        if let Some(override_value) = Self::thinking_override() {
+            return Some(override_value);
+        }
+
+        let is_kimi_profile = self
+            .profile_id
+            .as_deref()
+            .map(|profile| profile.eq_ignore_ascii_case("kimi"))
+            .unwrap_or(false);
+        if is_kimi_profile || should_disable_kimi_coding_thinking_by_default(&self.api_base, model)
+        {
+            return Some(false);
+        }
+
+        if Self::is_kimi_model(model) {
+            return Some(true);
+        }
+
+        None
+    }
+
+    fn apply_thinking_config_to_request(&self, request: &mut Value, model: &str) {
+        if let Some(enable) = self.thinking_enabled_for_request(model) {
+            request["thinking"] = serde_json::json!({
+                "type": if enable { "enabled" } else { "disabled" }
+            });
         }
     }
 

@@ -633,6 +633,46 @@ fn test_kimi_coding_header_detection_matches_endpoint_and_model() {
 }
 
 #[test]
+fn test_kimi_coding_request_disables_thinking_by_default() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    let _thinking = EnvVarGuard::remove("JCODE_OPENROUTER_THINKING");
+    let provider = OpenRouterProvider {
+        model: Arc::new(RwLock::new("kimi-for-coding".to_string())),
+        api_base: "https://api.kimi.com/coding/v1".to_string(),
+        supports_provider_features: false,
+        supports_model_catalog: false,
+        profile_id: Some("kimi".to_string()),
+        send_openrouter_headers: false,
+        ..make_provider()
+    };
+    let mut request = serde_json::json!({});
+
+    provider.apply_thinking_config_to_request(&mut request, "kimi-for-coding");
+
+    assert_eq!(request["thinking"]["type"], "disabled");
+}
+
+#[test]
+fn test_kimi_coding_thinking_env_override_can_enable_thinking() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    let _thinking = EnvVarGuard::set("JCODE_OPENROUTER_THINKING", "enabled");
+    let provider = OpenRouterProvider {
+        model: Arc::new(RwLock::new("kimi-for-coding".to_string())),
+        api_base: "https://api.kimi.com/coding/v1".to_string(),
+        supports_provider_features: false,
+        supports_model_catalog: false,
+        profile_id: Some("kimi".to_string()),
+        send_openrouter_headers: false,
+        ..make_provider()
+    };
+    let mut request = serde_json::json!({});
+
+    provider.apply_thinking_config_to_request(&mut request, "kimi-for-coding");
+
+    assert_eq!(request["thinking"]["type"], "enabled");
+}
+
+#[test]
 fn test_parse_next_event_accepts_compact_sse_data_and_reasoning_content() {
     let mut stream = OpenRouterStream::new(
         futures::stream::empty::<Result<Bytes, reqwest::Error>>(),
@@ -642,10 +682,45 @@ fn test_parse_next_event_accepts_compact_sse_data_and_reasoning_content() {
     stream.buffer =
         "data:{\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking\"}}]}\n\n".to_string();
 
+    assert!(matches!(
+        stream.parse_next_event(),
+        Some(StreamEvent::ThinkingStart)
+    ));
     match stream.parse_next_event() {
         Some(StreamEvent::ThinkingDelta(text)) => assert_eq!(text, "thinking"),
         other => panic!("expected ThinkingDelta, got {:?}", other),
     }
+}
+
+#[test]
+fn test_parse_next_event_closes_reasoning_on_done() {
+    let mut stream = OpenRouterStream::new(
+        futures::stream::empty::<Result<Bytes, reqwest::Error>>(),
+        "kimi-for-coding".to_string(),
+        Arc::new(Mutex::new(None)),
+    );
+    stream.buffer = concat!(
+        "data:{\"choices\":[{\"delta\":{\"reasoning_content\":\"thinking\"}}]}\n\n",
+        "data: [DONE]\n\n"
+    )
+    .to_string();
+
+    assert!(matches!(
+        stream.parse_next_event(),
+        Some(StreamEvent::ThinkingStart)
+    ));
+    assert!(matches!(
+        stream.parse_next_event(),
+        Some(StreamEvent::ThinkingDelta(text)) if text == "thinking"
+    ));
+    assert!(matches!(
+        stream.parse_next_event(),
+        Some(StreamEvent::ThinkingEnd)
+    ));
+    assert!(matches!(
+        stream.parse_next_event(),
+        Some(StreamEvent::MessageEnd { .. })
+    ));
 }
 
 #[test]
