@@ -59,6 +59,28 @@ impl JcodeProvider {
             .map(|model| format!("{profile_id}:{model}"))
     }
 
+    fn runtime_validated_default_model_spec_for_profile(
+        profile: crate::provider_catalog::OpenAiCompatibleProfile,
+    ) -> Option<(String, i64)> {
+        let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+        let model = resolved.default_model.as_deref()?;
+        let spec = Self::openai_compatible_default_model_spec_for_profile(&resolved.id)?;
+        let record = crate::auth::validation::get(&resolved.id)?;
+        if !record.success
+            || (record.provider_smoke_ok != Some(true) && record.tool_smoke_ok != Some(true))
+        {
+            return None;
+        }
+        if !record
+            .validated_models
+            .iter()
+            .any(|validated| validated.trim().eq_ignore_ascii_case(model.trim()))
+        {
+            return None;
+        }
+        Some((spec, record.checked_at_ms))
+    }
+
     fn configured_openai_compatible_default_model_spec() -> Option<String> {
         if let Some(spec) = crate::provider_catalog::active_openai_compatible_profile_id()
             .as_deref()
@@ -67,9 +89,31 @@ impl JcodeProvider {
             return Some(spec);
         }
 
-        let mut specs = crate::provider_catalog::openai_compatible_profiles()
+        let profiles = crate::provider_catalog::openai_compatible_profiles()
             .iter()
             .copied()
+            .filter(|profile| {
+                Self::openai_compatible_default_model_spec_for_profile(profile.id).is_some()
+            })
+            .collect::<Vec<_>>();
+
+        let mut validated_specs = profiles
+            .iter()
+            .copied()
+            .filter_map(Self::runtime_validated_default_model_spec_for_profile)
+            .collect::<Vec<_>>();
+        validated_specs.sort_by(|a, b| b.1.cmp(&a.1));
+        if validated_specs.len() == 1
+            || validated_specs
+                .first()
+                .zip(validated_specs.get(1))
+                .is_some_and(|(first, second)| first.1 > second.1)
+        {
+            return validated_specs.into_iter().next().map(|(spec, _)| spec);
+        }
+
+        let mut specs = profiles
+            .iter()
             .filter_map(|profile| {
                 Self::openai_compatible_default_model_spec_for_profile(profile.id)
             })
@@ -392,23 +436,100 @@ impl Provider for JcodeProvider {
 mod tests {
     use super::*;
 
+    const PROVIDER_TEST_ENV_KEYS: &[&str] = &[
+        "OPENROUTER_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZHIPU_API_KEY",
+        "ZAI_API_KEY",
+        "KIMI_API_KEY",
+        "JCODE_OPENROUTER_API_BASE",
+        "JCODE_OPENROUTER_API_KEY_NAME",
+        "JCODE_OPENROUTER_ENV_FILE",
+        "JCODE_OPENROUTER_CACHE_NAMESPACE",
+        "JCODE_OPENROUTER_PROVIDER_FEATURES",
+        "JCODE_OPENROUTER_ALLOW_NO_AUTH",
+        "JCODE_OPENROUTER_MODEL_CATALOG",
+        "JCODE_OPENROUTER_MODEL",
+        "JCODE_OPENROUTER_STATIC_MODELS",
+        "JCODE_OPENROUTER_AUTH_HEADER",
+        "JCODE_OPENROUTER_AUTH_HEADER_NAME",
+        "JCODE_OPENROUTER_DYNAMIC_BEARER_PROVIDER",
+        "JCODE_OPENROUTER_PROVIDER",
+        "JCODE_OPENROUTER_NO_FALLBACK",
+        "JCODE_ACTIVE_PROVIDER",
+        "JCODE_FORCE_PROVIDER",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "JCODE_PROVIDER_PROFILE_ACTIVE",
+        "JCODE_PROVIDER_PROFILE_NAME",
+    ];
+
+    struct ProviderTestEnvGuard {
+        previous_home: Option<std::ffi::OsString>,
+        saved_env: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
+
+    impl ProviderTestEnvGuard {
+        fn isolate() -> (tempfile::TempDir, Self) {
+            let temp = tempfile::tempdir().expect("tempdir");
+            let previous_home = std::env::var_os("JCODE_HOME");
+            let saved_env = PROVIDER_TEST_ENV_KEYS
+                .iter()
+                .map(|key| (*key, std::env::var_os(key)))
+                .collect::<Vec<_>>();
+
+            crate::env::set_var("JCODE_HOME", temp.path());
+            for (key, _) in &saved_env {
+                crate::env::remove_var(key);
+            }
+            crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+            crate::subscription_catalog::clear_runtime_env();
+
+            (
+                temp,
+                Self {
+                    previous_home,
+                    saved_env,
+                },
+            )
+        }
+    }
+
+    impl Drop for ProviderTestEnvGuard {
+        fn drop(&mut self) {
+            crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+            crate::subscription_catalog::clear_runtime_env();
+
+            if let Some(value) = self.previous_home.take() {
+                crate::env::set_var("JCODE_HOME", value);
+            } else {
+                crate::env::remove_var("JCODE_HOME");
+            }
+
+            for (key, value) in self.saved_env.drain(..) {
+                if let Some(value) = value {
+                    crate::env::set_var(key, value);
+                } else {
+                    crate::env::remove_var(key);
+                }
+            }
+        }
+    }
+
     #[test]
     fn jcode_provider_does_not_enable_subscription_runtime_mode() {
-        let _guard = crate::storage::lock_test_env();
-        crate::subscription_catalog::clear_runtime_env();
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
 
         let provider = JcodeProvider::new();
 
         assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
         assert!(provider.available_models_display().is_empty());
-
-        crate::subscription_catalog::clear_runtime_env();
     }
 
     #[test]
     fn jcode_provider_name_and_model_are_mcp_only() {
-        let _guard = crate::storage::lock_test_env();
-        crate::subscription_catalog::clear_runtime_env();
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
 
         let provider = JcodeProvider::new();
 
@@ -417,17 +538,12 @@ mod tests {
         assert!(!crate::subscription_catalog::is_curated_model(
             &provider.model()
         ));
-
-        crate::subscription_catalog::clear_runtime_env();
     }
 
     #[test]
     fn jcode_provider_is_mcp_only_and_does_not_enable_openrouter_runtime() {
-        let _guard = crate::storage::lock_test_env();
-        crate::subscription_catalog::clear_runtime_env();
-        crate::env::remove_var("JCODE_OPENROUTER_MODEL");
-        crate::env::remove_var("JCODE_ACTIVE_PROVIDER");
-        crate::env::remove_var("JCODE_FORCE_PROVIDER");
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
 
         let provider = JcodeProvider::new();
 
@@ -442,11 +558,8 @@ mod tests {
 
     #[tokio::test]
     async fn jcode_provider_without_base_model_rejects_chat_completion() {
-        let _guard = crate::storage::lock_test_env();
-        crate::subscription_catalog::clear_runtime_env();
-        crate::env::remove_var("JCODE_OPENROUTER_MODEL");
-        crate::env::remove_var("JCODE_ACTIVE_PROVIDER");
-        crate::env::remove_var("JCODE_FORCE_PROVIDER");
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
 
         let provider = JcodeProvider::new();
         let error = match provider.complete(&[], &[], "", None).await {
@@ -465,9 +578,8 @@ mod tests {
 
     #[test]
     fn jcode_provider_allows_configured_kimi_profile_prefixed_model() {
-        let _guard = crate::storage::lock_test_env();
-        crate::subscription_catalog::clear_runtime_env();
-        let previous_kimi_key = std::env::var_os("KIMI_API_KEY");
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
         crate::env::set_var("KIMI_API_KEY", "test-kimi-key");
         crate::auth::validation::save(
             "kimi",
@@ -501,28 +613,12 @@ mod tests {
                 "Kimi route should be visible after base-model activation"
             );
         });
-
-        if let Some(value) = previous_kimi_key {
-            crate::env::set_var("KIMI_API_KEY", value);
-        } else {
-            crate::env::remove_var("KIMI_API_KEY");
-        }
-        crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
-        crate::subscription_catalog::clear_runtime_env();
     }
 
     #[test]
     fn jcode_provider_auto_activates_single_configured_kimi_default_model() {
-        let _guard = crate::storage::lock_test_env();
-        let temp = tempfile::tempdir().expect("tempdir");
-        let previous_home = std::env::var_os("JCODE_HOME");
-        let previous_kimi_key = std::env::var_os("KIMI_API_KEY");
-        let previous_openrouter_key = std::env::var_os("OPENROUTER_API_KEY");
-        crate::env::set_var("JCODE_HOME", temp.path());
-        crate::env::remove_var("KIMI_API_KEY");
-        crate::env::set_var("OPENROUTER_API_KEY", "test-openrouter-key");
-        crate::subscription_catalog::clear_runtime_env();
-        crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
         crate::provider_catalog::save_env_value_to_env_file(
             "KIMI_API_KEY",
             "kimi.env",
@@ -544,23 +640,41 @@ mod tests {
                     && route.api_method == "openai-compatible:kimi"),
             "Kimi route should be visible after automatic base-model activation"
         );
+    }
 
-        if let Some(value) = previous_home {
-            crate::env::set_var("JCODE_HOME", value);
-        } else {
-            crate::env::remove_var("JCODE_HOME");
-        }
-        if let Some(value) = previous_kimi_key {
-            crate::env::set_var("KIMI_API_KEY", value);
-        } else {
-            crate::env::remove_var("KIMI_API_KEY");
-        }
-        if let Some(value) = previous_openrouter_key {
-            crate::env::set_var("OPENROUTER_API_KEY", value);
-        } else {
-            crate::env::remove_var("OPENROUTER_API_KEY");
-        }
-        crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
-        crate::subscription_catalog::clear_runtime_env();
+    #[test]
+    fn jcode_provider_auto_activates_runtime_validated_kimi_when_other_keys_exist() {
+        let _lock = crate::storage::lock_test_env();
+        let (_temp, _env_guard) = ProviderTestEnvGuard::isolate();
+        crate::provider_catalog::save_env_value_to_env_file(
+            "KIMI_API_KEY",
+            "kimi.env",
+            Some("test-kimi-key"),
+        )
+        .expect("save Kimi key");
+        crate::provider_catalog::save_env_value_to_env_file(
+            "ZHIPU_API_KEY",
+            "zai.env",
+            Some("test-zai-key"),
+        )
+        .expect("save Z.AI key");
+        crate::auth::validation::save(
+            "kimi",
+            crate::auth::validation::ProviderValidationRecord {
+                checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: Some(true),
+                validated_models: vec!["kimi-for-coding".to_string()],
+                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+            },
+        )
+        .expect("save passing Kimi validation");
+
+        let provider = JcodeProvider::new();
+
+        assert_eq!(provider.name(), "OpenRouter");
+        assert_eq!(provider.model(), "kimi-for-coding");
+        assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
     }
 }
