@@ -1053,6 +1053,42 @@ fn test_remote_model_picker_dedupes_current_and_profile_kimi_routes() {
 }
 
 #[test]
+fn test_remote_model_picker_shows_validated_current_kimi_model_name() {
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("Kimi Code".to_string());
+        app.remote_provider_model = Some("kimi-for-coding".to_string());
+        app.remote_model_options = vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "current".to_string(),
+            available: true,
+            detail: "active remote model".to_string(),
+            cheapness: None,
+        }];
+
+        app.open_model_picker();
+
+        let picker = app
+            .inline_interactive_state
+            .as_ref()
+            .expect("/model should show validated current remote models");
+        let names: Vec<&str> = picker
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
+        assert!(
+            names.contains(&"kimi-for-coding"),
+            "/model should list validated model names, got: {names:?}"
+        );
+    });
+}
+
+#[test]
 fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
     with_temp_jcode_home(|| {
         save_test_provider_validation("kimi", &["kimi-for-coding"]);

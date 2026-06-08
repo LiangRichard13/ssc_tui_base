@@ -43,6 +43,11 @@ impl App {
                 .and_then(crate::provider_catalog::openai_compatible_profile_by_id)
                 .map(|profile| (profile.id, profile.display_name))
             }
+            "current" => crate::provider_catalog::openai_compatible_profile_id_for_display_name(
+                &route.provider,
+            )
+            .and_then(crate::provider_catalog::openai_compatible_profile_by_id)
+            .map(|profile| (profile.id, profile.display_name)),
             "claude-oauth" | "api-key" if route.provider.contains("Anthropic") => {
                 Some(("claude", "Anthropic/Claude"))
             }
