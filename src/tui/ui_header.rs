@@ -506,27 +506,18 @@ pub(crate) fn startup_login_status_label(auth: &AuthStatus) -> &'static str {
 }
 
 pub(crate) fn startup_model_login_state(auth: &AuthStatus) -> AuthState {
-    [
-        auth.anthropic.state,
-        auth.openrouter,
-        auth.azure,
-        auth.bedrock,
-        auth.openai,
-        auth.cursor,
-        auth.copilot,
-        auth.gemini,
-        auth.antigravity,
-        auth.google,
-    ]
-    .into_iter()
-    .fold(
-        AuthState::NotConfigured,
-        |state, candidate| match candidate {
-            AuthState::Available => AuthState::Available,
-            AuthState::Expired if state == AuthState::NotConfigured => AuthState::Expired,
-            _ => state,
-        },
-    )
+    crate::provider_catalog::saitec_visible_base_model_providers()
+        .into_iter()
+        .map(|provider| auth.state_for_provider(provider))
+        .fold(AuthState::NotConfigured, combine_startup_auth_state)
+}
+
+fn combine_startup_auth_state(state: AuthState, candidate: AuthState) -> AuthState {
+    match candidate {
+        AuthState::Available => AuthState::Available,
+        AuthState::Expired if state == AuthState::NotConfigured => AuthState::Expired,
+        _ => state,
+    }
 }
 
 pub(crate) fn startup_model_login_label(auth: &AuthStatus) -> &'static str {
@@ -1153,10 +1144,33 @@ mod tests {
     use crate::tool::Registry;
     use anyhow::Result;
     use async_trait::async_trait;
+    use std::ffi::OsString;
     use std::sync::Arc;
     use std::sync::OnceLock;
 
     struct MockProvider;
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set_path(key: &'static str, value: &std::path::Path) -> Self {
+            let previous = std::env::var_os(key);
+            crate::env::set_var(key, value);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(ref value) = self.previous {
+                crate::env::set_var(self.key, value);
+            } else {
+                crate::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[async_trait]
     impl Provider for MockProvider {
@@ -1540,6 +1554,40 @@ mod tests {
 
         assert!(rendered.contains("Model Configured"), "footer: {rendered}");
         assert!(!rendered.contains("Model Logged In"), "footer: {rendered}");
+    }
+
+    #[test]
+    fn startup_status_line_treats_saved_base_model_keys_as_model_configured() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
+        let config_dir = crate::storage::app_config_dir().expect("config dir");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+        std::fs::write(config_dir.join("kimi.env"), "KIMI_API_KEY=saved-kimi-key\n")
+            .expect("write Kimi env file");
+        std::fs::write(config_dir.join("zai.env"), "ZHIPU_API_KEY=saved-zai-key\n")
+            .expect("write Z.AI env file");
+
+        let auth = AuthStatus::default();
+        let line = startup_status_line(
+            80,
+            startup_model_login_label(&auth),
+            startup_model_login_state(&auth),
+            startup_login_status_label(&auth),
+            auth.jcode,
+            "v0.12.0",
+        );
+        let rendered = line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(rendered.contains("Model Configured"), "footer: {rendered}");
+        assert!(
+            !rendered.contains("Model Not Configured"),
+            "footer: {rendered}"
+        );
     }
 
     #[test]
