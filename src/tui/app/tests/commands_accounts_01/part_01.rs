@@ -225,6 +225,35 @@ fn test_export_command_writes_markdown_qa_pairs() {
 }
 
 #[test]
+fn test_export_command_falls_back_to_visible_display_qa_pairs() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("qa-export.md");
+    let mut app = create_test_app();
+    app.is_remote = true;
+    app.push_display_message(crate::tui::DisplayMessage::user("first try"));
+    app.push_display_message(crate::tui::DisplayMessage::system("Interrupted"));
+    app.push_display_message(crate::tui::DisplayMessage::user("second try"));
+    app.push_display_message(crate::tui::DisplayMessage::assistant("visible answer"));
+
+    app.input = format!("/export {}", output.display());
+    app.submit_input();
+
+    let exported = std::fs::read_to_string(&output).expect("read export");
+    assert!(exported.contains("## Q1"));
+    assert!(exported.contains("second try"));
+    assert!(exported.contains("## A1"));
+    assert!(exported.contains("visible answer"));
+    assert!(!exported.contains("first try"));
+
+    let msg = app
+        .display_messages()
+        .last()
+        .expect("missing export response");
+    assert_eq!(msg.role, "system");
+    assert!(msg.content.contains("Exported 1 Q&A pair"));
+}
+
+#[test]
 fn test_help_topic_shows_catchup_command_details() {
     let mut app = create_test_app();
     app.input = "/help catchup".to_string();

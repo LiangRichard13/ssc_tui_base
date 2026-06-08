@@ -1126,20 +1126,20 @@ fn append_export_section(markdown: &mut String, heading: &str, index: usize, con
     markdown.push_str("\n\n");
 }
 
-fn build_qa_export_markdown(app: &App) -> (String, usize) {
-    let (rendered, _, _) =
-        crate::session::render_messages_and_images_with_compacted_history(&app.session, usize::MAX);
+fn collect_qa_pairs_from_roles<'a>(
+    messages: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Vec<(String, String)> {
     let mut pairs: Vec<(String, String)> = Vec::new();
     let mut current_question: Option<String> = None;
     let mut current_answer = String::new();
 
-    for message in rendered {
-        let content = message.content.trim();
+    for (role, raw_content) in messages {
+        let content = raw_content.trim();
         if content.is_empty() {
             continue;
         }
 
-        match message.role.as_str() {
+        match role {
             "user" => {
                 if let Some(question) = current_question.take()
                     && !current_answer.trim().is_empty()
@@ -1167,6 +1167,45 @@ fn build_qa_export_markdown(app: &App) -> (String, usize) {
         pairs.push((question, current_answer.trim().to_string()));
     }
 
+    pairs
+}
+
+fn session_qa_pairs(app: &App) -> Vec<(String, String)> {
+    let (rendered, _, _) =
+        crate::session::render_messages_and_images_with_compacted_history(&app.session, usize::MAX);
+    collect_qa_pairs_from_roles(
+        rendered
+            .iter()
+            .map(|message| (message.role.as_str(), message.content.as_str())),
+    )
+}
+
+fn display_qa_pairs(app: &App) -> Vec<(String, String)> {
+    collect_qa_pairs_from_roles(
+        app.display_messages()
+            .iter()
+            .map(|message| (message.role.as_str(), message.content.as_str())),
+    )
+}
+
+fn export_qa_pairs(app: &App) -> Vec<(String, String)> {
+    if app.is_remote {
+        let pairs = display_qa_pairs(app);
+        if !pairs.is_empty() {
+            return pairs;
+        }
+    }
+
+    let pairs = session_qa_pairs(app);
+    if pairs.is_empty() {
+        display_qa_pairs(app)
+    } else {
+        pairs
+    }
+}
+
+fn build_qa_export_markdown(app: &App) -> (String, usize) {
+    let pairs = export_qa_pairs(app);
     let mut markdown = String::new();
     markdown.push_str("# Conversation Q&A Export\n\n");
     markdown.push_str(&format!("Session: `{}`\n\n", active_session_id(app)));
