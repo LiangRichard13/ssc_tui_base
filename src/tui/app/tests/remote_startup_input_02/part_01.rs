@@ -770,6 +770,22 @@ fn test_escape_interrupt_disables_auto_poke_while_processing() {
 }
 
 #[test]
+fn test_escape_interrupt_clears_queued_user_messages_while_processing() {
+    let mut app = create_test_app();
+    app.is_processing = true;
+    app.pending_queued_dispatch = true;
+    app.queued_messages.push("queued later".to_string());
+
+    app.handle_key(KeyCode::Esc, KeyModifiers::empty()).unwrap();
+
+    assert!(app.cancel_requested);
+    assert!(app.queued_messages.is_empty());
+    assert!(!app.pending_queued_dispatch);
+    let status_notice = app.status_notice().expect("status notice");
+    assert!(status_notice.starts_with("Interrupting..."));
+}
+
+#[test]
 fn test_ctrl_c_still_arms_quit_when_idle() {
     let mut app = create_test_app();
 

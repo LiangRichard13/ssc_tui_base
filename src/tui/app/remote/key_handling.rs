@@ -456,6 +456,7 @@ async fn handle_remote_key_internal(
             KeyCode::Char('c') | KeyCode::Char('d') => {
                 if app.is_processing {
                     remote.cancel().await?;
+                    app.clear_queued_followups_for_user_interrupt();
                     app.set_status_notice("Interrupting...");
                 } else {
                     app.handle_quit_request();
@@ -2236,6 +2237,9 @@ async fn handle_remote_key_internal(
                 remote.cancel().await?;
                 if disabled_auto_poke {
                     app_mod::commands::disable_auto_poke(app);
+                }
+                app.clear_queued_followups_for_user_interrupt();
+                if disabled_auto_poke {
                     app.set_status_notice("Interrupting... Auto-poke OFF");
                 } else {
                     app.set_status_notice("Interrupting...");

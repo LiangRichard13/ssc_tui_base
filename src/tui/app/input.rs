@@ -803,6 +803,15 @@ impl App {
             || !self.hidden_queued_system_messages.is_empty()
     }
 
+    pub(super) fn clear_queued_followups_for_user_interrupt(&mut self) {
+        self.interleave_message = None;
+        self.queued_messages.clear();
+        self.hidden_queued_system_messages.clear();
+        self.pending_queued_dispatch = false;
+        self.pending_soft_interrupts.clear();
+        self.pending_soft_interrupt_requests.clear();
+    }
+
     pub(super) fn schedule_auto_poke_followup_if_needed(&mut self) -> bool {
         if !self.auto_poke_incomplete_todos
             || self.pending_queued_dispatch
@@ -1583,10 +1592,9 @@ pub(super) fn handle_global_control_shortcuts(
         KeyCode::Char('c') | KeyCode::Char('d') => {
             if app.is_processing {
                 app.cancel_requested = true;
-                app.interleave_message = None;
-                app.pending_soft_interrupts.clear();
-                app.pending_soft_interrupt_requests.clear();
-                if app.cancel_overnight_for_interrupt() {
+                let cancelled_overnight = app.cancel_overnight_for_interrupt();
+                app.clear_queued_followups_for_user_interrupt();
+                if cancelled_overnight {
                     app.set_status_notice("Interrupting... Overnight cancelled");
                 } else {
                     app.set_status_notice("Interrupting...");
@@ -1727,12 +1735,12 @@ pub(super) fn handle_basic_key(app: &mut App, code: KeyCode) -> bool {
                         .iter()
                         .any(|message| super::commands::is_poke_message(message));
                 app.cancel_requested = true;
-                app.interleave_message = None;
-                app.pending_soft_interrupts.clear();
-                app.pending_soft_interrupt_requests.clear();
                 let cancelled_overnight = app.cancel_overnight_for_interrupt();
                 if disabled_auto_poke {
                     super::commands::disable_auto_poke(app);
+                }
+                app.clear_queued_followups_for_user_interrupt();
+                if disabled_auto_poke {
                     if cancelled_overnight {
                         app.set_status_notice("Interrupting... Auto-poke OFF, overnight cancelled");
                     } else {
