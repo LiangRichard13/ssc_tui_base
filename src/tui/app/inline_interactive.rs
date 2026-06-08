@@ -111,12 +111,25 @@ impl App {
         .any(|value| value.to_ascii_lowercase().contains("openrouter"))
     }
 
+    fn model_picker_route_is_saitec_mcp_only(route: &crate::provider::ModelRoute) -> bool {
+        let model = Self::normalized_saitec_provider_label(&route.model);
+        let provider = Self::normalized_saitec_provider_label(&route.provider);
+        let detail = Self::normalized_saitec_provider_label(&route.detail);
+        model == "mcponly"
+            || provider == "saitec"
+            || provider == "mcponly"
+            || detail.contains("mcponly")
+    }
+
     fn filter_saitec_model_picker_routes(
         routes: Vec<crate::provider::ModelRoute>,
     ) -> Vec<crate::provider::ModelRoute> {
         routes
             .into_iter()
-            .filter(|route| !Self::model_picker_route_mentions_openrouter(route))
+            .filter(|route| {
+                !Self::model_picker_route_mentions_openrouter(route)
+                    && !Self::model_picker_route_is_saitec_mcp_only(route)
+            })
             .collect()
     }
 
@@ -312,6 +325,11 @@ impl App {
         &self,
         routes: Vec<crate::provider::ModelRoute>,
     ) -> Vec<crate::provider::ModelRoute> {
+        let routes = routes
+            .into_iter()
+            .filter(|route| !Self::model_picker_route_is_saitec_mcp_only(route))
+            .collect::<Vec<_>>();
+
         if !self.should_filter_saitec_base_model_routes() {
             return routes;
         }
@@ -1467,7 +1485,7 @@ impl App {
         routes
     }
 
-    fn append_configured_openai_compatible_routes_for_remote_picker(
+    pub(super) fn append_configured_openai_compatible_routes_for_remote_picker(
         routes: &mut Vec<crate::provider::ModelRoute>,
     ) {
         let mut seen: std::collections::HashSet<(String, String, String)> = routes
@@ -1480,13 +1498,6 @@ impl App {
                 )
             })
             .collect();
-        let mut seen_profile_routes: std::collections::HashMap<(String, String), usize> = routes
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, route)| {
-                Self::openai_compatible_route_profile_key(route).map(|key| (key, idx))
-            })
-            .collect();
         for route in Self::configured_openai_compatible_routes_for_remote_picker() {
             let key = (
                 route.model.clone(),
@@ -1497,16 +1508,47 @@ impl App {
                 continue;
             }
 
-            if let Some(profile_key) = Self::openai_compatible_route_profile_key(&route) {
-                if let Some(existing_idx) = seen_profile_routes.get(&profile_key).copied() {
-                    routes[existing_idx] = route;
-                    continue;
-                }
-                seen_profile_routes.insert(profile_key, routes.len());
-            }
-
             routes.push(route);
         }
+        Self::dedupe_openai_compatible_profile_routes(routes);
+    }
+
+    fn dedupe_openai_compatible_profile_routes(routes: &mut Vec<crate::provider::ModelRoute>) {
+        let mut deduped = Vec::with_capacity(routes.len());
+        let mut seen_profile_routes: std::collections::HashMap<(String, String), usize> =
+            std::collections::HashMap::new();
+
+        for route in routes.drain(..) {
+            if let Some(profile_key) = Self::openai_compatible_route_profile_key(&route) {
+                if let Some(existing_idx) = seen_profile_routes.get(&profile_key).copied() {
+                    if Self::openai_compatible_route_preference(&route)
+                        < Self::openai_compatible_route_preference(&deduped[existing_idx])
+                    {
+                        deduped[existing_idx] = route;
+                    }
+                    continue;
+                }
+                seen_profile_routes.insert(profile_key, deduped.len());
+            }
+
+            deduped.push(route);
+        }
+
+        *routes = deduped;
+    }
+
+    fn openai_compatible_route_preference(route: &crate::provider::ModelRoute) -> (u8, u8) {
+        let availability = if route.available { 0 } else { 1 };
+        let method = if route.api_method.starts_with("openai-compatible:") {
+            0
+        } else if route.api_method == "openai-compatible" {
+            1
+        } else if route.api_method == "current" {
+            2
+        } else {
+            3
+        };
+        (availability, method)
     }
 
     fn openai_compatible_route_profile_key(
@@ -1521,6 +1563,9 @@ impl App {
             }
             profile_id.to_string()
         } else if route.api_method == "openai-compatible" {
+            crate::provider_catalog::openai_compatible_profile_id_for_display_name(&route.provider)?
+                .to_string()
+        } else if route.api_method == "current" {
             crate::provider_catalog::openai_compatible_profile_id_for_display_name(&route.provider)?
                 .to_string()
         } else {

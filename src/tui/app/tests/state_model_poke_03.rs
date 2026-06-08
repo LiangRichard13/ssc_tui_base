@@ -1005,6 +1005,105 @@ fn test_remote_model_picker_dedupes_generic_and_profile_kimi_routes() {
 }
 
 #[test]
+fn test_remote_model_picker_dedupes_current_and_profile_kimi_routes() {
+    with_temp_jcode_home(|| {
+        let prev_kimi_key = std::env::var_os("KIMI_API_KEY");
+        crate::env::set_var("KIMI_API_KEY", "test-kimi-key");
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+
+        let mut routes = vec![crate::provider::ModelRoute {
+            model: "kimi-for-coding".to_string(),
+            provider: "Kimi Code".to_string(),
+            api_method: "current".to_string(),
+            available: true,
+            detail: "active remote model".to_string(),
+            cheapness: None,
+        }];
+
+        App::append_configured_openai_compatible_routes_for_remote_picker(&mut routes);
+
+        match prev_kimi_key {
+            Some(value) => crate::env::set_var("KIMI_API_KEY", value),
+            None => crate::env::remove_var("KIMI_API_KEY"),
+        }
+        crate::auth::AuthStatus::invalidate_cache();
+
+        let kimi_routes = routes
+            .iter()
+            .filter(|route| route.model == "kimi-for-coding")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kimi_routes.len(),
+            1,
+            "Kimi current/API-key routes should be de-duplicated: {:?}",
+            routes
+                .iter()
+                .map(|route| (
+                    route.model.as_str(),
+                    route.provider.as_str(),
+                    route.api_method.as_str(),
+                    route.detail.as_str(),
+                ))
+                .collect::<Vec<_>>()
+        );
+        let route = kimi_routes[0];
+        assert_eq!(route.provider, "Kimi Code");
+        assert_eq!(route.api_method, "openai-compatible:kimi");
+    });
+}
+
+#[test]
+fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
+    with_temp_jcode_home(|| {
+        save_test_provider_validation("kimi", &["kimi-for-coding"]);
+
+        let mut app = create_test_app();
+        app.is_remote = true;
+        app.remote_provider_name = Some("SAITEC".to_string());
+        app.remote_provider_model = Some("mcp-only".to_string());
+        let routes = app.filter_saitec_model_routes_for_picker(vec![
+            crate::provider::ModelRoute {
+                model: "mcp-only".to_string(),
+                provider: "SAITEC".to_string(),
+                api_method: "current".to_string(),
+                available: true,
+                detail: "MCPOnly".to_string(),
+                cheapness: None,
+            },
+            crate::provider::ModelRoute {
+                model: "kimi-for-coding".to_string(),
+                provider: "Kimi Code".to_string(),
+                api_method: "openai-compatible:kimi".to_string(),
+                available: true,
+                detail: "validated Kimi route".to_string(),
+                cheapness: None,
+            },
+        ]);
+
+        let leaked_routes = routes
+            .iter()
+            .filter(|route| {
+                route.model.eq_ignore_ascii_case("saitec")
+                    || route.model.eq_ignore_ascii_case("mcp-only")
+                    || route.provider.eq_ignore_ascii_case("saitec")
+                    || route.api_method.eq_ignore_ascii_case("saitec")
+                    || route.detail.to_ascii_lowercase().contains("mcponly")
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            leaked_routes.is_empty(),
+            "SAITEC MCP-only routes must not appear in /model: {:?}",
+            leaked_routes
+        );
+        assert!(
+            routes.iter().any(|route| route.model == "kimi-for-coding"),
+            "validated Kimi route should remain available: {:?}",
+            routes
+        );
+    });
+}
+
+#[test]
 fn test_saitec_model_picker_hides_generic_openrouter_routes() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
