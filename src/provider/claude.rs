@@ -14,7 +14,6 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{Mutex, mpsc};
-use tokio_stream::wrappers::ReceiverStream;
 
 /// Global mutex to serialize Claude CLI requests
 /// This prevents "ProcessTransport not ready for writing" errors
@@ -640,7 +639,7 @@ impl Provider for ClaudeProvider {
 
         let (tx, rx) = mpsc::channel::<Result<StreamEvent>>(100);
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             if tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "deprecated cli subprocess".to_string(),
@@ -721,7 +720,7 @@ impl Provider for ClaudeProvider {
             }
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn model(&self) -> String {

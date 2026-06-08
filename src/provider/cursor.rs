@@ -14,7 +14,6 @@ use std::sync::{Arc, RwLock};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 const DIRECT_CHAT_URL: &str =
@@ -271,7 +270,7 @@ impl Provider for CursorCliProvider {
         let client = self.client.clone();
         let (tx, rx) = mpsc::channel::<Result<crate::message::StreamEvent>>(100);
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             let result = run_native_text_command(client, tx.clone(), &prompt, &model).await;
 
             if let Err(err) = result {
@@ -279,7 +278,7 @@ impl Provider for CursorCliProvider {
             }
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn name(&self) -> &'static str {

@@ -23,7 +23,6 @@ use serde_json::{Value, json};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{Mutex, mpsc};
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -406,7 +405,7 @@ impl Provider for GeminiProvider {
         let provider = self.clone();
         let (tx, rx) = mpsc::channel::<Result<StreamEvent>>(100);
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             let _ = tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "https".to_string(),
@@ -628,7 +627,7 @@ impl Provider for GeminiProvider {
             let _ = tx.send(Ok(StreamEvent::MessageEnd { stop_reason })).await;
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn name(&self) -> &'static str {

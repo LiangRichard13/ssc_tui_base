@@ -1,3 +1,4 @@
+mod abort_stream;
 mod accessors;
 mod account_failover;
 pub mod anthropic;
@@ -23,6 +24,7 @@ mod startup;
 
 use crate::auth;
 use crate::message::{Message, ToolDefinition};
+pub(crate) use abort_stream::abort_on_drop_receiver_stream;
 use account_failover::{
     account_usage_probe, active_account_label_for_provider, maybe_annotate_limit_summary,
     same_provider_account_candidates, same_provider_account_failover_enabled,
@@ -32,9 +34,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 #[cfg(test)]
 use jcode_provider_core::FailoverDecision;
-use std::collections::BTreeSet;
-use std::sync::{Arc, RwLock};
-
 pub use jcode_provider_core::{
     ALL_CLAUDE_MODELS, ALL_OPENAI_MODELS, CHEAPNESS_REFERENCE_INPUT_TOKENS,
     CHEAPNESS_REFERENCE_OUTPUT_TOKENS, DEFAULT_CONTEXT_LIMIT, EventStream, ModelCapabilities,
@@ -55,6 +54,8 @@ pub(crate) use routing::{
     anthropic_api_key_route_availability, anthropic_oauth_route_availability,
     is_transient_transport_error, should_eager_detect_copilot_tier,
 };
+use std::collections::BTreeSet;
+use std::sync::{Arc, RwLock};
 
 pub fn set_model_with_auth_refresh(provider: &dyn Provider, model: &str) -> Result<()> {
     match provider.set_model(model) {

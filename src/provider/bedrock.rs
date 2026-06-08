@@ -22,10 +22,8 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 
 pub const DEFAULT_MODEL: &str = "anthropic.claude-3-5-sonnet-20241022-v2:0";
 const DEFAULT_MAX_OUTPUT_TOKENS: usize = 4096;
@@ -1125,7 +1123,7 @@ impl Provider for BedrockProvider {
             Some(vec![SystemContentBlock::Text(system.to_string())])
         };
         let (tx, rx) = mpsc::channel::<Result<StreamEvent>>(64);
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             let client = Self::runtime_client().await;
             let mut req = client
                 .converse_stream()
@@ -1232,10 +1230,7 @@ impl Provider for BedrockProvider {
                 }
             }
         });
-        Ok(Box::pin(ReceiverStream::new(rx))
-            as Pin<
-                Box<dyn futures::Stream<Item = Result<StreamEvent>> + Send>,
-            >)
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn name(&self) -> &str {

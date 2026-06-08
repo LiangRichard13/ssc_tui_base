@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 const DEFAULT_MODEL: &str = "default";
@@ -619,7 +618,7 @@ impl Provider for AntigravityProvider {
         let provider = self.clone();
         let (tx, rx) = mpsc::channel::<Result<crate::message::StreamEvent>>(100);
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             let _ = tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "https".to_string(),
@@ -702,7 +701,7 @@ impl Provider for AntigravityProvider {
             }
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn name(&self) -> &'static str {

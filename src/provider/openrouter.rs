@@ -45,7 +45,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::task::{Context as TaskContext, Poll};
 use std::time::Instant;
 use tokio::sync::{RwLock, mpsc};
-use tokio_stream::wrappers::ReceiverStream;
 
 /// Maximum number of retries for transient errors
 const MAX_RETRIES: u32 = 3;

@@ -86,7 +86,7 @@ impl Provider for OpenAIProvider {
         let client = self.client.clone();
         let panic_tx = tx.clone();
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             let stream_task = async move {
                 // Attempt persistent WebSocket continuation first
                 if use_websocket_transport {
@@ -334,7 +334,10 @@ impl Provider for OpenAIProvider {
             }
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(crate::provider::abort_on_drop_receiver_stream(
+            rx,
+            stream_handle,
+        ))
     }
 
     fn name(&self) -> &str {

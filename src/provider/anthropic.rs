@@ -23,7 +23,6 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::{RwLock, mpsc};
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 static CACHE_TTL_1H: AtomicBool = AtomicBool::new(false);
@@ -967,7 +966,7 @@ impl Provider for AnthropicProvider {
 
         // Spawn task to handle streaming with retry logic.
         // This includes forced OAuth refresh on auth failures.
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             if tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "https/sse".to_string(),
@@ -990,7 +989,7 @@ impl Provider for AnthropicProvider {
             .await;
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn model(&self) -> String {
@@ -1156,7 +1155,7 @@ impl Provider for AnthropicProvider {
         let oauth_session_id = self.oauth_session_id.clone();
 
         // Spawn task to handle streaming with retry logic
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             if tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "https/sse".to_string(),
@@ -1179,7 +1178,7 @@ impl Provider for AnthropicProvider {
             .await;
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 }
 

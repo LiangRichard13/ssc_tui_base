@@ -573,7 +573,7 @@ impl Provider for OpenRouterProvider {
         let model_for_stream = model.clone();
         let provider_pin = Arc::clone(&self.provider_pin);
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             if tx
                 .send(Ok(StreamEvent::ConnectionType {
                     connection: "https/sse".to_string(),
@@ -596,7 +596,10 @@ impl Provider for OpenRouterProvider {
             .await;
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(crate::provider::abort_on_drop_receiver_stream(
+            rx,
+            stream_handle,
+        ))
     }
 
     fn name(&self) -> &str {

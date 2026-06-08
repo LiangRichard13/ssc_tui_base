@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 
 const COPILOT_API_VERSION: &str = "2025-04-01";
@@ -1024,13 +1023,13 @@ impl Provider for CopilotApiProvider {
             created_at: self.created_at,
         };
 
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             provider
                 .stream_request(built_messages, built_tools, is_user_initiated, tx)
                 .await;
         });
 
-        Ok(Box::pin(ReceiverStream::new(rx)))
+        Ok(super::abort_on_drop_receiver_stream(rx, stream_handle))
     }
 
     fn name(&self) -> &str {
