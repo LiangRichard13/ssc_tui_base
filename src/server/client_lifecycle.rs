@@ -2670,24 +2670,21 @@ async fn cancel_processing_message(
     client_event_tx: &mpsc::UnboundedSender<ServerEvent>,
     swarm: &SwarmStatusRefs<'_>,
 ) {
-    if let Some(mut handle) = state.task.take() {
+    if let Some(handle) = state.task.take() {
         if handle.is_finished() {
             *state.task = Some(handle);
             return;
         }
         session_control.request_cancel();
-        match tokio::time::timeout(std::time::Duration::from_millis(500), &mut handle).await {
-            Ok(_) => {}
-            Err(_) => {
-                handle.abort();
-                match tokio::time::timeout(std::time::Duration::from_millis(2000), handle).await {
-                    Ok(_) => crate::logging::info("Aborted processing task released resources"),
-                    Err(_) => crate::logging::warn(
-                        "Aborted processing task did not release resources within 2s",
-                    ),
-                }
+        handle.abort();
+        tokio::spawn(async move {
+            match tokio::time::timeout(std::time::Duration::from_millis(2000), handle).await {
+                Ok(_) => crate::logging::info("Aborted processing task released resources"),
+                Err(_) => crate::logging::warn(
+                    "Aborted processing task did not release resources within 2s",
+                ),
             }
-        }
+        });
         session_control.reset_cancel();
         *state.task = None;
         *state.client_is_processing = false;

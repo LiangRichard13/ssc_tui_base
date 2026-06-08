@@ -48,6 +48,68 @@ async fn session_control_handle_does_not_wait_for_busy_agent_lock() {
     assert!(queue.lock().expect("queue lock").is_empty());
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_processing_message_releases_client_state_without_waiting_for_aborted_task_cleanup()
+{
+    let queue = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let background_signal = InterruptSignal::new();
+    let stop_signal = InterruptSignal::new();
+    let control = SessionControlHandle::new(
+        "cancel_cleanup_latency_test",
+        Arc::clone(&queue),
+        background_signal,
+        stop_signal.clone(),
+    );
+    let (client_event_tx, mut client_event_rx) = mpsc::unbounded_channel::<ServerEvent>();
+    let mut client_is_processing = true;
+    let mut processing_message_id = Some(99);
+    let mut processing_session_id = Some("session_cancel_cleanup".to_string());
+    let mut processing_task = Some(tokio::spawn(async {
+        std::thread::sleep(Duration::from_secs(1));
+    }));
+    let swarm_members = Arc::new(RwLock::new(HashMap::new()));
+    let swarms_by_id = Arc::new(RwLock::new(HashMap::new()));
+    let event_history = Arc::new(RwLock::new(std::collections::VecDeque::new()));
+    let event_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let (swarm_event_tx, _) = broadcast::channel(8);
+
+    tokio::time::timeout(Duration::from_millis(250), async {
+        cancel_processing_message(
+            &mut ProcessingState {
+                client_is_processing: &mut client_is_processing,
+                message_id: &mut processing_message_id,
+                session_id: &mut processing_session_id,
+                task: &mut processing_task,
+            },
+            &control,
+            &client_event_tx,
+            &SwarmStatusRefs {
+                members: &swarm_members,
+                swarms_by_id: &swarms_by_id,
+                event_history: &event_history,
+                event_counter: &event_counter,
+                event_tx: &swarm_event_tx,
+            },
+        )
+        .await;
+    })
+    .await
+    .expect("cancel should not wait for aborted task cleanup");
+
+    assert!(!client_is_processing);
+    assert_eq!(processing_message_id, None);
+    assert_eq!(processing_session_id, None);
+    assert!(processing_task.is_none());
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Interrupted)
+    ));
+    assert!(matches!(
+        client_event_rx.recv().await,
+        Some(ServerEvent::Done { id: 99 })
+    ));
+}
+
 impl IsolatedRuntimeDir {
     fn new() -> Self {
         let temp = tempfile::TempDir::new().expect("runtime dir");
