@@ -161,6 +161,70 @@ fn test_help_topic_shows_git_command_details() {
 }
 
 #[test]
+fn test_help_topic_shows_export_command_details() {
+    let mut app = create_test_app();
+    app.input = "/help export".to_string();
+    app.submit_input();
+
+    let msg = app
+        .display_messages()
+        .last()
+        .expect("missing help response");
+    assert_eq!(msg.role, "system");
+    assert!(msg.content.contains("`/export <file.md>`"));
+    assert!(msg.content.contains("Q&A pairs"));
+    assert!(msg.content.contains("Markdown file"));
+}
+
+#[test]
+fn test_export_command_writes_markdown_qa_pairs() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("qa-export.md");
+    let mut app = create_test_app();
+    app.session.add_message(
+        crate::message::Role::User,
+        vec![crate::message::ContentBlock::Text {
+            text: "What did we decide?".to_string(),
+            cache_control: None,
+        }],
+    );
+    app.session.add_message(
+        crate::message::Role::Assistant,
+        vec![crate::message::ContentBlock::Text {
+            text: "We decided to ship it.".to_string(),
+            cache_control: None,
+        }],
+    );
+    app.session.add_message_with_display_role(
+        crate::message::Role::Assistant,
+        vec![crate::message::ContentBlock::Text {
+            text: "Internal system note".to_string(),
+            cache_control: None,
+        }],
+        Some(crate::session::StoredDisplayRole::System),
+    );
+
+    app.input = format!("/export {}", output.display());
+    app.submit_input();
+
+    let exported = std::fs::read_to_string(&output).expect("read export");
+    assert!(exported.contains("# Conversation Q&A Export"));
+    assert!(exported.contains("## Q1"));
+    assert!(exported.contains("What did we decide?"));
+    assert!(exported.contains("## A1"));
+    assert!(exported.contains("We decided to ship it."));
+    assert!(!exported.contains("Internal system note"));
+
+    let msg = app
+        .display_messages()
+        .last()
+        .expect("missing export response");
+    assert_eq!(msg.role, "system");
+    assert!(msg.content.contains("Exported 1 Q&A pair"));
+    assert!(msg.content.contains(&output.display().to_string()));
+}
+
+#[test]
 fn test_help_topic_shows_catchup_command_details() {
     let mut app = create_test_app();
     app.input = "/help catchup".to_string();

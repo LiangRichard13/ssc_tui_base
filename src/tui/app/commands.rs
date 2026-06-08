@@ -1086,6 +1086,161 @@ fn transcript_path_message(path: &std::path::Path) -> String {
     format!("Transcript file:\n\n```text\n{}\n```", path.display())
 }
 
+fn strip_wrapping_quotes(value: &str) -> &str {
+    let value = value.trim();
+    if value.len() >= 2 {
+        let bytes = value.as_bytes();
+        let first = bytes[0];
+        let last = bytes[value.len() - 1];
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            return &value[1..value.len() - 1];
+        }
+    }
+    value
+}
+
+fn export_base_dir(app: &App) -> PathBuf {
+    active_working_dir(app)
+        .filter(|path| path.is_dir())
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn resolve_export_path(app: &App, raw_path: &str) -> Result<PathBuf, String> {
+    let raw_path = strip_wrapping_quotes(raw_path);
+    if raw_path.trim().is_empty() {
+        return Err("Usage: `/export <file.md>`".to_string());
+    }
+
+    let path = PathBuf::from(raw_path);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(export_base_dir(app).join(path))
+    }
+}
+
+fn append_export_section(markdown: &mut String, heading: &str, index: usize, content: &str) {
+    markdown.push_str(&format!("## {}{}\n\n", heading, index));
+    markdown.push_str(content.trim());
+    markdown.push_str("\n\n");
+}
+
+fn build_qa_export_markdown(app: &App) -> (String, usize) {
+    let (rendered, _, _) =
+        crate::session::render_messages_and_images_with_compacted_history(&app.session, usize::MAX);
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    let mut current_question: Option<String> = None;
+    let mut current_answer = String::new();
+
+    for message in rendered {
+        let content = message.content.trim();
+        if content.is_empty() {
+            continue;
+        }
+
+        match message.role.as_str() {
+            "user" => {
+                if let Some(question) = current_question.take()
+                    && !current_answer.trim().is_empty()
+                {
+                    pairs.push((question, current_answer.trim().to_string()));
+                }
+                current_question = Some(content.to_string());
+                current_answer.clear();
+            }
+            "assistant" => {
+                if current_question.is_some() {
+                    if !current_answer.trim().is_empty() {
+                        current_answer.push_str("\n\n");
+                    }
+                    current_answer.push_str(content);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(question) = current_question
+        && !current_answer.trim().is_empty()
+    {
+        pairs.push((question, current_answer.trim().to_string()));
+    }
+
+    let mut markdown = String::new();
+    markdown.push_str("# Conversation Q&A Export\n\n");
+    markdown.push_str(&format!("Session: `{}`\n\n", active_session_id(app)));
+    markdown.push_str(&format!(
+        "Exported: `{}`\n\n",
+        chrono::Utc::now().to_rfc3339()
+    ));
+
+    if pairs.is_empty() {
+        markdown.push_str("No complete user/assistant Q&A pairs found.\n");
+    } else {
+        for (index, (question, answer)) in pairs.iter().enumerate() {
+            let pair_index = index + 1;
+            append_export_section(&mut markdown, "Q", pair_index, question);
+            append_export_section(&mut markdown, "A", pair_index, answer);
+        }
+    }
+
+    (markdown, pairs.len())
+}
+
+fn export_success_message(path: &std::path::Path, pair_count: usize) -> String {
+    format!(
+        "Exported {} Q&A pair{} to:\n\n```text\n{}\n```",
+        pair_count,
+        if pair_count == 1 { "" } else { "s" },
+        path.display()
+    )
+}
+
+fn handle_export_command(app: &mut App, trimmed: &str) -> bool {
+    if trimmed != "/export" && !trimmed.starts_with("/export ") {
+        return false;
+    }
+
+    let raw_path = trimmed.strip_prefix("/export").unwrap_or_default().trim();
+    let path = match resolve_export_path(app, raw_path) {
+        Ok(path) => path,
+        Err(message) => {
+            app.push_display_message(DisplayMessage::error(message));
+            return true;
+        }
+    };
+
+    let (markdown, pair_count) = build_qa_export_markdown(app);
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+        && let Err(error) = std::fs::create_dir_all(parent)
+    {
+        app.push_display_message(DisplayMessage::error(format!(
+            "Failed to create export directory `{}`: {}",
+            parent.display(),
+            error
+        )));
+        return true;
+    }
+
+    match std::fs::write(&path, markdown) {
+        Ok(()) => {
+            app.push_display_message(DisplayMessage::system(export_success_message(
+                &path, pair_count,
+            )));
+            app.set_status_notice("Q&A exported");
+        }
+        Err(error) => app.push_display_message(DisplayMessage::error(format!(
+            "Failed to export Q&A to `{}`: {}",
+            path.display(),
+            error
+        ))),
+    }
+
+    true
+}
+
 fn handle_transcript_command(app: &mut App, trimmed: &str) -> bool {
     if trimmed != "/transcript" && trimmed != "/transcript path" {
         if trimmed.starts_with("/transcript ") {
@@ -1156,6 +1311,7 @@ pub(super) fn handle_session_command(app: &mut App, trimmed: &str) -> bool {
         || super::commands_overnight::handle_overnight_command(app, trimmed)
         || super::split_view::handle_split_view_command(app, trimmed)
         || handle_btw_command(app, trimmed)
+        || handle_export_command(app, trimmed)
         || handle_transcript_command(app, trimmed)
         || handle_git_command(app, trimmed)
         || handle_catchup_command(app, trimmed)

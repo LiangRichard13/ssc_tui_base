@@ -576,11 +576,15 @@ fn test_registered_command_suggestions_match_saitec_public_surface() {
         "/clear",
         "/resume",
         "/sessions",
+        "/export",
         "/usage",
         "/version",
         "/quit",
     ] {
-        assert!(commands.contains(&public), "missing public command {public}: {commands:?}");
+        assert!(
+            commands.contains(&public),
+            "missing public command {public}: {commands:?}"
+        );
     }
 
     assert!(

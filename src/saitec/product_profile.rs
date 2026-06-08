@@ -17,6 +17,7 @@ const PUBLIC_COMMANDS: &[&str] = &[
     "/clear",
     "/resume",
     "/sessions",
+    "/export",
     "/usage",
     "/version",
     "/quit",
@@ -244,6 +245,7 @@ mod tests {
         assert!(public.contains(&"/model"));
         assert!(public.contains(&"/clear"));
         assert!(public.contains(&"/resume"));
+        assert!(public.contains(&"/export"));
         assert!(public.contains(&"/usage"));
         assert!(public.contains(&"/version"));
         assert!(public.contains(&"/quit"));

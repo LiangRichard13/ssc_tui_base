@@ -49,6 +49,9 @@ impl App {
             "git" => {
                 "`/git`\nShow `git status --short --branch` for the current session working directory.\n\n`/git status`\nAlias for `/git`."
             }
+            "export" => {
+                "`/export <file.md>`\nExport all complete user/assistant Q&A pairs from the current session to a Markdown file.\n\nRelative paths are resolved from the session working directory when available, otherwise from the current client directory."
+            }
             "catchup" => {
                 "`/catchup`\nOpen the Catch Up picker for finished sessions that need attention.\n\n`/catchup next`\nTeleport to the next session needing attention and open a Catch Up brief in the side panel.\n\n`/catchup list`\nAlias for opening the picker."
             }
