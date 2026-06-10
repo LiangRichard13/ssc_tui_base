@@ -938,8 +938,8 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     let picker = picker_cell.borrow();
     let profile = picker.debug_memory_profile();
 
-    assert_eq!(profile["items_count"], 5);
-    assert_eq!(profile["filtered_count"], 5);
+    assert_eq!(profile["items_count"], 6);
+    assert_eq!(profile["filtered_count"], 6);
     drop(picker);
 
     let backend = ratatui::backend::TestBackend::new(120, 40);
@@ -954,9 +954,35 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
     assert!(text.contains("Kimi"), "rendered picker:\n{text}");
     assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(
+        text.contains("OpenAI-compatible"),
+        "rendered picker:\n{text}"
+    );
     assert!(!text.contains("Google"), "rendered picker:\n{text}");
     assert!(!text.contains("Bedrock"), "rendered picker:\n{text}");
     assert!(!text.contains("Azure"), "rendered picker:\n{text}");
+}
+
+#[test]
+fn test_base_models_picker_opens_custom_endpoint_prompt() {
+    let mut app = create_test_app();
+    app.input = "/login base-models".to_string();
+    app.submit_input();
+
+    for ch in "custom".chars() {
+        app.handle_key(KeyCode::Char(ch), KeyModifiers::empty())
+            .expect("filter login picker");
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("select custom provider");
+
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::OpenAiCompatibleApiBase { profile }) => {
+            assert_eq!(profile.id, crate::provider_catalog::OPENAI_COMPAT_PROFILE.id);
+        }
+        other => panic!("expected OpenAI-compatible endpoint prompt, got: {other:?}"),
+    }
+    assert!(app.login_picker_overlay.is_none());
 }
 
 #[test]
