@@ -1001,6 +1001,88 @@ fn test_base_models_picker_opens_custom_endpoint_prompt() {
 }
 
 #[test]
+fn test_custom_openai_compatible_endpoint_advances_to_key_prompt() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+
+    let mut app = create_test_app();
+    app.input = "/login openai-compatible".to_string();
+    app.submit_input();
+
+    app.input = "https://llm.example.com/v1".to_string();
+    app.submit_input();
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    assert_eq!(resolved.api_base, "https://llm.example.com/v1");
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider_id,
+            key_name,
+            endpoint,
+            openai_compatible_profile,
+            ..
+        }) => {
+            assert_eq!(provider_id, "openai-compatible");
+            assert_eq!(key_name, &resolved.api_key_env);
+            assert_eq!(endpoint.as_deref(), Some("https://llm.example.com/v1"));
+            assert_eq!(
+                openai_compatible_profile.map(|profile| profile.id),
+                Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE.id)
+            );
+        }
+        other => panic!("expected OpenAI-compatible API-key prompt, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_custom_openai_compatible_key_does_not_overwrite_saitec_credentials() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _saitec_key_guard =
+        ScopedTestEnvVar::capture(crate::subscription_catalog::JCODE_API_KEY_ENV);
+
+    save_test_saitec_session();
+
+    let mut app = create_test_app();
+    app.input = "/login openai-compatible".to_string();
+    app.submit_input();
+    app.input = "https://llm.example.com/v1".to_string();
+    app.submit_input();
+    app.input = "custom-model-key".to_string();
+    app.submit_input();
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    let env_file = crate::storage::app_config_dir()
+        .expect("config dir")
+        .join(&resolved.env_file);
+    let env_contents = std::fs::read_to_string(env_file).expect("read env file");
+    assert!(
+        env_contents.contains("JCODE_OPENAI_COMPAT_API_BASE=https://llm.example.com/v1"),
+        "custom endpoint should be stored in openai-compatible env file:\n{env_contents}"
+    );
+    assert!(
+        env_contents.contains(&format!("{}=custom-model-key", resolved.api_key_env)),
+        "custom key should be stored under the resolved key name:\n{env_contents}"
+    );
+    assert_eq!(
+        crate::subscription_catalog::configured_api_key().as_deref(),
+        Some("sk-live-test")
+    );
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load SAITEC session")
+            .is_some(),
+        "custom BaseModel login must not clear SAITEC session auth"
+    );
+}
+
+#[test]
 fn test_filtered_login_picker_uses_validation_results_for_provider_status_text() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
@@ -1317,6 +1399,35 @@ fn save_test_saitec_session() {
         last_validated_at: None,
     })
     .expect("save auth");
+}
+
+struct ScopedTestEnvVar {
+    name: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl ScopedTestEnvVar {
+    fn capture(name: &'static str) -> Self {
+        Self {
+            name,
+            previous: std::env::var_os(name),
+        }
+    }
+
+    fn set(name: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let guard = Self::capture(name);
+        crate::env::set_var(name, value.as_ref());
+        guard
+    }
+}
+
+impl Drop for ScopedTestEnvVar {
+    fn drop(&mut self) {
+        match self.previous.as_ref() {
+            Some(value) => crate::env::set_var(self.name, value),
+            None => crate::env::remove_var(self.name),
+        }
+    }
 }
 
 #[test]
