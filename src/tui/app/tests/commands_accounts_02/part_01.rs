@@ -973,6 +973,21 @@ fn test_base_models_picker_opens_custom_endpoint_prompt() {
         app.handle_key(KeyCode::Char(ch), KeyModifiers::empty())
             .expect("filter login picker");
     }
+    {
+        let picker_cell = app
+            .login_picker_overlay
+            .as_ref()
+            .expect("filtered login picker should remain open");
+        let picker = picker_cell.borrow();
+        let profile = picker.debug_memory_profile();
+        let selection = picker.selection_snapshot();
+        assert_eq!(profile["filtered_count"], 1);
+        assert_eq!(selection.filter, "custom");
+        assert_eq!(
+            selection.selected_provider_id.as_deref(),
+            Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE.id)
+        );
+    }
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("select custom provider");
 
@@ -1379,8 +1394,8 @@ fn test_logout_base_models_opens_lightweight_provider_picker() {
         .expect("logout picker overlay should open");
     let picker = picker_cell.borrow();
     let profile = picker.debug_memory_profile();
-    assert_eq!(profile["items_count"], 5);
-    assert_eq!(profile["filtered_count"], 5);
+    assert_eq!(profile["items_count"], 6);
+    assert_eq!(profile["filtered_count"], 6);
     drop(picker);
 
     let backend = ratatui::backend::TestBackend::new(120, 40);
@@ -1399,6 +1414,10 @@ fn test_logout_base_models_opens_lightweight_provider_picker() {
     assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
     assert!(text.contains("Kimi"), "rendered picker:\n{text}");
     assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(
+        text.contains("OpenAI-compatible"),
+        "rendered picker:\n{text}"
+    );
     assert!(
         !text.contains("Providers & Quick Actions"),
         "rendered picker:\n{text}"
