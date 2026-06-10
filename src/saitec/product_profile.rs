@@ -50,15 +50,14 @@ const HIDDEN_COMPATIBLE_COMMANDS: &[&str] = &[
     "/reload",
 ];
 
-const ALLOWED_BASE_MODEL_PROVIDER_IDS: &[&str] =
-    &[
-        "openai",
-        "claude",
-        "zai",
-        "kimi",
-        "alibaba-coding-plan",
-        "openai-compatible",
-    ];
+const ALLOWED_BASE_MODEL_PROVIDER_IDS: &[&str] = &[
+    "openai",
+    "claude",
+    "zai",
+    "kimi",
+    "alibaba-coding-plan",
+    "openai-compatible",
+];
 
 pub fn brand_header_label() -> &'static str {
     "🍇 SAITEC-TUI"
@@ -241,6 +240,29 @@ pub fn public_commands() -> Vec<&'static str> {
 mod tests {
     use super::*;
 
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set<K: AsRef<std::ffi::OsStr>>(key: &'static str, value: K) -> Self {
+            let previous = std::env::var_os(key);
+            crate::env::set_var(key, value);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = self.previous.take() {
+                crate::env::set_var(self.key, previous);
+            } else {
+                crate::env::remove_var(self.key);
+            }
+        }
+    }
+
     #[test]
     fn public_command_list_contains_saitec_surface_commands() {
         let public = public_commands();
@@ -331,8 +353,7 @@ mod tests {
     fn generic_openai_compatible_route_allows_validated_custom_model() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().expect("tempdir");
-        let previous_home = std::env::var_os("JCODE_HOME");
-        crate::env::set_var("JCODE_HOME", temp.path());
+        let _home_guard = EnvVarGuard::set("JCODE_HOME", temp.path());
 
         crate::auth::validation::save(
             "openai-compatible",
@@ -365,11 +386,5 @@ mod tests {
             "OpenAI-compatible",
             "openai-compatible",
         ));
-
-        if let Some(previous_home) = previous_home {
-            crate::env::set_var("JCODE_HOME", previous_home);
-        } else {
-            crate::env::remove_var("JCODE_HOME");
-        }
     }
 }
