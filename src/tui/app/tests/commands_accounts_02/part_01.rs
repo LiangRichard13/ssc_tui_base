@@ -1005,6 +1005,7 @@ fn test_custom_openai_compatible_endpoint_advances_to_key_prompt() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _openai_compat_env_guards = capture_openai_compatible_env_state();
 
     let mut app = create_test_app();
     app.input = "/login openai-compatible".to_string();
@@ -1042,6 +1043,7 @@ fn test_custom_openai_compatible_key_does_not_overwrite_saitec_credentials() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _openai_compat_env_guards = capture_openai_compatible_env_state();
     let _saitec_key_guard =
         ScopedTestEnvVar::capture(crate::subscription_catalog::JCODE_API_KEY_ENV);
 
@@ -1401,22 +1403,41 @@ fn save_test_saitec_session() {
     .expect("save auth");
 }
 
+fn capture_openai_compatible_env_state() -> Vec<ScopedTestEnvVar> {
+    let mut guards = vec![
+        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_API_BASE"),
+        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_API_KEY_NAME"),
+        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_ENV_FILE"),
+        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_DEFAULT_MODEL"),
+        ScopedTestEnvVar::capture(crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env),
+    ];
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    if resolved.api_key_env != crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env {
+        guards.push(ScopedTestEnvVar::capture(resolved.api_key_env));
+    }
+    guards
+}
+
 struct ScopedTestEnvVar {
-    name: &'static str,
+    name: String,
     previous: Option<std::ffi::OsString>,
 }
 
 impl ScopedTestEnvVar {
-    fn capture(name: &'static str) -> Self {
+    fn capture(name: impl Into<String>) -> Self {
+        let name = name.into();
+        let previous = std::env::var_os(&name);
         Self {
             name,
-            previous: std::env::var_os(name),
+            previous,
         }
     }
 
-    fn set(name: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+    fn set(name: impl Into<String>, value: impl AsRef<std::ffi::OsStr>) -> Self {
         let guard = Self::capture(name);
-        crate::env::set_var(name, value.as_ref());
+        crate::env::set_var(&guard.name, value.as_ref());
         guard
     }
 }
@@ -1424,8 +1445,8 @@ impl ScopedTestEnvVar {
 impl Drop for ScopedTestEnvVar {
     fn drop(&mut self) {
         match self.previous.as_ref() {
-            Some(value) => crate::env::set_var(self.name, value),
-            None => crate::env::remove_var(self.name),
+            Some(value) => crate::env::set_var(&self.name, value),
+            None => crate::env::remove_var(&self.name),
         }
     }
 }
