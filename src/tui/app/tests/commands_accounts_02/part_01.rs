@@ -938,8 +938,8 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     let picker = picker_cell.borrow();
     let profile = picker.debug_memory_profile();
 
-    assert_eq!(profile["items_count"], 5);
-    assert_eq!(profile["filtered_count"], 5);
+    assert_eq!(profile["items_count"], 6);
+    assert_eq!(profile["filtered_count"], 6);
     drop(picker);
 
     let backend = ratatui::backend::TestBackend::new(120, 40);
@@ -954,9 +954,134 @@ fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
     assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
     assert!(text.contains("Kimi"), "rendered picker:\n{text}");
     assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(
+        text.contains("OpenAI-compatible"),
+        "rendered picker:\n{text}"
+    );
     assert!(!text.contains("Google"), "rendered picker:\n{text}");
     assert!(!text.contains("Bedrock"), "rendered picker:\n{text}");
     assert!(!text.contains("Azure"), "rendered picker:\n{text}");
+}
+
+#[test]
+fn test_base_models_picker_opens_custom_endpoint_prompt() {
+    let mut app = create_test_app();
+    app.input = "/login base-models".to_string();
+    app.submit_input();
+
+    for ch in "custom".chars() {
+        app.handle_key(KeyCode::Char(ch), KeyModifiers::empty())
+            .expect("filter login picker");
+    }
+    {
+        let picker_cell = app
+            .login_picker_overlay
+            .as_ref()
+            .expect("filtered login picker should remain open");
+        let picker = picker_cell.borrow();
+        let profile = picker.debug_memory_profile();
+        let selection = picker.selection_snapshot();
+        assert_eq!(profile["filtered_count"], 1);
+        assert_eq!(selection.filter, "custom");
+        assert_eq!(
+            selection.selected_provider_id.as_deref(),
+            Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE.id)
+        );
+    }
+    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
+        .expect("select custom provider");
+
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::OpenAiCompatibleApiBase { profile }) => {
+            assert_eq!(profile.id, crate::provider_catalog::OPENAI_COMPAT_PROFILE.id);
+        }
+        other => panic!("expected OpenAI-compatible endpoint prompt, got: {other:?}"),
+    }
+    assert!(app.login_picker_overlay.is_none());
+}
+
+#[test]
+fn test_custom_openai_compatible_endpoint_advances_to_key_prompt() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _custom_provider_env_guards = capture_and_clear_custom_provider_env_state();
+
+    let mut app = create_test_app();
+    app.input = "/login openai-compatible".to_string();
+    app.submit_input();
+
+    app.input = "https://llm.example.com/v1".to_string();
+    app.submit_input();
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    assert_eq!(resolved.api_base, "https://llm.example.com/v1");
+    match app.pending_login.as_ref() {
+        Some(crate::tui::app::auth::PendingLogin::ApiKeyProfile {
+            provider_id,
+            key_name,
+            endpoint,
+            openai_compatible_profile,
+            ..
+        }) => {
+            assert_eq!(provider_id, "openai-compatible");
+            assert_eq!(key_name, &resolved.api_key_env);
+            assert_eq!(endpoint.as_deref(), Some("https://llm.example.com/v1"));
+            assert_eq!(
+                openai_compatible_profile.map(|profile| profile.id),
+                Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE.id)
+            );
+        }
+        other => panic!("expected OpenAI-compatible API-key prompt, got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_custom_openai_compatible_key_does_not_overwrite_saitec_credentials() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _custom_provider_env_guards = capture_and_clear_custom_provider_env_state();
+    let _saitec_key_guard =
+        ScopedTestEnvVar::capture(crate::subscription_catalog::JCODE_API_KEY_ENV);
+
+    save_test_saitec_session();
+
+    let mut app = create_test_app();
+    app.input = "/login openai-compatible".to_string();
+    app.submit_input();
+    app.input = "https://llm.example.com/v1".to_string();
+    app.submit_input();
+    app.input = "custom-model-key".to_string();
+    app.submit_input();
+
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    let env_file = crate::storage::app_config_dir()
+        .expect("config dir")
+        .join(&resolved.env_file);
+    let env_contents = std::fs::read_to_string(env_file).expect("read env file");
+    assert!(
+        env_contents.contains("JCODE_OPENAI_COMPAT_API_BASE=https://llm.example.com/v1"),
+        "custom endpoint should be stored in openai-compatible env file:\n{env_contents}"
+    );
+    assert!(
+        env_contents.contains(&format!("{}=custom-model-key", resolved.api_key_env)),
+        "custom key should be stored under the resolved key name:\n{env_contents}"
+    );
+    assert_eq!(
+        crate::subscription_catalog::configured_api_key().as_deref(),
+        Some("sk-live-test")
+    );
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load SAITEC session")
+            .is_some(),
+        "custom BaseModel login must not clear SAITEC session auth"
+    );
 }
 
 #[test]
@@ -1278,6 +1403,86 @@ fn save_test_saitec_session() {
     .expect("save auth");
 }
 
+fn capture_and_clear_custom_provider_env_state() -> Vec<ScopedTestEnvVar> {
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    let mut names = vec![
+        "JCODE_OPENAI_COMPAT_API_BASE".to_string(),
+        "JCODE_OPENAI_COMPAT_API_KEY_NAME".to_string(),
+        "JCODE_OPENAI_COMPAT_ENV_FILE".to_string(),
+        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL".to_string(),
+        crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV.to_string(),
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE
+            .api_key_env
+            .to_string(),
+        "JCODE_OPENROUTER_API_BASE".to_string(),
+        "JCODE_OPENROUTER_API_KEY_NAME".to_string(),
+        "JCODE_OPENROUTER_ENV_FILE".to_string(),
+        "JCODE_OPENROUTER_CACHE_NAMESPACE".to_string(),
+        "JCODE_OPENROUTER_PROVIDER_FEATURES".to_string(),
+        "JCODE_OPENROUTER_ALLOW_NO_AUTH".to_string(),
+        "JCODE_OPENROUTER_MODEL_CATALOG".to_string(),
+        "JCODE_OPENROUTER_MODEL".to_string(),
+        "JCODE_OPENROUTER_STATIC_MODELS".to_string(),
+        "JCODE_OPENROUTER_AUTH_HEADER".to_string(),
+        "JCODE_OPENROUTER_AUTH_HEADER_NAME".to_string(),
+        "JCODE_OPENROUTER_DYNAMIC_BEARER_PROVIDER".to_string(),
+        "JCODE_OPENROUTER_PROVIDER".to_string(),
+        "JCODE_OPENROUTER_NO_FALLBACK".to_string(),
+        "JCODE_NAMED_PROVIDER_PROFILE".to_string(),
+        "JCODE_PROVIDER_PROFILE_ACTIVE".to_string(),
+        "JCODE_PROVIDER_PROFILE_NAME".to_string(),
+        "JCODE_ACTIVE_PROVIDER".to_string(),
+        "JCODE_FORCE_PROVIDER".to_string(),
+    ];
+    if resolved.api_key_env != crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env {
+        names.push(resolved.api_key_env);
+    }
+
+    names.sort();
+    names.dedup();
+    let guards = names
+        .iter()
+        .map(|name| ScopedTestEnvVar::capture(name.clone()))
+        .collect::<Vec<_>>();
+    for name in &names {
+        crate::env::remove_var(name);
+    }
+    guards
+}
+
+struct ScopedTestEnvVar {
+    name: String,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl ScopedTestEnvVar {
+    fn capture(name: impl Into<String>) -> Self {
+        let name = name.into();
+        let previous = std::env::var_os(&name);
+        Self {
+            name,
+            previous,
+        }
+    }
+
+    fn set(name: impl Into<String>, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let guard = Self::capture(name);
+        crate::env::set_var(&guard.name, value.as_ref());
+        guard
+    }
+}
+
+impl Drop for ScopedTestEnvVar {
+    fn drop(&mut self) {
+        match self.previous.as_ref() {
+            Some(value) => crate::env::set_var(&self.name, value),
+            None => crate::env::remove_var(&self.name),
+        }
+    }
+}
+
 #[test]
 fn test_logout_command_opens_target_selector_without_clearing_saitec_auth() {
     let _guard = crate::storage::lock_test_env();
@@ -1353,8 +1558,8 @@ fn test_logout_base_models_opens_lightweight_provider_picker() {
         .expect("logout picker overlay should open");
     let picker = picker_cell.borrow();
     let profile = picker.debug_memory_profile();
-    assert_eq!(profile["items_count"], 5);
-    assert_eq!(profile["filtered_count"], 5);
+    assert_eq!(profile["items_count"], 6);
+    assert_eq!(profile["filtered_count"], 6);
     drop(picker);
 
     let backend = ratatui::backend::TestBackend::new(120, 40);
@@ -1373,6 +1578,10 @@ fn test_logout_base_models_opens_lightweight_provider_picker() {
     assert!(text.contains("Z.AI"), "rendered picker:\n{text}");
     assert!(text.contains("Kimi"), "rendered picker:\n{text}");
     assert!(text.contains("Alibaba"), "rendered picker:\n{text}");
+    assert!(
+        text.contains("OpenAI-compatible"),
+        "rendered picker:\n{text}"
+    );
     assert!(
         !text.contains("Providers & Quick Actions"),
         "rendered picker:\n{text}"
