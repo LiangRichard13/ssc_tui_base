@@ -1409,6 +1409,7 @@ fn capture_openai_compatible_env_state() -> Vec<ScopedTestEnvVar> {
         ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_API_KEY_NAME"),
         ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_ENV_FILE"),
         ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_DEFAULT_MODEL"),
+        ScopedTestEnvVar::capture(crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV),
         ScopedTestEnvVar::capture(crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env),
     ];
     let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
