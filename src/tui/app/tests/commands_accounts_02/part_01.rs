@@ -1005,7 +1005,7 @@ fn test_custom_openai_compatible_endpoint_advances_to_key_prompt() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
-    let _openai_compat_env_guards = capture_openai_compatible_env_state();
+    let _custom_provider_env_guards = capture_and_clear_custom_provider_env_state();
 
     let mut app = create_test_app();
     app.input = "/login openai-compatible".to_string();
@@ -1043,7 +1043,7 @@ fn test_custom_openai_compatible_key_does_not_overwrite_saitec_credentials() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
-    let _openai_compat_env_guards = capture_openai_compatible_env_state();
+    let _custom_provider_env_guards = capture_and_clear_custom_provider_env_state();
     let _saitec_key_guard =
         ScopedTestEnvVar::capture(crate::subscription_catalog::JCODE_API_KEY_ENV);
 
@@ -1403,20 +1403,51 @@ fn save_test_saitec_session() {
     .expect("save auth");
 }
 
-fn capture_openai_compatible_env_state() -> Vec<ScopedTestEnvVar> {
-    let mut guards = vec![
-        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_API_BASE"),
-        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_API_KEY_NAME"),
-        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_ENV_FILE"),
-        ScopedTestEnvVar::capture("JCODE_OPENAI_COMPAT_DEFAULT_MODEL"),
-        ScopedTestEnvVar::capture(crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV),
-        ScopedTestEnvVar::capture(crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env),
-    ];
+fn capture_and_clear_custom_provider_env_state() -> Vec<ScopedTestEnvVar> {
     let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
         crate::provider_catalog::OPENAI_COMPAT_PROFILE,
     );
+    let mut names = vec![
+        "JCODE_OPENAI_COMPAT_API_BASE".to_string(),
+        "JCODE_OPENAI_COMPAT_API_KEY_NAME".to_string(),
+        "JCODE_OPENAI_COMPAT_ENV_FILE".to_string(),
+        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL".to_string(),
+        crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV.to_string(),
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE
+            .api_key_env
+            .to_string(),
+        "JCODE_OPENROUTER_API_BASE".to_string(),
+        "JCODE_OPENROUTER_API_KEY_NAME".to_string(),
+        "JCODE_OPENROUTER_ENV_FILE".to_string(),
+        "JCODE_OPENROUTER_CACHE_NAMESPACE".to_string(),
+        "JCODE_OPENROUTER_PROVIDER_FEATURES".to_string(),
+        "JCODE_OPENROUTER_ALLOW_NO_AUTH".to_string(),
+        "JCODE_OPENROUTER_MODEL_CATALOG".to_string(),
+        "JCODE_OPENROUTER_MODEL".to_string(),
+        "JCODE_OPENROUTER_STATIC_MODELS".to_string(),
+        "JCODE_OPENROUTER_AUTH_HEADER".to_string(),
+        "JCODE_OPENROUTER_AUTH_HEADER_NAME".to_string(),
+        "JCODE_OPENROUTER_DYNAMIC_BEARER_PROVIDER".to_string(),
+        "JCODE_OPENROUTER_PROVIDER".to_string(),
+        "JCODE_OPENROUTER_NO_FALLBACK".to_string(),
+        "JCODE_NAMED_PROVIDER_PROFILE".to_string(),
+        "JCODE_PROVIDER_PROFILE_ACTIVE".to_string(),
+        "JCODE_PROVIDER_PROFILE_NAME".to_string(),
+        "JCODE_ACTIVE_PROVIDER".to_string(),
+        "JCODE_FORCE_PROVIDER".to_string(),
+    ];
     if resolved.api_key_env != crate::provider_catalog::OPENAI_COMPAT_PROFILE.api_key_env {
-        guards.push(ScopedTestEnvVar::capture(resolved.api_key_env));
+        names.push(resolved.api_key_env);
+    }
+
+    names.sort();
+    names.dedup();
+    let guards = names
+        .iter()
+        .map(|name| ScopedTestEnvVar::capture(name.clone()))
+        .collect::<Vec<_>>();
+    for name in &names {
+        crate::env::remove_var(name);
     }
     guards
 }
