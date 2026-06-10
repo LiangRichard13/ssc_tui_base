@@ -51,7 +51,14 @@ const HIDDEN_COMPATIBLE_COMMANDS: &[&str] = &[
 ];
 
 const ALLOWED_BASE_MODEL_PROVIDER_IDS: &[&str] =
-    &["openai", "claude", "zai", "kimi", "alibaba-coding-plan"];
+    &[
+        "openai",
+        "claude",
+        "zai",
+        "kimi",
+        "alibaba-coding-plan",
+        "openai-compatible",
+    ];
 
 pub fn brand_header_label() -> &'static str {
     "🍇 SAITEC-TUI"
@@ -95,17 +102,17 @@ pub fn is_allowed_base_model_provider(provider_id: &str) -> bool {
 pub fn is_allowed_openai_compatible_profile(profile_id: &str) -> bool {
     matches!(
         profile_id.trim().to_ascii_lowercase().as_str(),
-        "zai" | "kimi" | "alibaba-coding-plan"
+        "zai" | "kimi" | "alibaba-coding-plan" | "openai-compatible"
     )
 }
 
 pub fn unsupported_base_model_provider_message() -> String {
-    "SAITEC-TUI only supports these base-model providers: openai, claude, zai, kimi, alibaba-coding-plan.".to_string()
+    "SAITEC-TUI only supports these base-model providers: openai, claude, zai, kimi, alibaba-coding-plan, openai-compatible.".to_string()
 }
 
 pub fn unsupported_base_model_route_message(model: &str) -> String {
     format!(
-        "SAITEC-TUI cannot use `{}` because it is not routed through an allowed base-model provider. Use `/login base-models` to configure OpenAI, Anthropic/Claude, Z.AI, Kimi, or Alibaba Cloud Coding.",
+        "SAITEC-TUI cannot use `{}` because it is not routed through an allowed base-model provider. Use `/login base-models` to configure OpenAI, Anthropic/Claude, Z.AI, Kimi, Alibaba Cloud Coding, or a custom OpenAI-compatible endpoint.",
         model.trim()
     )
 }
@@ -312,5 +319,57 @@ mod tests {
             "Kimi Code",
             "openai-compatible:kimi",
         ));
+    }
+
+    #[test]
+    fn custom_openai_compatible_provider_is_saitec_basemodel_allowed() {
+        assert!(is_allowed_base_model_provider("openai-compatible"));
+        assert!(is_allowed_openai_compatible_profile("openai-compatible"));
+    }
+
+    #[test]
+    fn generic_openai_compatible_route_allows_validated_custom_model() {
+        let _guard = crate::storage::lock_test_env();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let previous_home = std::env::var_os("JCODE_HOME");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        crate::auth::validation::save(
+            "openai-compatible",
+            crate::auth::validation::ProviderValidationRecord {
+                checked_at_ms: chrono::Utc::now().timestamp_millis(),
+                success: true,
+                provider_smoke_ok: Some(true),
+                tool_smoke_ok: Some(true),
+                validated_models: vec!["custom-coder".to_string()],
+                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
+            },
+        )
+        .expect("save validation");
+
+        assert!(is_allowed_base_model_route(
+            "",
+            "custom-coder",
+            "OpenAI-compatible",
+            "openai-compatible",
+        ));
+        assert!(is_allowed_base_model_route(
+            "",
+            "custom-coder",
+            "OpenAI-compatible",
+            "openai-compatible:openai-compatible",
+        ));
+        assert!(!is_allowed_base_model_route(
+            "",
+            "unvalidated-model",
+            "OpenAI-compatible",
+            "openai-compatible",
+        ));
+
+        if let Some(previous_home) = previous_home {
+            crate::env::set_var("JCODE_HOME", previous_home);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
     }
 }
