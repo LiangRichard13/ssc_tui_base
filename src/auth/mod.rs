@@ -153,6 +153,19 @@ impl AuthStatus {
             || self.cursor == AuthState::Available
     }
 
+    /// Whether any base-model provider (excluding SAITEC/jcode) is configured.
+    pub fn has_any_base_model(&self) -> bool {
+        self.anthropic.state == AuthState::Available
+            || self.openai == AuthState::Available
+            || self.openrouter == AuthState::Available
+            || self.azure == AuthState::Available
+            || self.bedrock == AuthState::Available
+            || self.copilot == AuthState::Available
+            || self.antigravity == AuthState::Available
+            || self.gemini == AuthState::Available
+            || self.cursor == AuthState::Available
+    }
+
     pub fn has_any_untrusted_external_auth() -> bool {
         crate::auth::codex::has_unconsented_legacy_credentials()
             || crate::auth::claude::has_unconsented_external_auth().is_some()

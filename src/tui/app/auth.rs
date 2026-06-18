@@ -4,6 +4,7 @@ mod auth_account_commands;
 mod auth_account_picker;
 #[path = "auth_types.rs"]
 mod auth_types;
+pub(crate) use self::auth_types::StartupGuideAction;
 pub(crate) use self::auth_account_commands::{
     handle_account_command_remote, handle_auth_command, resolve_account_provider_descriptor,
     save_openai_fast_setting_local,
@@ -47,6 +48,35 @@ impl App {
         }
         self.pending_login = None;
         self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
+    }
+
+    /// After a login picker close (Esc/cancel), check if we should reopen the
+    /// startup guide because the user was in the middle of first-run setup.
+    pub(super) fn restore_startup_guide_if_needed(&mut self) {
+        if self.display_user_message_count > 0 || !self.streaming_text.is_empty() {
+            return;
+        }
+        let auth_status = crate::auth::AuthStatus::check_fast();
+        let has_base_model = auth_status.has_any_base_model();
+        let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
+
+        if saitec_ok {
+            return; // everything is fine
+        }
+
+        if has_base_model {
+            // Reminder mode: BM okay but SAITEC missing
+            self.begin_pending_login(PendingLogin::StartupGuide {
+                focused: StartupGuideAction::LoginSaitec,
+                is_reminder: true,
+            });
+        } else {
+            // Setup mode: no BM configured yet
+            self.begin_pending_login(PendingLogin::StartupGuide {
+                focused: StartupGuideAction::LoginSaitec,
+                is_reminder: false,
+            });
+        }
     }
 
     pub(crate) fn open_saitec_base_model_login_picker(&mut self) {
@@ -639,7 +669,7 @@ impl App {
         }
     }
 
-    fn begin_pending_login(&mut self, pending: PendingLogin) {
+    pub(super) fn begin_pending_login(&mut self, pending: PendingLogin) {
         if let Some((provider, method)) = pending.telemetry_context() {
             crate::telemetry::record_auth_started(&provider, &method);
         }
@@ -1732,7 +1762,12 @@ impl App {
             return;
         }
 
-        if trimmed.is_empty() && !matches!(pending, PendingLogin::SaitecForm { .. }) {
+        if trimmed.is_empty()
+            && !matches!(
+                pending,
+                PendingLogin::SaitecForm { .. } | PendingLogin::StartupGuide { .. }
+            )
+        {
             let help = match &pending {
                 PendingLogin::AutoImportSelection { .. } => {
                     "Auto import is waiting for your selection. Reply with `a` to approve all, `1,3` to approve specific sources, or `/cancel` to abort.".to_string()
@@ -1766,6 +1801,28 @@ impl App {
         }
 
         match pending {
+            PendingLogin::StartupGuide { focused, is_reminder } => {
+                match focused {
+                    StartupGuideAction::LoginSaitec => {
+                        self.start_jcode_login();
+                    }
+                    StartupGuideAction::SetupBaseModel => {
+                        self.open_saitec_base_model_login_picker();
+                    }
+                    StartupGuideAction::SkipSaitec => {
+                        self.push_display_message(DisplayMessage::system(
+                            "SAITEC login skipped. You can log in anytime via `/login jcode`."
+                                .to_string(),
+                        ));
+                        self.set_status_notice("SAITEC skipped");
+                        // If this was the last thing preventing startup, let the
+                        // branded startup surface collapse and show the conversation.
+                        if is_reminder && self.display_user_message_count == 0 {
+                            self.pending_login = None;
+                        }
+                    }
+                }
+            }
             PendingLogin::SaitecForm { mut form } => {
                 if form.submitting {
                     self.stage_saitec_form(form);
@@ -2587,6 +2644,19 @@ impl App {
             }
             if self.pending_login.is_some() {
                 self.pending_login = None;
+            }
+            // After a successful non-jcode login, if SAITEC is still not configured
+            // and we are still in startup state, transition to the Reminder guide.
+            if login.provider != "jcode"
+                && self.display_user_message_count == 0
+                && self.streaming_text.is_empty()
+                && self.pending_login.is_none()
+                && crate::saitec::auth::ensure_logged_in().is_err()
+            {
+                self.begin_pending_login(PendingLogin::StartupGuide {
+                    focused: StartupGuideAction::LoginSaitec,
+                    is_reminder: true,
+                });
             }
         } else {
             let message = crate::auth::login_diagnostics::augment_auth_error_message(

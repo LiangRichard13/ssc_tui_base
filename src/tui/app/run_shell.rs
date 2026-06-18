@@ -23,23 +23,22 @@ impl App {
             && self.display_messages.is_empty()
             && self.pending_login.is_none()
         {
-            let startup_auth_error = match crate::saitec::auth::load_session() {
-                Ok(Some(_)) => crate::saitec::auth::refresh_saved_session_if_present()
-                    .await
-                    .err()
-                    .map(|err| err.to_string()),
-                Ok(None) => crate::saitec::auth::ensure_logged_in()
-                    .err()
-                    .map(|err| err.to_string()),
-                Err(err) => Some(err.to_string()),
-            };
+            let auth_status = crate::auth::AuthStatus::check_fast();
+            let has_base_model = auth_status.has_any_base_model();
+            let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
 
-            if let Some(err) = startup_auth_error {
-                self.push_display_message(DisplayMessage::system(format!(
-                    "Saitec login is required before using this TUI. Opening the login form now.\n\n{}",
-                    err
-                )));
-                self.start_jcode_login();
+            if !has_base_model {
+                // Setup mode: no base model configured — show the startup guide (blocking)
+                self.begin_pending_login(PendingLogin::StartupGuide {
+                    focused: StartupGuideAction::LoginSaitec,
+                    is_reminder: false,
+                });
+            } else if !saitec_ok {
+                // Reminder mode: base model OK but SAITEC not configured
+                self.begin_pending_login(PendingLogin::StartupGuide {
+                    focused: StartupGuideAction::LoginSaitec,
+                    is_reminder: true,
+                });
             }
         }
 
@@ -139,6 +138,28 @@ impl App {
         let mut handterm_native_scroll =
             super::handterm_native_scroll::HandtermNativeScrollClient::connect_from_env();
         let mut remote_state = remote::RemoteRunState::default();
+
+        // Startup guide check for remote mode — same logic as App::run()
+        if !self.is_replay
+            && self.display_messages.is_empty()
+            && self.pending_login.is_none()
+        {
+            let auth_status = crate::auth::AuthStatus::check_fast();
+            let has_base_model = auth_status.has_any_base_model();
+            let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
+
+            if !has_base_model {
+                self.begin_pending_login(PendingLogin::StartupGuide {
+                    focused: StartupGuideAction::LoginSaitec,
+                    is_reminder: false,
+                });
+            } else if !saitec_ok {
+                self.begin_pending_login(PendingLogin::StartupGuide {
+                    focused: StartupGuideAction::LoginSaitec,
+                    is_reminder: true,
+                });
+            }
+        }
 
         'outer: loop {
             if self.display_messages.is_empty() {

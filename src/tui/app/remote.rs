@@ -1057,6 +1057,12 @@ fn handle_disconnected_key_internal(
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
 
+    // Let pending login overlays (startup guide, SAITEC form, etc.) handle keys
+    // even while disconnected from the server.
+    if input::handle_pending_login_key(app, code, modifiers) {
+        return Ok(());
+    }
+
     if input::handle_submitted_input_recall_key(app, code, modifiers) {
         return Ok(());
     }

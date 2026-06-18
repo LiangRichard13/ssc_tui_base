@@ -678,6 +678,143 @@ fn render_overlay_box(frame: &mut Frame, area: Rect, title: &str, color: Color) 
     frame.render_widget(block, area);
 }
 
+pub(super) fn draw_startup_guide_overlay(
+    frame: &mut Frame,
+    area: Rect,
+    app: &dyn TuiState,
+) {
+    use crate::tui::app::StartupGuideAction;
+
+    let width = area.width.min(72).max(50);
+    let height = 20u16.min(area.height.saturating_sub(2));
+    let popup = Rect {
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    clear_area(frame, popup);
+
+    let border_color = rgb(90, 120, 110);
+    let block = Block::default()
+        .title(Span::styled(
+            " Welcome to SAITEC-TUI ",
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(border_color));
+
+    let _inner = block.inner(popup);
+
+    // Read focused button and mode from the app's pending_login via the trait methods.
+    // The trait only exposes pending_startup_guide() as a bool, so we read the
+    // PendingLogin state by downcasting through TuiState.
+    let (focused, is_reminder) = app.startup_guide_focus();
+    let focused = focused.unwrap_or(StartupGuideAction::LoginSaitec);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    // -- Base Model section --
+    lines.push(Line::from(vec![
+        Span::styled(" ⚡ ", Style::default().fg(Color::Yellow)),
+        Span::styled(
+            "Configure AI Base Model (Required)",
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    lines.push(Line::from(Span::styled(
+        "    Connect to model providers like OpenAI, Claude to enable AI chat.",
+        Style::default().fg(dim_color()),
+    )));
+    lines.push(Line::from(Span::styled(
+        "    At least one Base Model is required to get started.",
+        Style::default().fg(dim_color()),
+    )));
+    lines.push(Line::from(""));
+
+    // -- SAITEC section --
+    lines.push(Line::from(vec![
+        Span::styled(" 🔗 ", Style::default().fg(Color::Cyan)),
+        Span::styled(
+            "Log in to SAITEC Platform (Optional)",
+            Style::default()
+                .fg(accent_color())
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]));
+    lines.push(Line::from(Span::styled(
+        "    Unlock MCP skills, task orchestration, and advanced integrations.",
+        Style::default().fg(dim_color()),
+    )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+
+    // -- Buttons area --
+    let btn_login_label = Span::styled(" [Log in to SAITEC Platform] ", {
+        if focused == StartupGuideAction::LoginSaitec {
+            Style::default()
+                .fg(Color::White)
+                .bg(accent_color())
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(accent_color())
+        }
+    });
+
+    let btn_secondary_label = if is_reminder {
+        Span::styled(" [Skip SAITEC, Continue] ", {
+            if focused == StartupGuideAction::SkipSaitec {
+                Style::default()
+                    .fg(Color::White)
+                    .bg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(dim_color())
+            }
+        })
+    } else {
+        Span::styled(" [Configure AI Base Model] ", {
+            if focused == StartupGuideAction::SetupBaseModel {
+                Style::default()
+                    .fg(Color::White)
+                    .bg(accent_color())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(accent_color())
+            }
+        })
+    };
+
+    lines.push(Line::from(Span::raw("")));
+    lines.push(Line::from(vec![btn_login_label]));
+    lines.push(Line::from(vec![btn_secondary_label]));
+    lines.push(Line::from(""));
+
+    // -- Footer hint --
+    if is_reminder {
+        lines.push(Line::from(Span::styled(
+            " Tab/Arrows to switch · Enter to confirm · Log in to unlock full SAITEC features",
+            Style::default().fg(dim_color()),
+        )));
+    } else {
+        lines.push(Line::from(Span::styled(
+            " You must configure at least one AI Base Model to get started",
+            Style::default().fg(pending_color()),
+        )));
+        lines.push(Line::from(Span::styled(
+            " Tab/Arrows to switch · Enter to confirm",
+            Style::default().fg(dim_color()),
+        )));
+    }
+
+    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    frame.render_widget(paragraph, popup);
+}
+
 pub(super) fn debug_palette_json() -> Option<serde_json::Value> {
     Some(serde_json::json!({
         "user_color": color_to_rgb(user_color()),

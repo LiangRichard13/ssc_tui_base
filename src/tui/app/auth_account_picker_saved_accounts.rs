@@ -21,6 +21,7 @@ impl App {
             OverlayAction::Continue => {}
             OverlayAction::Close => {
                 self.login_picker_overlay = None;
+                self.restore_startup_guide_if_needed();
             }
             OverlayAction::Execute(provider) => {
                 self.login_picker_overlay = None;

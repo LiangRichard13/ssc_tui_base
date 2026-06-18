@@ -1367,6 +1367,11 @@ pub(super) fn handle_pending_login_key(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> bool {
+    // Startup guide has its own Tab/Enter navigation (no text input)
+    if handle_pending_startup_guide_key(app, code, modifiers) {
+        return true;
+    }
+
     if handle_pending_saitec_login_key(app, code, modifiers) {
         return true;
     }
@@ -1479,6 +1484,108 @@ pub(super) fn handle_pending_login_key(
                 app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
             }
             app.submit_input();
+            true
+        }
+        _ => false,
+    }
+}
+
+fn handle_pending_startup_guide_key(
+    app: &mut App,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    use crate::tui::app::{PendingLogin, StartupGuideAction};
+
+    let is_startup_guide = matches!(
+        app.pending_login.as_ref(),
+        Some(PendingLogin::StartupGuide { .. })
+    );
+    if !is_startup_guide {
+        return false;
+    }
+
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+
+    // Extract is_reminder before any mutable borrow on pending_login.
+    let guide_is_reminder = matches!(
+        app.pending_login.as_ref(),
+        Some(PendingLogin::StartupGuide {
+            is_reminder: true, ..
+        })
+    );
+
+    match code {
+        KeyCode::Tab | KeyCode::Down => {
+            if let Some(PendingLogin::StartupGuide { focused, .. }) =
+                app.pending_login.as_mut()
+            {
+                *focused = match focused {
+                    StartupGuideAction::LoginSaitec => {
+                        if guide_is_reminder {
+                            StartupGuideAction::SkipSaitec
+                        } else {
+                            StartupGuideAction::SetupBaseModel
+                        }
+                    }
+                    StartupGuideAction::SetupBaseModel | StartupGuideAction::SkipSaitec => {
+                        StartupGuideAction::LoginSaitec
+                    }
+                };
+            }
+            true
+        }
+        KeyCode::BackTab | KeyCode::Up => {
+            if let Some(PendingLogin::StartupGuide { focused, .. }) =
+                app.pending_login.as_mut()
+            {
+                *focused = match focused {
+                    StartupGuideAction::LoginSaitec => {
+                        if guide_is_reminder {
+                            StartupGuideAction::SkipSaitec
+                        } else {
+                            StartupGuideAction::SetupBaseModel
+                        }
+                    }
+                    StartupGuideAction::SetupBaseModel | StartupGuideAction::SkipSaitec => {
+                        StartupGuideAction::LoginSaitec
+                    }
+                };
+            }
+            true
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            if let Some(pending) = app.pending_login.take() {
+                let focused = match &pending {
+                    PendingLogin::StartupGuide { focused, .. } => *focused,
+                    _ => return false,
+                };
+                let is_reminder = match &pending {
+                    PendingLogin::StartupGuide { is_reminder, .. } => *is_reminder,
+                    _ => false,
+                };
+                // Route the action through handle_login_input
+                // It passes through handle_login_input which calls the right method
+                app.cursor_pos = 0;
+                app.handle_login_input(
+                    PendingLogin::StartupGuide {
+                        focused,
+                        is_reminder,
+                    },
+                    String::new(),
+                );
+                return true;
+            }
+            false
+        }
+        KeyCode::Esc => {
+            // Startup guide cannot be cancelled — it's mandatory
+            app.push_display_message(DisplayMessage::system(
+                "Please configure at least one AI Base Model or log in to SAITEC to get started."
+                    .to_string(),
+            ));
             true
         }
         _ => false,
