@@ -110,6 +110,47 @@ pub fn apply_runtime_env(config: &mut McpConfig) {
     }
 }
 
+/// Reconnect SAITEC-Skills MCP server with fresh credentials.
+/// Called after SAITEC login to inject the new API key into the running MCP server.
+pub async fn reconnect_saitec_mcp() {
+    let Some(pool) = crate::mcp::pool::get_shared_pool() else {
+        crate::logging::debug("SAITEC MCP reconnect skipped: shared pool not initialized");
+        return;
+    };
+
+    // Disconnect the existing SAITEC-Skills server
+    pool.disconnect_server(SAITEC_MCP_SERVER_NAME).await;
+
+    // Load fresh config (triggers apply_runtime_env with current credentials)
+    let config = McpConfig::load();
+    let Some(server_config) = config.servers.get(SAITEC_MCP_SERVER_NAME) else {
+        crate::logging::warn(&format!(
+            "SAITEC MCP reconnect skipped: {} not found in config",
+            SAITEC_MCP_SERVER_NAME
+        ));
+        return;
+    };
+
+    // Reconnect with fresh credentials
+    if let Err(err) = pool.connect_server(SAITEC_MCP_SERVER_NAME, server_config).await {
+        crate::logging::warn(&format!("SAITEC MCP reconnect failed: {:#}", err));
+    } else {
+        crate::logging::info("SAITEC MCP reconnected with fresh credentials");
+    }
+}
+
+/// Disconnect SAITEC-Skills MCP server.
+/// Called after SAITEC logout to remove the API key from the running MCP server.
+pub async fn disconnect_saitec_mcp() {
+    let Some(pool) = crate::mcp::pool::get_shared_pool() else {
+        crate::logging::debug("SAITEC MCP disconnect skipped: shared pool not initialized");
+        return;
+    };
+
+    pool.disconnect_server(SAITEC_MCP_SERVER_NAME).await;
+    crate::logging::info("SAITEC MCP disconnected after logout");
+}
+
 fn runtime_api_key() -> Option<String> {
     crate::subscription_catalog::configured_api_key().or_else(|| {
         crate::saitec::auth::load_session()

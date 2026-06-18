@@ -2576,6 +2576,12 @@ impl App {
             self.set_status_notice(format!("Login: {} ready", login.provider));
             if login.provider == "jcode" {
                 crate::subscription_catalog::clear_runtime_env();
+                // Reconnect SAITEC-Skills MCP with the newly saved API key
+                if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    handle.spawn(async move {
+                        crate::saitec::mcp::reconnect_saitec_mcp().await;
+                    });
+                }
             } else {
                 self.trigger_provider_auth_changed();
             }

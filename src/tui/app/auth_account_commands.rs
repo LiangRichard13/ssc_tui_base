@@ -163,6 +163,12 @@ fn clear_saitec_session_after_confirmation(app: &mut App) {
             app.pending_login = None;
             app.invalidate_model_picker_cache();
             app.trigger_provider_auth_changed();
+            // Disconnect SAITEC-Skills MCP since credentials are now invalid
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    crate::saitec::mcp::disconnect_saitec_mcp().await;
+                });
+            }
             app.push_display_message(DisplayMessage::system(
                 "Logged out from Saitec. Local SAITEC credentials were cleared.".to_string(),
             ));
