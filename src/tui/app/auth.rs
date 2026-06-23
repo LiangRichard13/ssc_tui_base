@@ -4,11 +4,11 @@ mod auth_account_commands;
 mod auth_account_picker;
 #[path = "auth_types.rs"]
 mod auth_types;
-pub(crate) use self::auth_types::StartupGuideAction;
 pub(crate) use self::auth_account_commands::{
     handle_account_command_remote, handle_auth_command, resolve_account_provider_descriptor,
     save_openai_fast_setting_local,
 };
+pub(crate) use self::auth_types::StartupGuideAction;
 pub(crate) use self::auth_types::{
     AccountCommand, PendingAccountInput, PendingLogin, SaitecLoginField, SaitecPendingForm,
 };
@@ -1801,7 +1801,10 @@ impl App {
         }
 
         match pending {
-            PendingLogin::StartupGuide { focused, is_reminder } => {
+            PendingLogin::StartupGuide {
+                focused,
+                is_reminder,
+            } => {
                 match focused {
                     StartupGuideAction::LoginSaitec => {
                         self.start_jcode_login();
@@ -1822,6 +1825,38 @@ impl App {
                         }
                     }
                 }
+            }
+            PendingLogin::OpenAiCompatibleModelName {
+                provider,
+                provider_id,
+                env_file,
+                profile,
+            } => {
+                let model_name = input.trim().to_string();
+                if !model_name.is_empty() {
+                    // Save the model name so resolve_openai_compatible_profile picks it up
+                    if let Err(err) = crate::provider_catalog::save_env_value_to_env_file(
+                        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
+                        &env_file,
+                        Some(&model_name),
+                    ) {
+                        crate::logging::warn(&format!(
+                            "Failed to save model name for {}: {}",
+                            provider, err
+                        ));
+                    }
+                    crate::env::set_var("JCODE_OPENAI_COMPAT_DEFAULT_MODEL", &model_name);
+                    crate::env::set_var("JCODE_OPENROUTER_MODEL", &model_name);
+                }
+                // Re-resolve the profile (env override for default_model is now active).
+                // The profile env is already set from the key-save step — re-apply
+                // is not needed here since we only need the resolved default_model
+                // to be picked up by start_openai_compatible_post_login_activation.
+                let _resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
+                // apply_openai_compatible_profile_env is already called during the
+                // key-save step; calling it again is a no-op for the env vars.
+                crate::cli::provider_init::lock_model_provider("openrouter");
+                self.start_openai_compatible_post_login_activation(provider);
             }
             PendingLogin::SaitecForm { mut form } => {
                 if form.submitting {
@@ -2104,18 +2139,41 @@ impl App {
                         }
 
                         if let Some(profile) = openai_compatible_profile {
-                            crate::provider_catalog::apply_openai_compatible_profile_env(Some(
+                            crate::provider_catalog::force_apply_openai_compatible_profile_env(Some(
                                 profile,
                             ));
                             crate::cli::provider_init::lock_model_provider("openrouter");
-                            if let Some(default_model) = resolved_openai_compatible
+                            let effective_model = resolved_openai_compatible
                                 .as_ref()
                                 .and_then(|resolved| resolved.default_model.as_deref())
-                                .or(default_model.as_deref())
-                            {
+                                .or(default_model.as_deref());
+                            if let Some(default_model) = effective_model {
                                 crate::env::set_var("JCODE_OPENROUTER_MODEL", default_model);
+                                self.start_openai_compatible_post_login_activation(
+                                    provider.clone(),
+                                );
+                            } else {
+                                // No default model — ask the user for a model name first.
+                                let resolved = resolved_openai_compatible.clone();
+                                self.pending_login =
+                                    Some(PendingLogin::OpenAiCompatibleModelName {
+                                        provider: provider.clone(),
+                                        provider_id: resolved.as_ref().map_or_else(
+                                            || profile.id.to_string(),
+                                            |r| r.id.clone(),
+                                        ),
+                                        env_file: resolved.as_ref().map_or_else(
+                                            || profile.env_file.to_string(),
+                                            |r| r.env_file.clone(),
+                                        ),
+                                        profile,
+                                    });
+                                self.set_status_notice(format!(
+                                    "{}: enter model name (optional)",
+                                    provider
+                                ));
+                                return;
                             }
-                            self.start_openai_compatible_post_login_activation(provider.clone());
                         }
 
                         let effective_default_model = resolved_openai_compatible
@@ -2233,6 +2291,28 @@ impl App {
                         return;
                     }
                 }
+
+                // Clear stale generic-override entries from the env file so that
+                // resolve_openai_compatible_profile (called during the key-login
+                // flow) does not pick up values left over from a previous provider
+                // when the user switches directly via /login without logging out.
+                let env_file = crate::provider_catalog::OPENAI_COMPAT_PROFILE.env_file;
+                let _ = crate::provider_catalog::save_env_value_to_env_file(
+                    "JCODE_OPENAI_COMPAT_API_KEY_NAME",
+                    env_file,
+                    None,
+                );
+                let _ = crate::provider_catalog::save_env_value_to_env_file(
+                    "JCODE_OPENAI_COMPAT_ENV_FILE",
+                    env_file,
+                    None,
+                );
+                let _ = crate::provider_catalog::save_env_value_to_env_file(
+                    "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
+                    env_file,
+                    None,
+                );
+
                 self.start_openai_compatible_key_login(profile);
             }
             PendingLogin::CursorApiKey => {

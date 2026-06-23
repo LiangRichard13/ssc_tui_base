@@ -369,10 +369,29 @@ fn apply_openai_compatible_profile_env_impl(
         "JCODE_NAMED_PROVIDER_PROFILE",
         "JCODE_PROVIDER_PROFILE_ACTIVE",
         "JCODE_PROVIDER_PROFILE_NAME",
+        // Generic openai-compatible overrides — must be cleared so
+        // switching from one openai-compatible provider to another
+        // does not carry over stale values.
+        "JCODE_OPENAI_COMPAT_API_BASE",
+        "JCODE_OPENAI_COMPAT_API_KEY_NAME",
+        "JCODE_OPENAI_COMPAT_ENV_FILE",
+        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
     ];
 
     for var in vars {
         crate::env::remove_var(var);
+    }
+
+    // When clearing all vars (profile is None), also remove stale
+    // JCODE_OPENAI_COMPAT_* entries from the env file so that
+    // `env_override` (which falls back to the file) does not
+    // resurrect old values.
+    if profile.is_none() {
+        let env_file = OPENAI_COMPAT_PROFILE.env_file;
+        let _ = save_env_value_to_env_file("JCODE_OPENAI_COMPAT_API_BASE", env_file, None);
+        let _ = save_env_value_to_env_file("JCODE_OPENAI_COMPAT_API_KEY_NAME", env_file, None);
+        let _ = save_env_value_to_env_file("JCODE_OPENAI_COMPAT_ENV_FILE", env_file, None);
+        let _ = save_env_value_to_env_file("JCODE_OPENAI_COMPAT_DEFAULT_MODEL", env_file, None);
     }
 
     if let Some(profile) = profile {

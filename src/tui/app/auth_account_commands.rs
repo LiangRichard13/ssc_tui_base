@@ -269,6 +269,9 @@ fn clear_openai_compatible_profile_credentials(
         &resolved.env_file,
         None,
     )?;
+    // Clear all JCODE_OPENROUTER_* runtime env vars so the next login
+    // starts from a clean state.
+    crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
     Ok(())
 }
 
