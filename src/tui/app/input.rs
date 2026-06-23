@@ -511,6 +511,7 @@ pub(super) fn handle_text_input(app: &mut App, text: &str) -> bool {
         Some(
             super::auth::PendingLogin::ApiKeyProfile { .. }
                 | super::auth::PendingLogin::OpenAiCompatibleApiBase { .. }
+                | super::auth::PendingLogin::OpenAiCompatibleModelName { .. }
                 | super::auth::PendingLogin::CursorApiKey
         )
     ) {
@@ -1381,6 +1382,7 @@ pub(super) fn handle_pending_login_key(
         Some(
             super::auth::PendingLogin::ApiKeyProfile { .. }
                 | super::auth::PendingLogin::OpenAiCompatibleApiBase { .. }
+                | super::auth::PendingLogin::OpenAiCompatibleModelName { .. }
                 | super::auth::PendingLogin::CursorApiKey
         )
     );
@@ -1490,11 +1492,7 @@ pub(super) fn handle_pending_login_key(
     }
 }
 
-fn handle_pending_startup_guide_key(
-    app: &mut App,
-    code: KeyCode,
-    modifiers: KeyModifiers,
-) -> bool {
+fn handle_pending_startup_guide_key(app: &mut App, code: KeyCode, modifiers: KeyModifiers) -> bool {
     use crate::tui::app::{PendingLogin, StartupGuideAction};
 
     let is_startup_guide = matches!(
@@ -1513,15 +1511,14 @@ fn handle_pending_startup_guide_key(
     let guide_is_reminder = matches!(
         app.pending_login.as_ref(),
         Some(PendingLogin::StartupGuide {
-            is_reminder: true, ..
+            is_reminder: true,
+            ..
         })
     );
 
     match code {
         KeyCode::Tab | KeyCode::Down => {
-            if let Some(PendingLogin::StartupGuide { focused, .. }) =
-                app.pending_login.as_mut()
-            {
+            if let Some(PendingLogin::StartupGuide { focused, .. }) = app.pending_login.as_mut() {
                 *focused = match focused {
                     StartupGuideAction::LoginSaitec => {
                         if guide_is_reminder {
@@ -1538,9 +1535,7 @@ fn handle_pending_startup_guide_key(
             true
         }
         KeyCode::BackTab | KeyCode::Up => {
-            if let Some(PendingLogin::StartupGuide { focused, .. }) =
-                app.pending_login.as_mut()
-            {
+            if let Some(PendingLogin::StartupGuide { focused, .. }) = app.pending_login.as_mut() {
                 *focused = match focused {
                     StartupGuideAction::LoginSaitec => {
                         if guide_is_reminder {

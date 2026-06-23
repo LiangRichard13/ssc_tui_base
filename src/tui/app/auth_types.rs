@@ -75,6 +75,14 @@ pub(crate) enum PendingLogin {
     OpenAiCompatibleApiBase {
         profile: crate::provider_catalog::OpenAiCompatibleProfile,
     },
+    /// Waiting for the user to enter an optional model name after saving
+    /// API Key for an OpenAI-compatible provider that has no default_model.
+    OpenAiCompatibleModelName {
+        provider: String,
+        provider_id: String,
+        env_file: String,
+        profile: crate::provider_catalog::OpenAiCompatibleProfile,
+    },
     /// Waiting for user to paste a Cursor API key.
     CursorApiKey,
     /// GitHub Copilot device flow in progress (polling in background)
@@ -88,7 +96,7 @@ pub(crate) enum PendingLogin {
 impl PendingLogin {
     pub(crate) fn telemetry_context(&self) -> Option<(String, String)> {
         match self {
-    Self::StartupGuide { .. } => None,
+            Self::StartupGuide { .. } => None,
             Self::SaitecForm { .. } => Some(("jcode".to_string(), "password".to_string())),
             Self::ClaudeAccount { .. } => Some(("claude".to_string(), "oauth".to_string())),
             Self::OpenAiAccount { .. } => Some(("openai".to_string(), "oauth".to_string())),
@@ -112,6 +120,7 @@ impl PendingLogin {
             }
             Self::CursorApiKey => Some(("cursor".to_string(), "api_key".to_string())),
             Self::Copilot => Some(("copilot".to_string(), "device_code".to_string())),
+            Self::OpenAiCompatibleModelName { .. } => None,
             Self::AutoImportSelection { .. } => None,
         }
     }

@@ -582,6 +582,7 @@ impl crate::tui::TuiState for App {
                 PendingLogin::SaitecForm { .. }
                     | PendingLogin::ApiKeyProfile { .. }
                     | PendingLogin::OpenAiCompatibleApiBase { .. }
+                    | PendingLogin::OpenAiCompatibleModelName { .. }
                     | PendingLogin::CursorApiKey
                     | PendingLogin::StartupGuide { .. }
             )
@@ -604,12 +605,7 @@ impl crate::tui::TuiState for App {
         matches!(&self.pending_login, Some(PendingLogin::StartupGuide { .. }))
     }
 
-    fn startup_guide_focus(
-        &self,
-    ) -> (
-        Option<crate::tui::app::StartupGuideAction>,
-        bool,
-    ) {
+    fn startup_guide_focus(&self) -> (Option<crate::tui::app::StartupGuideAction>, bool) {
         match &self.pending_login {
             Some(PendingLogin::StartupGuide {
                 focused,
@@ -712,6 +708,25 @@ impl crate::tui::TuiState for App {
                 cancel_focused: self.pending_text_entry_focus
                     == super::PendingTextEntryFocus::Cancel,
             }),
+            PendingLogin::OpenAiCompatibleModelName { provider, .. } => {
+                Some(crate::tui::PendingTextEntryOverlay {
+                    title: format!("{} Model Name", provider),
+                    field_label: "Model Name (optional)".to_string(),
+                    detail_lines: vec![
+                        "Enter the model name for your endpoint.".to_string(),
+                        "Examples: gpt-4o, deepseek-chat, llama3, claude-sonnet-4".to_string(),
+                        "Press Enter to skip and configure via /model later.".to_string(),
+                    ],
+                    footer_hint: "Enter to confirm · Esc to skip".to_string(),
+                    mask_input: false,
+                    show_clear_button: false,
+                    clear_focused: false,
+                    validate_focused: self.pending_text_entry_focus
+                        == super::PendingTextEntryFocus::Validate,
+                    cancel_focused: self.pending_text_entry_focus
+                        == super::PendingTextEntryFocus::Cancel,
+                })
+            }
             _ => None,
         }
     }

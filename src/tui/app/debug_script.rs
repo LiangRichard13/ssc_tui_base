@@ -90,6 +90,7 @@ impl App {
                     PendingLogin::Antigravity { .. } => "antigravity",
                     PendingLogin::ApiKeyProfile { provider, .. } => provider.as_str(),
                     PendingLogin::OpenAiCompatibleApiBase { .. } => "openai_compatible_api_base",
+                    PendingLogin::OpenAiCompatibleModelName { .. } => "openai_compatible_model_name",
                     PendingLogin::CursorApiKey => "cursor_api_key",
                     PendingLogin::Copilot => "copilot",
                     PendingLogin::AutoImportSelection { .. } => "auto_import_selection",
