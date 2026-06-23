@@ -132,7 +132,10 @@ pub async fn reconnect_saitec_mcp() {
     };
 
     // Reconnect with fresh credentials
-    if let Err(err) = pool.connect_server(SAITEC_MCP_SERVER_NAME, server_config).await {
+    if let Err(err) = pool
+        .connect_server(SAITEC_MCP_SERVER_NAME, server_config)
+        .await
+    {
         crate::logging::warn(&format!("SAITEC MCP reconnect failed: {:#}", err));
     } else {
         crate::logging::info("SAITEC MCP reconnected with fresh credentials");

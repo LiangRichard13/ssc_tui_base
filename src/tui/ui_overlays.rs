@@ -678,11 +678,7 @@ fn render_overlay_box(frame: &mut Frame, area: Rect, title: &str, color: Color) 
     frame.render_widget(block, area);
 }
 
-pub(super) fn draw_startup_guide_overlay(
-    frame: &mut Frame,
-    area: Rect,
-    app: &dyn TuiState,
-) {
+pub(super) fn draw_startup_guide_overlay(frame: &mut Frame, area: Rect, app: &dyn TuiState) {
     use crate::tui::app::StartupGuideAction;
 
     let width = area.width.min(72).max(50);
@@ -811,7 +807,9 @@ pub(super) fn draw_startup_guide_overlay(
         )));
     }
 
-    let paragraph = Paragraph::new(lines).block(block).wrap(Wrap { trim: false });
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(paragraph, popup);
 }
 

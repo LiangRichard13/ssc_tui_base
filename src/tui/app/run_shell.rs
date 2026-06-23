@@ -140,10 +140,7 @@ impl App {
         let mut remote_state = remote::RemoteRunState::default();
 
         // Startup guide check for remote mode — same logic as App::run()
-        if !self.is_replay
-            && self.display_messages.is_empty()
-            && self.pending_login.is_none()
-        {
+        if !self.is_replay && self.display_messages.is_empty() && self.pending_login.is_none() {
             let auth_status = crate::auth::AuthStatus::check_fast();
             let has_base_model = auth_status.has_any_base_model();
             let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();

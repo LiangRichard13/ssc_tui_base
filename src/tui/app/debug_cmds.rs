@@ -445,8 +445,7 @@ impl App {
             let text = cmd.strip_prefix("insert_input:").unwrap_or("");
             input::insert_input_text(self, text);
             self.follow_chat_bottom_for_typing();
-            self.debug_trace
-                .record("input", format!("insert:{}", text));
+            self.debug_trace.record("input", format!("insert:{}", text));
             format!("OK: inserted {} chars", text.chars().count())
         } else if cmd.starts_with("append_input:") {
             let text = cmd.strip_prefix("append_input:").unwrap_or("");
@@ -455,8 +454,7 @@ impl App {
             self.reset_tab_completion();
             self.sync_model_picker_preview_from_input();
             self.follow_chat_bottom_for_typing();
-            self.debug_trace
-                .record("input", format!("append:{}", text));
+            self.debug_trace.record("input", format!("append:{}", text));
             format!("OK: appended {} chars", text.chars().count())
         } else if cmd.starts_with("replace_input:") || cmd.starts_with("set_input:") {
             let new_input = cmd

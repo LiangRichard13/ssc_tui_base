@@ -371,12 +371,10 @@ fn sample_account_picker_state() -> crate::tui::InlineInteractiveState {
                 detail: String::new(),
                 estimated_reference_cost_micros: None,
             }],
-            action: crate::tui::PickerAction::Account(
-                crate::tui::AccountPickerAction::Switch {
-                    provider_id: "openai".to_string(),
-                    label: "work".to_string(),
-                },
-            ),
+            action: crate::tui::PickerAction::Account(crate::tui::AccountPickerAction::Switch {
+                provider_id: "openai".to_string(),
+                label: "work".to_string(),
+            }),
             selected_option: 0,
             is_current: true,
             is_default: false,
