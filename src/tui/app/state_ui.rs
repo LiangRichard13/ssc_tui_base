@@ -1186,7 +1186,7 @@ pub(super) fn handle_info_command(app: &mut App, trimmed: &str) -> bool {
         };
         app.push_display_message(DisplayMessage {
             role: "system".to_string(),
-            content: format!("jcode {}{}", version, is_canary),
+            content: format!("SAITEC-TUI {}{}", version, is_canary),
             tool_calls: vec![],
             duration_secs: None,
             title: None,
@@ -1393,7 +1393,7 @@ pub(super) fn handle_info_command(app: &mut App, trimmed: &str) -> bool {
                     None => "none",
                 };
                 format!(
-                    "- supported: yes\n- mode: {}\n- jcode-managed: {}\n- active summary: {} ({})\n- compacted messages: {}\n- active messages: {}\n- summary chars: {}\n- estimated tokens: {}\n- effective tokens: {}\n- observed tokens: {}\n- usage: {:.1}%\n- compacting now: {}\n- budget: {}",
+                    "- supported: yes\n- mode: {}\n- saitec-tui-managed: {}\n- active summary: {} ({})\n- compacted messages: {}\n- active messages: {}\n- summary chars: {}\n- estimated tokens: {}\n- effective tokens: {}\n- observed tokens: {}\n- usage: {:.1}%\n- compacting now: {}\n- budget: {}",
                     mode,
                     if app.provider.uses_jcode_compaction() {
                         "yes"

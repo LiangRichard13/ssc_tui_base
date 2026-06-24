@@ -2759,7 +2759,7 @@ impl App {
                             SaitecLoginField::Password
                         };
                         form.error = Some(message);
-                        self.set_status_notice("Login: jcode failed");
+                        self.set_status_notice("Login: SAITEC-TUI failed");
                         self.stage_saitec_form(form);
                         self.sync_input_with_pending_saitec_form();
                     }

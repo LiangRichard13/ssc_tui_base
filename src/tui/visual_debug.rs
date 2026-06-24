@@ -353,7 +353,7 @@ pub fn dump_to_file() -> std::io::Result<PathBuf> {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut file = File::create(&path)?;
 
-    writeln!(file, "=== JCODE VISUAL DEBUG DUMP ===")?;
+    writeln!(file, "=== SAITEC-TUI VISUAL DEBUG DUMP ===")?;
     writeln!(file, "Generated: {:?}", std::time::SystemTime::now())?;
     writeln!(file, "Total frames captured: {}", buffer.next_frame_id)?;
     writeln!(file, "Frames in buffer: {}", buffer.frames.len())?;

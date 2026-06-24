@@ -222,7 +222,7 @@ fn startup_hints_for_launch(state: &SetupHintsState) -> Option<StartupHints> {
         None
     } else {
         Some(format!(
-            "Press Alt+; from anywhere to open jcode in {}.",
+            "Press Alt+; from anywhere to open SAITEC-TUI in {}.",
             effective_macos_terminal().label()
         ))
     };
@@ -230,7 +230,7 @@ fn startup_hints_for_launch(state: &SetupHintsState) -> Option<StartupHints> {
     let spawn_notice: Option<String> = None;
 
     if state.launch_count == 1 {
-        let mut message = "Tip: jcode is left-aligned by default. Use `/alignment centered` or press `Alt+C` to toggle left/centered for the current session.".to_string();
+        let mut message = "Tip: SAITEC-TUI is left-aligned by default. Use `/alignment centered` or press `Alt+C` to toggle left/centered for the current session.".to_string();
 
         if let Some(spawn_notice) = spawn_notice {
             message.push_str("\n\n");
@@ -280,7 +280,7 @@ fn read_choice() -> String {
 #[cfg(target_os = "macos")]
 fn macos_guided_ghostty_message(current_terminal: MacTerminalKind) -> String {
     format!(
-        "I want to upgrade my macOS terminal setup for jcode. Please guide me step-by-step, wait for confirmation between steps, and keep each step concise.\n\nCurrent terminal: {}\nGoal: install Ghostty and use it for jcode.\n\nPlease help me with:\n1) Detecting if Homebrew is installed (and installing it if missing)\n2) Installing Ghostty\n3) Launching Ghostty and setting it as my preferred terminal for jcode\n4) Optional: adding a macOS keyboard shortcut/launcher flow for jcode\n5) Verifying jcode runs in Ghostty and that inline images/graphics work\n\nAssume I am not an expert; provide exact commands and where to click in macOS settings when needed.",
+        "I want to upgrade my macOS terminal setup for SAITEC-TUI. Please guide me step-by-step, wait for confirmation between steps, and keep each step concise.\n\nCurrent terminal: {}\nGoal: install Ghostty and use it for SAITEC-TUI.\n\nPlease help me with:\n1) Detecting if Homebrew is installed (and installing it if missing)\n2) Installing Ghostty\n3) Launching Ghostty and setting it as my preferred terminal for SAITEC-TUI\n4) Optional: adding a macOS keyboard shortcut/launcher flow for SAITEC-TUI\n5) Verifying SAITEC-TUI runs in Ghostty and that inline images/graphics work\n\nAssume I am not an expert; provide exact commands and where to click in macOS settings when needed.",
         current_terminal.label()
     )
 }
@@ -300,7 +300,7 @@ fn nudge_macos_ghostty(state: &mut SetupHintsState) -> Option<String> {
 
     eprintln!("\x1b[36m┌─────────────────────────────────────────────────────────────┐\x1b[0m");
     eprintln!(
-        "\x1b[36m│\x1b[0m \x1b[1m💡 Better macOS terminal for jcode: Ghostty\x1b[0m                \x1b[36m│\x1b[0m"
+        "\x1b[36m│\x1b[0m \x1b[1m💡 Better macOS terminal for SAITEC-TUI: Ghostty\x1b[0m                \x1b[36m│\x1b[0m"
     );
     eprintln!(
         "\x1b[36m│\x1b[0m                                                             \x1b[36m│\x1b[0m"
@@ -315,14 +315,14 @@ fn nudge_macos_ghostty(state: &mut SetupHintsState) -> Option<String> {
         );
     } else {
         eprintln!(
-            "\x1b[36m│\x1b[0m    Ghostty offers fast rendering and great jcode UX.         \x1b[36m│\x1b[0m"
+            "\x1b[36m│\x1b[0m    Ghostty offers fast rendering and great SAITEC-TUI UX.         \x1b[36m│\x1b[0m"
         );
     }
     eprintln!(
         "\x1b[36m│\x1b[0m                                                             \x1b[36m│\x1b[0m"
     );
     eprintln!(
-        "\x1b[36m│\x1b[0m    Let jcode guide you through setup right now?             \x1b[36m│\x1b[0m"
+        "\x1b[36m│\x1b[0m    Let SAITEC-TUI guide you through setup right now?             \x1b[36m│\x1b[0m"
     );
     eprintln!(
         "\x1b[36m│\x1b[0m    \x1b[32m[y]\x1b[0m Yes      \x1b[90m[n]\x1b[0m Not now      \x1b[90m[d]\x1b[0m Don't ask again    \x1b[36m│\x1b[0m"
@@ -363,7 +363,7 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
         eprintln!("\x1b[1mjcode setup-hotkey\x1b[0m");
         eprintln!();
         eprintln!("  Preferred terminal: {}", terminal.label());
-        eprintln!("  Installing a LaunchAgent so Alt+; opens jcode from anywhere.");
+        eprintln!("  Installing a LaunchAgent so Alt+; opens SAITEC-TUI from anywhere.");
         eprintln!();
 
         match install_macos_hotkey_listener(Some(terminal)) {
@@ -372,12 +372,12 @@ pub fn run_setup_hotkey(_listen_macos_hotkey: bool) -> Result<()> {
                 state.hotkey_dismissed = true;
                 let _ = state.save();
                 eprintln!(
-                    "  \x1b[32m✓\x1b[0m Created hotkey (\x1b[1mAlt+;\x1b[0m) → {} + jcode",
+                    "  \x1b[32m✓\x1b[0m Created hotkey (\x1b[1mAlt+;\x1b[0m) → {} + SAITEC-TUI",
                     installed_terminal.label()
                 );
                 eprintln!();
                 eprintln!(
-                    "  Press \x1b[1mAlt+;\x1b[0m from anywhere to open jcode in {}.",
+                    "  Press \x1b[1mAlt+;\x1b[0m from anywhere to open SAITEC-TUI in {}.",
                     installed_terminal.label()
                 );
                 return Ok(());
@@ -518,11 +518,11 @@ pub fn run_setup_launcher() -> Result<()> {
                     app_dir.display()
                 );
                 eprintln!(
-                    "  \x1b[32m✓\x1b[0m Spotlight/Launchpad/Dock will launch jcode in {}",
+                    "  \x1b[32m✓\x1b[0m Spotlight/Launchpad/Dock will launch SAITEC-TUI in {}",
                     terminal.label()
                 );
                 eprintln!();
-                eprintln!("  Tip: pin Jcode.app to your Dock or launch it with Cmd+Space.");
+                eprintln!("  Tip: pin SAITEC-TUI.app to your Dock or launch it with Cmd+Space.");
                 return Ok(());
             }
             Err(e) => {
@@ -539,7 +539,7 @@ pub fn run_setup_launcher() -> Result<()> {
     }
 }
 
-/// Create a desktop shortcut/launcher for jcode.
+/// Create a desktop shortcut/launcher for SAITEC-TUI.
 ///
 /// - Windows: creates a .lnk shortcut on the Desktop
 /// - macOS: creates a jcode.app bundle in ~/Applications/
