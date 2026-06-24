@@ -154,7 +154,7 @@ pub(super) fn action_kind_help(command: &AccountPickerCommand) -> &'static str {
             "Opens a detailed text summary for this provider, including the exact commands you can run manually."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" remove ") => {
-            "Removes saved credentials for the selected account. Use this when an account is stale or should no longer be available in jcode."
+            "Removes saved credentials for the selected account. Use this when an account is stale or should no longer be available in SAITEC-TUI."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" login") => {
             "Starts Saitec login for this build."

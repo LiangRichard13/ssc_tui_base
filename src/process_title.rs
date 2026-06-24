@@ -1,7 +1,7 @@
 use crate::cli::args::{AmbientCommand, Args, Command};
 
 const LINUX_PROCESS_TITLE_LIMIT: usize = 15;
-const KILLALL_PROCESS_NAME: &str = "jcode";
+const KILLALL_PROCESS_NAME: &str = "saitec-tui";
 
 fn compact_process_title(prefix: &str, name: Option<&str>) -> String {
     let mut title = prefix.to_string();
@@ -82,14 +82,14 @@ fn set_killall_process_name() {
 }
 
 pub(crate) fn set_server_title(server_name: &str) {
-    set_title(compact_process_title("jcode:s:", Some(server_name)));
+    set_title(compact_process_title("saitec-tui:s:", Some(server_name)));
 }
 
 pub(crate) fn set_client_generic_title(is_selfdev: bool) {
     let prefix = if is_selfdev {
-        "jcode:selfdev"
+        "stui:selfdev"
     } else {
-        "jcode:client"
+        "stui:client"
     };
     set_title(compact_process_title(prefix, None));
 }
@@ -99,7 +99,7 @@ pub(crate) fn set_client_session_title(session_id: &str, is_selfdev: bool) {
 }
 
 pub(crate) fn set_client_display_title(session_name: &str, is_selfdev: bool) {
-    let prefix = if is_selfdev { "jcode:d:" } else { "jcode:c:" };
+    let prefix = if is_selfdev { "stui:d:" } else { "stui:c:" };
     set_title(compact_process_title(prefix, Some(session_name)));
 }
 
@@ -112,61 +112,61 @@ pub(crate) fn set_client_remote_display_title(
         set_client_display_title(session_name, is_selfdev);
         return;
     }
-    let prefix = if is_selfdev { "jcode:d:" } else { "jcode:c:" };
+    let prefix = if is_selfdev { "stui:d:" } else { "stui:c:" };
     set_title(format!("{prefix}{server_name}/{session_name}"));
 }
 
 pub(crate) fn initial_title(args: &Args) -> String {
     match &args.command {
-        Some(Command::Serve { .. }) => "jcode:server".to_string(),
-        Some(Command::Connect) => "jcode:client".to_string(),
-        Some(Command::Run { .. }) => "jcode run".to_string(),
-        Some(Command::Login { .. }) => "jcode login".to_string(),
-        Some(Command::Repl) => "jcode repl".to_string(),
-        Some(Command::Update) => "jcode update".to_string(),
-        Some(Command::Version { .. }) => "jcode version".to_string(),
-        Some(Command::Usage { .. }) => "jcode usage".to_string(),
-        Some(Command::SelfDev { .. }) => "jcode:selfdev".to_string(),
-        Some(Command::Debug { .. }) => "jcode debug".to_string(),
-        Some(Command::Auth(_)) => "jcode auth".to_string(),
-        Some(Command::Provider(_)) => "jcode provider".to_string(),
-        Some(Command::Memory(_)) => "jcode memory".to_string(),
-        Some(Command::Session(_)) => "jcode session".to_string(),
+        Some(Command::Serve { .. }) => "saitec-tui:server".to_string(),
+        Some(Command::Connect) => "saitec-tui:client".to_string(),
+        Some(Command::Run { .. }) => "saitec-tui run".to_string(),
+        Some(Command::Login { .. }) => "saitec-tui login".to_string(),
+        Some(Command::Repl) => "saitec-tui repl".to_string(),
+        Some(Command::Update) => "saitec-tui update".to_string(),
+        Some(Command::Version { .. }) => "saitec-tui version".to_string(),
+        Some(Command::Usage { .. }) => "saitec-tui usage".to_string(),
+        Some(Command::SelfDev { .. }) => "stui:selfdev".to_string(),
+        Some(Command::Debug { .. }) => "saitec-tui debug".to_string(),
+        Some(Command::Auth(_)) => "saitec-tui auth".to_string(),
+        Some(Command::Provider(_)) => "saitec-tui provider".to_string(),
+        Some(Command::Memory(_)) => "saitec-tui memory".to_string(),
+        Some(Command::Session(_)) => "saitec-tui session".to_string(),
         Some(Command::Ambient(subcommand)) => match subcommand {
-            AmbientCommand::RunVisible => "jcode ambient visible".to_string(),
-            _ => "jcode ambient".to_string(),
+            AmbientCommand::RunVisible => "saitec-tui ambient visible".to_string(),
+            _ => "saitec-tui ambient".to_string(),
         },
-        Some(Command::Pair { .. }) => "jcode pair".to_string(),
-        Some(Command::Permissions) => "jcode permissions".to_string(),
-        Some(Command::Transcript { .. }) => "jcode transcript".to_string(),
-        Some(Command::Dictate { .. }) => "jcode dictate".to_string(),
+        Some(Command::Pair { .. }) => "saitec-tui pair".to_string(),
+        Some(Command::Permissions) => "saitec-tui permissions".to_string(),
+        Some(Command::Transcript { .. }) => "saitec-tui transcript".to_string(),
+        Some(Command::Dictate { .. }) => "saitec-tui dictate".to_string(),
         Some(Command::SetupHotkey {
             listen_macos_hotkey,
         }) => {
             if *listen_macos_hotkey {
-                "jcode hotkey listener".to_string()
+                "saitec-tui hotkey listener".to_string()
             } else {
-                "jcode hotkey setup".to_string()
+                "saitec-tui hotkey setup".to_string()
             }
         }
-        Some(Command::Browser { .. }) => "jcode browser".to_string(),
-        Some(Command::Replay { .. }) => "jcode replay".to_string(),
-        Some(Command::Model(_)) => "jcode model".to_string(),
-        Some(Command::AuthTest { .. }) => "jcode auth-test".to_string(),
-        Some(Command::Restart { .. }) => "jcode restart".to_string(),
-        Some(Command::SetupLauncher) => "jcode setup-launcher".to_string(),
+        Some(Command::Browser { .. }) => "saitec-tui browser".to_string(),
+        Some(Command::Replay { .. }) => "saitec-tui replay".to_string(),
+        Some(Command::Model(_)) => "saitec-tui model".to_string(),
+        Some(Command::AuthTest { .. }) => "saitec-tui auth-test".to_string(),
+        Some(Command::Restart { .. }) => "saitec-tui restart".to_string(),
+        Some(Command::SetupLauncher) => "saitec-tui setup-launcher".to_string(),
         None => {
             if let Some(resume) = args.resume.as_deref().filter(|resume| !resume.is_empty()) {
                 let prefix = if crate::cli::selfdev::client_selfdev_requested() {
-                    "jcode:d:"
+                    "stui:d:"
                 } else {
-                    "jcode:c:"
+                    "stui:c:"
                 };
                 compact_process_title(prefix, Some(&session_name(resume)))
             } else if crate::cli::selfdev::client_selfdev_requested() {
-                "jcode:selfdev".to_string()
+                "stui:selfdev".to_string()
             } else {
-                "jcode:client".to_string()
+                "stui:client".to_string()
             }
         }
     }
@@ -200,7 +200,7 @@ mod tests {
     fn initial_title_labels_server() {
         with_selfdev_env_removed(|| {
             let args = Args::parse_from(["jcode", "serve"]);
-            assert_eq!(initial_title(&args), "jcode:server");
+            assert_eq!(initial_title(&args), "saitec-tui:server");
         });
     }
 
@@ -208,7 +208,7 @@ mod tests {
     fn initial_title_labels_resume_client_with_short_name() {
         with_selfdev_env_removed(|| {
             let args = Args::parse_from(["jcode", "--resume", "session_fox_123"]);
-            assert_eq!(initial_title(&args), "jcode:c:fox");
+            assert_eq!(initial_title(&args), "stui:c:fox");
         });
     }
 
@@ -253,7 +253,7 @@ mod tests {
     fn initial_title_labels_selfdev_command() {
         with_selfdev_env_removed(|| {
             let args = Args::parse_from(["jcode", "self-dev"]);
-            assert_eq!(initial_title(&args), "jcode:selfdev");
+            assert_eq!(initial_title(&args), "stui:selfdev");
         });
     }
 }

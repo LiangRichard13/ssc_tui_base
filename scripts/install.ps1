@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Install jcode on Windows.
+    Install SAITEC-TUI on Windows.
 .DESCRIPTION
-    Downloads the latest jcode release and installs it to %LOCALAPPDATA%\jcode\bin.
+    Downloads the latest SAITEC-TUI release and installs it to %LOCALAPPDATA%\jcode\bin.
 
     One-liner install:
       irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 | iex
@@ -422,7 +422,7 @@ function Install-JcodeHotkey([string]$JcodeExePath) {
         Write-Warn "Hotkey will start on next login, but could not be launched immediately"
     }
 
-    Write-Info "Configured Alt+; to launch jcode in Alacritty"
+    Write-Info "Configured Alt+; to launch SAITEC-TUI in Alacritty"
     return $true
 }
 
@@ -490,12 +490,12 @@ if (Test-Path $LauncherPath) {
 
 if ($Existing) {
     if ($Existing -match [regex]::Escape($VersionNum)) {
-        Write-Info "jcode $Version is already installed - reinstalling"
+        Write-Info "SAITEC-TUI $Version is already installed - reinstalling"
     } else {
-        Write-Info "Updating jcode $Existing -> $Version"
+        Write-Info "Updating SAITEC-TUI $Existing -> $Version"
     }
 } else {
-    Write-Info "Installing jcode $Version"
+    Write-Info "Installing SAITEC-TUI $Version"
 }
 Write-Info "  launcher: $LauncherPath"
 
@@ -572,7 +572,7 @@ if ($DownloadMode -eq "tar") {
         Write-Err "Failed to clone $Repo at $Version (exit code: $($gitCloneResult.ExitCode))"
     }
 
-    Write-Info "Building jcode from source (this can take several minutes)..."
+    Write-Info "Building SAITEC-TUI from source (this can take several minutes)..."
     $cargoResult = Invoke-ProcessWithTimeout -FilePath "cargo" -ArgumentList @("build", "--release", "--manifest-path", (Join-Path $SrcDir "Cargo.toml")) -TimeoutSeconds 1800 -FriendlyName "cargo-build" -CaptureOutput
     if ($cargoResult.TimedOut) {
         Write-LogTail -Path $cargoResult.StdoutPath -Label "cargo stdout"
@@ -630,7 +630,7 @@ if ($SkipHotkeySetup) {
 Set-SetupHintsState -AlacrittyConfigured:(Test-AlacrittyInstalled) -HotkeyConfigured:$configuredHotkey
 
 Write-Host ""
-Write-Info "jcode $Version installed successfully!"
+Write-Info "SAITEC-TUI $Version installed successfully!"
 Write-Host ""
 
 if (Test-AlacrittyInstalled) {
@@ -641,14 +641,14 @@ if (Test-AlacrittyInstalled) {
 }
 
 if ($configuredHotkey) {
-    Write-Info "Global hotkey ready: Alt+; opens jcode in Alacritty"
+    Write-Info "Global hotkey ready: Alt+; opens SAITEC-TUI in Alacritty"
     Write-Host ""
 }
 
 if (Get-Command jcode -ErrorAction SilentlyContinue) {
-    Write-Info "Run 'jcode' to get started."
+    Write-Info "Run 'saitec-tui' to get started."
 } else {
     Write-Host "  Open a new terminal window, then run:"
     Write-Host ""
-    Write-Host "    jcode" -ForegroundColor Green
+    Write-Host "    saitec-tui" -ForegroundColor Green
 }

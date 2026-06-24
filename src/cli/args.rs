@@ -27,9 +27,9 @@ pub(crate) enum ProviderAuthArg {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "jcode")]
+#[command(name = "saitec-tui")]
 #[command(version = env!("JCODE_VERSION"))]
-#[command(about = "J-Code: A coding agent using Claude Max or ChatGPT Pro subscriptions")]
+#[command(about = "SAITEC-TUI: AI-powered terminal workspace for model evaluation and AIGC detection")]
 pub(crate) struct Args {
     /// Provider to use (jcode, claude, openai, openai-api, openrouter, azure, opencode, opencode-go, zai, 302ai, baseten, cortecs, comtegra, deepseek, fpt, firmware, huggingface, moonshotai, nebius, scaleway, stackit, groq, mistral, perplexity, togetherai, deepinfra, xai, lmstudio, ollama, chutes, cerebras, alibaba-coding-plan, openai-compatible, cursor, copilot, gemini, antigravity, google, or auto-detect)
     #[arg(short, long, default_value = "auto", global = true)]
@@ -63,7 +63,7 @@ pub(crate) struct Args {
     #[arg(long, global = true, hide = true)]
     pub(crate) fresh_spawn: bool,
 
-    /// Disable auto-detection of jcode repository and self-dev mode
+    /// Disable auto-detection of SAITEC-TUI repository and self-dev mode
     #[arg(long, global = true)]
     pub(crate) no_selfdev: bool,
 
@@ -160,7 +160,7 @@ pub(crate) enum Command {
         #[arg(long)]
         api_base: Option<String>,
 
-        /// OpenAI-compatible API key. If omitted, jcode prompts securely when needed.
+        /// OpenAI-compatible API key. If omitted, SAITEC-TUI prompts securely when needed.
         #[arg(long)]
         api_key: Option<String>,
 
@@ -172,7 +172,7 @@ pub(crate) enum Command {
     /// Run in simple REPL mode (no TUI)
     Repl,
 
-    /// Update jcode to the latest version
+    /// Update SAITEC-TUI to the latest version
     Update,
 
     /// Show build/version information in human or JSON form
@@ -197,7 +197,7 @@ pub(crate) enum Command {
         build: bool,
     },
 
-    /// Debug socket CLI - interact with running jcode server
+    /// Debug socket CLI - interact with running SAITEC-TUI server
     Debug {
         /// Debug command to run (list, start, sessions, create_session, message, tool, state, history, etc.)
         #[arg(default_value = "help")]
@@ -254,12 +254,12 @@ pub(crate) enum Command {
     /// Review and respond to pending ambient permission requests
     Permissions,
 
-    /// Inject externally transcribed text into the active Jcode TUI
+    /// Inject externally transcribed text into the active SAITEC-TUI
     Transcript {
         /// Transcript text. If omitted, reads from stdin.
         text: Option<String>,
 
-        /// How to apply the transcript inside Jcode
+        /// How to apply the transcript inside SAITEC-TUI
         #[arg(long, value_enum, default_value = "send")]
         mode: TranscriptModeArg,
 
@@ -268,21 +268,21 @@ pub(crate) enum Command {
         session: Option<String>,
     },
 
-    /// Run configured dictation: send to last-focused jcode client or type raw text
+    /// Run configured dictation: send to last-focused SAITEC-TUI client or type raw text
     Dictate {
-        /// Type the transcript into the focused app instead of sending to jcode
+        /// Type the transcript into the focused app instead of sending to SAITEC-TUI
         #[arg(long)]
         r#type: bool,
     },
 
-    /// Set up a global hotkey (Alt+;) to launch jcode
+    /// Set up a global hotkey (Alt+;) to launch SAITEC-TUI
     SetupHotkey {
         /// Internal: run as the macOS hotkey listener process.
         #[arg(long, hide = true)]
         listen_macos_hotkey: bool,
     },
 
-    /// Install a launcher so jcode appears in your app launcher
+    /// Install a launcher so SAITEC-TUI appears in your app launcher
     SetupLauncher,
 
     /// Browser automation setup and status
@@ -377,7 +377,7 @@ pub(crate) enum Command {
         output: Option<String>,
     },
 
-    /// Save or restore the current set of open jcode windows across a system reboot
+    /// Save or restore the current set of open SAITEC-TUI windows across a system reboot
     Restart {
         #[command(subcommand)]
         action: RestartCommand,
@@ -386,9 +386,9 @@ pub(crate) enum Command {
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum RestartCommand {
-    /// Save a reboot snapshot of currently active jcode windows
+    /// Save a reboot snapshot of currently active SAITEC-TUI windows
     Save {
-        /// Restore this reboot snapshot automatically the next time plain `jcode` starts
+        /// Restore this reboot snapshot automatically the next time SAITEC-TUI starts
         #[arg(long)]
         auto_restore: bool,
     },

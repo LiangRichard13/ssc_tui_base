@@ -174,7 +174,7 @@ async fn run_ambient_visible() -> Result<()> {
 
     let _ = crossterm::execute!(
         std::io::stdout(),
-        crossterm::terminal::SetTitle("🤖 jcode ambient cycle")
+        crossterm::terminal::SetTitle("🤖 saitec-tui ambient cycle")
     );
 
     let result = app.run(terminal, &mut tui_runtime).await;
@@ -480,11 +480,11 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
     let gw_config = &crate::config::config().gateway;
 
     if !gw_config.enabled {
-        eprintln!("\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.jcode/config.toml:\n");
+        eprintln!("\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.saitec_tui/config.toml:\n");
         eprintln!("    \x1b[2m[gateway]\x1b[0m");
         eprintln!("    \x1b[2menabled = true\x1b[0m");
         eprintln!("    \x1b[2mport = {}\x1b[0m\n", gw_config.port);
-        eprintln!("  Then restart the jcode server.\n");
+        eprintln!("  Then restart the SAITEC-TUI server.\n");
     }
 
     let code = registry.generate_pairing_code();
@@ -640,7 +640,7 @@ pub async fn run_browser(action: &str) -> Result<()> {
                 println!("\nBuilt-in browser tool is ready.");
             } else if status.responding && !status.compatible {
                 println!(
-                    "\nThe browser bridge is connected, but the installed Firefox extension is out of date for this jcode build. Run `jcode browser setup` to repair or update it."
+                    "\nThe browser bridge is connected, but the installed Firefox extension is out of date for this SAITEC-TUI build. Run `jcode browser setup` to repair or update it."
                 );
             } else {
                 println!("\nRun `jcode browser setup` to install or repair it.");

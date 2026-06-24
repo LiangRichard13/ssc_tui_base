@@ -10,11 +10,11 @@ impl Config {
             std::fs::create_dir_all(parent)?;
         }
 
-        let default_content = r#"# jcode configuration file
-# Location: ~/.jcode/config.toml
+        let default_content = r#"# SAITEC-TUI configuration file
+# Location: ~/.saitec_tui/config.toml
 #
 # Environment variables override these settings.
-# Run `/config` in jcode to see current settings.
+# Run `/config` in SAITEC-TUI to see current settings.
 
 [keybindings]
 # Scroll keys (vim-style by default)
@@ -69,7 +69,7 @@ session_picker_enter = "new-terminal"
 # command = "~/.local/bin/my-whisper-script --grammar-target code"
 command = ""
 
-# How to apply the transcript inside jcode: insert|append|replace|send
+# How to apply the transcript inside SAITEC-TUI: insert|append|replace|send
 mode = "send"
 
 # Optional in-app hotkey to trigger dictation. Set to "off" to disable.
@@ -210,7 +210,7 @@ bind_addr = "0.0.0.0"
 # Notification settings for ambient mode events
 
 # ntfy.sh push notifications (free, phone app: https://ntfy.sh)
-# ntfy_topic = "jcode-ambient-your-secret-topic"
+# ntfy_topic = "stui-ambient-your-secret-topic"
 # ntfy_server = "https://ntfy.sh"
 
 # Desktop notifications via notify-send (default: true)
@@ -219,7 +219,7 @@ desktop_notifications = true
 # Email notifications via SMTP
 # email_enabled = false
 # email_to = "you@example.com"
-# email_from = "jcode@example.com"
+# email_from = "stui@example.com"
 # email_smtp_host = "smtp.gmail.com"
 # email_smtp_port = 587
 # Password via env: JCODE_SMTP_PASSWORD (preferred) or config below

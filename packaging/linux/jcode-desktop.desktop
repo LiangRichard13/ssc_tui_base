@@ -1,12 +1,12 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Jcode Desktop
-GenericName=AI Development Workspace
-Comment=Jcode fullscreen desktop workspace prototype
-Exec=jcode-desktop
-Icon=jcode
+Name=SAITEC-TUI Desktop
+GenericName=AI Evaluation Workspace
+Comment=SAITEC-TUI fullscreen desktop workspace
+Exec=saitec-tui-desktop
+Icon=saitec-tui
 Terminal=false
 Categories=Development;IDE;
 StartupNotify=true
-Keywords=Jcode;AI;Agent;Development;Workspace;
+Keywords=SAITEC;TUI;AI;Evaluation;Agent;Workspace;

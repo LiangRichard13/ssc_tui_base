@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use tokio::time::{Duration, timeout};
 
-const CLIENT_TITLE_PREFIXES: &[&str] = &["jcode:d:", "jcode:c:"];
+const CLIENT_TITLE_PREFIXES: &[&str] = &["stui:d:", "stui:c:", "jcode:d:", "jcode:c:"];
 
 #[derive(Debug, Clone)]
 pub struct DictationRun {
