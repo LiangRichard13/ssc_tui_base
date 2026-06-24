@@ -509,7 +509,7 @@ fn ensure_external_api_key_auth_allowed_for_explicit_choice(env_key: &str) -> Re
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting external {} credentials. Run `{}` to authenticate jcode directly.",
+        "Skipped trusting external {} credentials. Run `{}` to authenticate with SAITEC-TUI directly.",
         provider_name,
         login_hint
     )
@@ -780,7 +780,7 @@ fn ensure_gemini_auth_allowed_for_explicit_choice() -> Result<()> {
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting Gemini CLI credentials. Run `jcode login --provider gemini` to authenticate jcode directly."
+        "Skipped trusting Gemini CLI credentials. Run `jcode login --provider gemini` to authenticate with SAITEC-TUI directly."
     )
 }
 
@@ -864,7 +864,7 @@ fn ensure_copilot_auth_allowed_for_explicit_choice() -> Result<()> {
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting external Copilot credentials. Run `jcode login --provider copilot` to authenticate jcode directly."
+        "Skipped trusting external Copilot credentials. Run `jcode login --provider copilot` to authenticate with SAITEC-TUI directly."
     )
 }
 
@@ -916,7 +916,7 @@ fn ensure_cursor_auth_allowed_for_explicit_choice() -> Result<()> {
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting external Cursor credentials. Run `jcode login --provider cursor` to authenticate jcode directly."
+        "Skipped trusting external Cursor credentials. Run `jcode login --provider cursor` to authenticate with SAITEC-TUI directly."
     )
 }
 

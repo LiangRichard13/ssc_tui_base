@@ -133,7 +133,7 @@ pub fn hot_rebuild(session_id: &str) -> Result<()> {
     let repo_dir =
         build::get_repo_dir().ok_or_else(|| anyhow::anyhow!("Could not find jcode repository"))?;
 
-    eprintln!("Rebuilding jcode with session {}...", session_id);
+    eprintln!("Rebuilding SAITEC-TUI with session {}...", session_id);
 
     eprintln!("Pulling latest changes...");
     if let Err(e) = update::run_git_pull_ff_only(&repo_dir, true) {
@@ -514,7 +514,7 @@ pub fn run_update() -> Result<()> {
     let repo_dir =
         get_repo_dir().ok_or_else(|| anyhow::anyhow!("Could not find jcode repository"))?;
 
-    update::print_centered(&format!("Updating jcode from {}...", repo_dir.display()));
+    update::print_centered(&format!("Updating SAITEC-TUI from {}...", repo_dir.display()));
 
     update::print_centered("Pulling latest changes (fast-forward only)...");
     update::run_git_pull_ff_only(&repo_dir, true)?;

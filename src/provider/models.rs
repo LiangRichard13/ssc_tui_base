@@ -119,7 +119,7 @@ pub(crate) fn ensure_model_allowed_for_subscription(model: &str) -> anyhow::Resu
         && !subscription_allows_direct_model_spec(model)
     {
         anyhow::bail!(
-            "Model '{}' is not included in the current jcode subscription catalog",
+            "Model '{}' is not included in the current SAITEC-TUI subscription catalog",
             model
         );
     }

@@ -33,7 +33,7 @@ pub(super) fn prompt_to_trust_external_auth(
         source_name,
         path.display()
     );
-    eprintln!("jcode will only read that source in place after you approve it.");
+    eprintln!("SAITEC-TUI will only read that source in place after you approve it.");
     eprintln!("It will not move, delete, or rewrite the original auth there.");
     eprint!("Trust this auth source for future jcode sessions? [y/N]: ");
     io::stdout().flush()?;
@@ -204,10 +204,10 @@ fn prompt_to_review_external_auth_sources(
     }
 
     eprintln!();
-    eprintln!("Found existing logins that jcode can reuse.");
+    eprintln!("Found existing logins that SAITEC-TUI can reuse.");
     eprintln!("Nothing has been imported yet.");
     eprintln!(
-        "Approve the sources you want jcode to import or reuse; rejected sources stay untouched."
+        "Approve the sources you want SAITEC-TUI to import or reuse; rejected sources stay untouched."
     );
     eprintln!();
 

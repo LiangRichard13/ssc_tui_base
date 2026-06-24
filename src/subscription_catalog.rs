@@ -134,10 +134,10 @@ pub fn is_curated_model(model: &str) -> bool {
 pub fn routing_policy_detail(model: &CuratedModel) -> String {
     match model.routing_policy {
         UpstreamRoutingPolicy::CacheCapableOnly => {
-            "jcode subscription routing · cache-capable upstreams only".to_string()
+            "SAITEC-TUI subscription routing · cache-capable upstreams only".to_string()
         }
         UpstreamRoutingPolicy::ProviderAllowlist(providers) => format!(
-            "jcode subscription routing · curated upstream: {}",
+            "SAITEC-TUI subscription routing · curated upstream: {}",
             providers.join(", ")
         ),
     }

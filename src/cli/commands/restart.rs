@@ -17,9 +17,9 @@ pub async fn run_restart_save_command(auto_restore: bool) -> Result<()> {
     if snapshot.sessions.is_empty() {
         println!("Saved empty reboot snapshot to {}", path.display());
         if auto_restore {
-            println!("Automatic restore is armed for the next plain `jcode` launch.");
+            println!("Automatic restore is armed for the next plain SAITEC-TUI launch.");
         }
-        println!("\nNo active jcode windows were detected.");
+        println!("\nNo active SAITEC-TUI windows were detected.");
         return Ok(());
     }
 
@@ -95,7 +95,7 @@ pub async fn maybe_run_pending_restart_restore_on_startup() -> Result<bool> {
     if snapshot.auto_restore_on_next_start {
         let _ = crate::restart_snapshot::set_auto_restore_on_next_start(false);
         println!(
-            "Found a reboot snapshot with auto-restore enabled. Restoring {} jcode window(s)...\n",
+            "Found a reboot snapshot with auto-restore enabled. Restoring {} SAITEC-TUI window(s)...\n",
             snapshot.sessions.len()
         );
         run_restart_restore_command()?;
@@ -146,7 +146,7 @@ pub fn run_restart_restore_command() -> Result<()> {
     let fallback = result.outcomes.len().saturating_sub(launched);
 
     if launched > 0 {
-        println!("Restored {} jcode window(s).", launched);
+        println!("Restored {} SAITEC-TUI window(s).", launched);
     }
 
     if fallback > 0 {

@@ -836,7 +836,7 @@ pub fn download_and_install_blocking_with_progress(
             }
         }
         let Some(extracted_binary) = extracted_binary else {
-            anyhow::bail!("Could not find jcode binary inside tar.gz archive");
+            anyhow::bail!("Could not find SAITEC-TUI binary inside tar.gz archive");
         };
         crate::platform::set_permissions_executable(&extracted_binary)?;
 

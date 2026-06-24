@@ -167,11 +167,11 @@ impl Logger {
         let ctx = context_prefix();
         let line = format!("[{}] [{}] {}{}\n", timestamp, level, ctx, message);
         if let Err(err) = self.file.write_all(line.as_bytes()) {
-            eprintln!("jcode logger write failed: {err}");
+            eprintln!("SAITEC-TUI logger write failed: {err}");
             return;
         }
         if let Err(err) = self.file.flush() {
-            eprintln!("jcode logger flush failed: {err}");
+            eprintln!("SAITEC-TUI logger flush failed: {err}");
         }
     }
 }
@@ -303,7 +303,7 @@ pub fn cleanup_old_logs() {
                 if modified < cutoff
                     && let Err(err) = fs::remove_file(entry.path())
                 {
-                    eprintln!("jcode logger cleanup failed: {err}");
+                    eprintln!("SAITEC-TUI logger cleanup failed: {err}");
                 }
             }
         }
