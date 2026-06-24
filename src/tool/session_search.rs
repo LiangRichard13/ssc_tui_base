@@ -88,13 +88,13 @@ struct SearchInput {
     /// Restrict to sessions updated/messages at or before this RFC3339 timestamp or YYYY-MM-DD date.
     #[serde(default)]
     before: Option<String>,
-    /// Restrict Jcode sessions by saved/bookmarked flag.
+    /// Restrict SAITEC-TUI sessions by saved/bookmarked flag.
     #[serde(default)]
     saved: Option<bool>,
-    /// Restrict Jcode sessions by debug flag.
+    /// Restrict SAITEC-TUI sessions by debug flag.
     #[serde(default)]
     debug: Option<bool>,
-    /// Restrict Jcode sessions by canary flag.
+    /// Restrict SAITEC-TUI sessions by canary flag.
     #[serde(default)]
     canary: Option<bool>,
     /// Restrict source: jcode, claude, codex, pi, opencode, or all.
@@ -288,15 +288,15 @@ impl Tool for SessionSearchTool {
                 },
                 "saved": {
                     "type": "boolean",
-                    "description": "Restrict Jcode sessions by saved/bookmarked flag."
+                    "description": "Restrict SAITEC-TUI sessions by saved/bookmarked flag."
                 },
                 "debug": {
                     "type": "boolean",
-                    "description": "Restrict Jcode sessions by debug/test flag."
+                    "description": "Restrict SAITEC-TUI sessions by debug/test flag."
                 },
                 "canary": {
                     "type": "boolean",
-                    "description": "Restrict Jcode sessions by canary flag."
+                    "description": "Restrict SAITEC-TUI sessions by canary flag."
                 },
                 "source": {
                     "type": "string",

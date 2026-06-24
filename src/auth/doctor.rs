@@ -34,7 +34,7 @@ pub fn diagnostics(
 
     match assessment.state {
         AuthState::NotConfigured => diagnostics.push(format!(
-            "{} is not configured for jcode yet.",
+            "{} is not configured for SAITEC-TUI yet.",
             provider.display_name
         )),
         AuthState::Expired => diagnostics.push(format!(

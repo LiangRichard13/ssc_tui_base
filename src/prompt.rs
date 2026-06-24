@@ -383,7 +383,7 @@ pub fn build_session_context(working_dir: Option<&Path>) -> String {
     lines.push(format!("OS: {}", std::env::consts::OS));
     lines.push(format!("Architecture: {}", std::env::consts::ARCH));
     lines.push(format!(
-        "Jcode version: {} ({})",
+        "SAITEC-TUI version: {} ({})",
         env!("JCODE_VERSION"),
         env!("JCODE_GIT_HASH")
     ));

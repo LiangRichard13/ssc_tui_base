@@ -24,7 +24,7 @@ fn test_skill_prompt_integration() {
     let prompt = build_system_prompt(Some(skill_prompt), &[]);
 
     // The prompt should contain our default system prompt
-    assert!(prompt.contains("You are the Jcode Agent"));
+    assert!(prompt.contains("You are the SAITEC-TUI Agent"));
 
     // The prompt should contain the skill prompt
     assert!(prompt.contains(skill_prompt));
@@ -75,7 +75,7 @@ fn test_session_context_includes_time_timezone_and_system_info() {
     assert!(context.contains("Timezone: UTC"));
     assert!(context.contains("OS: "));
     assert!(context.contains("Architecture: "));
-    assert!(context.contains("Jcode version: "));
+    assert!(context.contains("SAITEC-TUI version: "));
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn test_system_prompt_includes_saitec_non_disclosure_rules() {
 #[test]
 fn test_selfdev_prompt_uses_full_selfdev_instructions() {
     let prompt = build_system_prompt_with_selfdev(None, &[], true);
-    assert!(prompt.contains("You are working on the jcode codebase itself."));
+    assert!(prompt.contains("You are working on the SAITEC-TUI codebase itself."));
     assert!(!prompt.contains("Self-Development Access"));
 }
 
