@@ -34,17 +34,27 @@ def register_safety_tools(mcp: FastMCP):
         """
         Create and execute an LLM safety evaluation task.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - array parameters: pass as JSON array, not "[\"item\"]"
+        - object parameters: pass as JSON object, not "{\"key\": \"value\"}"
+        - bool parameters: pass as true/false, not "true"/"false"
+
         Args:
             task_name: Task ID, recommended to be unique.
             model_name: Model under test display name, default 'echo'.
             judge_model_name: Judge model display name, default 'echo'.
             prompts: String list for direct input (use with dataset or instead of it).
+                Must be a JSON array, e.g., ["prompt1", "prompt2"].
             dataset: Batch input with source_type/path/file_format/data_format.
+                Must be a JSON object.
             caller: Model call configuration, adapter_type supports 'openai'/'echo'.
-            judge_caller: Judge model call configuration.
+                Must be a JSON object.
+            judge_caller: Judge model call configuration. Must be a JSON object.
             attacks: Attack configuration, attack_names supports 'roleplay'/'ignore_previous'/'translation'.
+                Must be a JSON object, e.g., {"attack_names": ["roleplay"]}.
             safety_rules_text: Custom judge rules text.
             risk_categories: List of risk categories to evaluate.
+                Must be a JSON array, e.g., ["unsafe_content"].
 
         Returns:
             Task result including task_id, status, summary, risks, and artifacts.
@@ -83,10 +93,13 @@ def register_safety_tools(mcp: FastMCP):
         """
         Inject runtime credentials for safety evaluation.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - bool parameters: pass as true/false, not "true"/"false"
+
         Args:
             env_name: Environment variable name, e.g., 'DEEPSEEK_API_KEY'.
             api_key: API key plaintext.
-            overwrite: Whether to overwrite existing variable, default True.
+            overwrite: Whether to overwrite existing variable, default True. Must be true/false.
 
         Returns:
             Result of credential injection.

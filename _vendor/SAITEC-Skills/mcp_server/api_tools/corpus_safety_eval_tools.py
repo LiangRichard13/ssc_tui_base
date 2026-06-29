@@ -31,13 +31,21 @@ def register_corpus_tools(mcp: FastMCP):
         """
         Create a corpus safety evaluation task.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - array parameters: pass as JSON array, not "[\"item\"]"
+        - object parameters: pass as JSON object, not "{\"key\": \"value\"}"
+
         Args:
             task_name: Task ID, recommended to be unique.
             texts: List of texts to evaluate (mutually exclusive with dataset).
+                Must be a JSON array, e.g., ["text1", "text2"].
             dataset: Batch input with source_type/path/file_format/data_format (mutually exclusive with texts).
+                Must be a JSON object.
             judge_model_name: Judge model display name, default 'echo'.
             judge_caller: Judge model call configuration, adapter_type supports 'openai'/'echo'.
+                Must be a JSON object.
             chunking: Text chunking configuration with enabled/max_chars/overlap_chars.
+                Must be a JSON object, e.g., {"enabled": true, "max_chars": 4000, "overlap_chars": 200}.
             safety_rules_text: Custom safety rules text.
 
         Returns:
@@ -73,10 +81,13 @@ def register_corpus_tools(mcp: FastMCP):
         """
         Inject runtime credentials for corpus safety evaluation.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - bool parameters: pass as true/false, not "true"/"false"
+
         Args:
             env_name: Environment variable name, e.g., 'DEEPSEEK_API_KEY'.
             api_key: API key plaintext.
-            overwrite: Whether to overwrite existing variable, default True.
+            overwrite: Whether to overwrite existing variable, default True. Must be true/false.
 
         Returns:
             Result of credential injection.

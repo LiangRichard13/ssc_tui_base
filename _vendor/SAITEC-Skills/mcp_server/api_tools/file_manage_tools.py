@@ -24,15 +24,15 @@ def register_file_manage_tools(mcp: FastMCP):
         file_type: str,
     ) -> dict:
         """
-        Upload a local file to the server (only supports image, video and dataset types).
+        Upload a local file to the server (supports image, video, dataset, output, log, report types).
 
-        IMPORTANT: For any operation that requires reading a local file (image, video, dataset),
+        IMPORTANT: For any operation that requires reading a local file (image, video, dataset, etc.),
         you MUST first call this upload tool to upload the file to cloud storage, then use the
         returned file link (storage_uri) in the tool parameter for business execution.
 
         Args:
             file_path: Local path to the file, e.g., '/home/user/images/photo.png'.
-            file_type: File type, must be 'image', 'video', or 'dataset'.
+            file_type: File type, must be 'image', 'video', 'dataset', 'output', 'log', or 'report'.
 
         Returns:
             File metadata including file_id, sha256, size_bytes, file_type, filename, created_at.
@@ -131,6 +131,25 @@ def register_file_manage_tools(mcp: FastMCP):
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             resp = await client.get(
                 f"{API_BASE}/api/v1/skills/file-manage/tasks/{task_id}/files",
+                headers=_headers(),
+            )
+            raise_for_status_with_body(resp)
+            return resp.json()
+
+    @mcp.tool()
+    async def read_file_content(file_id: str) -> dict:
+        """
+        Read the content of a text file by file_id.
+
+        Args:
+            file_id: The UUID of the file to read.
+
+        Returns:
+            File content as a string (only supports text files like .json, .jsonl, .txt, .csv, .log, .md, .yaml, .yml, .xml).
+        """
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            resp = await client.get(
+                f"{API_BASE}/api/v1/skills/file-manage/files/{file_id}/content",
                 headers=_headers(),
             )
             raise_for_status_with_body(resp)

@@ -8,6 +8,28 @@
 
 ---
 
+## 重要：文件路径限制
+
+**所有涉及文件路径的工具（如 `image_uri` 参数等），文件路径必须来自 `list_files` 工具的返回结果。**
+
+原因：
+- 所有检测业务的服务都在云端服务器上
+- 只有通过 `list_files` 返回的文件，才是用户已上传到云端服务器且服务可访问的文件
+- 用户自定义的任意路径（如 `/home/user/xxx`）在云端服务器上可能不存在或无权访问，会导致任务失败
+
+**Agent 必须先调用 `list_files` 获取用户已上传的文件列表，再将文件路径用于后续工具调用。**
+
+---
+
+## 重要：参数类型规则
+
+- array 参数必须传 JSON array，不要传带引号的 JSON 字符串；例如 `["问题1"]`，不要传 `"[\"问题1\"]"`
+- object 参数必须传 JSON object，不要传带引号的 JSON 字符串；例如 `{"adapter_type": "openai"}`，不要传 `"{\"adapter_type\":\"openai\"}"`
+- bool 参数必须传 `true`/`false`，不要传 `"true"`/`"false"`
+- number 参数必须传数字，优先不要传字符串数字
+
+---
+
 ## 重要：文件上传说明
 
 **涉及需要读取本地文件进行业务操作的场景，必须先调用 `upload_file` 将文件上传至云端，获取 `storage_uri` 后再使用云端文件链接进行业务操作。**
@@ -230,30 +252,37 @@
 ### 场景一：单图检测（用户直接提供图片路径）
 
 ```
-用户意图 → 确认图片路径 → 调用 detect_image → 查询结果 → 下载产物（如需要）
+用户意图 → 确认图片路径 → 调用 detect_image → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **确认图片路径**：用户给定的本地路径（如 `/home/user/photo.jpg`）
 2. **调用 detect_image**：传入 `image_uri` 和可选的 `method`
 3. **轮询任务状态**：使用 `get_image_task` 查询直到 `status` 为 `succeeded`
-4. **下载产物（如需要）**：使用 `get_image_task_artifacts` 获取文件列表，再用 `download_file` 下载可视化产物
+4. **返回结果**：向用户展示检测结果（label、score、可视化信息）
+5. **询问用户**：主动询问用户"需要下载可视化产物（如注意力图、篡改区域标注）吗？"
+6. **下载产物（如用户需要）**：
+   - 调用 `get_image_task_artifacts` 获取文件列表
+   - **询问用户确认本地保存路径**（Windows/Linux 路径格式不同）
+   - 调用 `download_file` 下载文件
 
 ### 场景二：批量图片检测
 
 ```
-用户意图 → 确认图片路径列表 → 调用 batch_detect_images → 查询结果 → 下载产物（如需要）
+用户意图 → 确认图片路径列表 → 调用 batch_detect_images → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **确认图片路径**：用户给定的多张本地路径
 2. **构建 items 列表**：按格式组装 `id` + `image_uri`
 3. **调用 batch_detect_images**：传入 `items` 和 `method`
 4. **轮询任务状态**：使用 `get_image_task` 查询
-5. **下载产物（如需要）**：下载 visual_artifacts 查看批量检测结果
+5. **返回结果**：向用户展示批量检测结果摘要
+6. **询问用户**：主动询问用户"需要下载产物吗？"
+7. **下载产物（如用户需要）**：同上
 
 ### 场景三：使用数据集文件（本地图片需先上传）
 
 ```
-用户意图 → 上传本地图片(upload_file) → 获得 storage_uri → 检测(detect_image) → 查询结果 → 下载产物
+用户意图 → 上传本地图片(upload_file) → 获得 storage_uri → 检测(detect_image) → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **上传图片**：调用 `upload_file(file_path=xxx, file_type="image")`
@@ -522,3 +551,18 @@ params: {
 | **汇总方式** | worst-case（任一chunk不安全则原始语料不安全） | 按 field 汇总平均分 | **直接返回检测结果** |
 | **产物类型** | report / output / log | report / output / log | **visual_artifacts（注意力图、overlay）** |
 | **工具数量** | 8个（含文件管理） | 8个（含文件管理） | **8个（含文件管理）** |
+
+---
+
+## Pipeline Tier（付费等级）
+
+- 如果请求使用了当前 tier 未开放的能力，后端返回 `403`
+- 成功任务的 task metadata 会包含：`pipeline_tier`、`pipeline_profile`、`enabled_capabilities`
+
+### AIGC Image 能力矩阵
+
+| 等级 | 能力 |
+| --- | --- |
+| `free` | 单图 + `deepfake_defenders`，不允许 visuals/threshold |
+| `pro` | 批量 + 所有图像方法 |
+| `max` | `pro` + visuals + threshold |

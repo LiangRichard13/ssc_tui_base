@@ -29,10 +29,19 @@ def register_text_tools(mcp: FastMCP):
         """
         Detect if a text is AI-generated (AIGC detection).
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - string parameters: pass as string, not "\"string\""
+        - number parameters: pass as number, not "123" or "0.55"
+        - bool parameters: pass as true/false, not "true"/"false"
+
         Args:
             text: The text content to detect.
-            method: Detection method, 'sample' or 'radar'. Default 'sample'.
-            threshold: Decision threshold, default 0.55.
+            method: Detection method. Options: 'sample', 'radar', 'aigc_detector_zh',
+                'chinese_ai_detector_bert', 'mgt_mini_chinese_bert',
+                'qiyuan_llm_detector_small_en', 'qiyuan_llm_detector_small_zh',
+                'raidar_original', 'raidar_rewrite', 'roberta_pu_detector',
+                'sgd_char_ngram_cn'. Default 'sample'.
+            threshold: Decision threshold, default 0.55. Must be a number (0.0-1.0).
             language: Text language, default 'zh'.
             task_name: Optional task name.
 
@@ -67,10 +76,21 @@ def register_text_tools(mcp: FastMCP):
         """
         Batch detect if multiple texts are AI-generated.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - array parameters: pass as JSON array, not "[{...}]"
+        - object parameters: pass as JSON object, not "{...}"
+        - number parameters: pass as number, not "123" or "0.55"
+        - bool parameters: pass as true/false, not "true"/"false"
+
         Args:
-            items: List of text items, each containing 'text' key.
-            method: Detection method, 'sample' or 'radar'. Default 'sample'.
-            threshold: Decision threshold, default 0.55.
+            items: List of text items, each containing 'text' key. Must be a JSON array,
+                e.g., [{"id": "case-1", "text": "文本内容"}].
+            method: Detection method. Options: 'sample', 'radar', 'aigc_detector_zh',
+                'chinese_ai_detector_bert', 'mgt_mini_chinese_bert',
+                'qiyuan_llm_detector_small_en', 'qiyuan_llm_detector_small_zh',
+                'raidar_original', 'raidar_rewrite', 'roberta_pu_detector',
+                'sgd_char_ngram_cn'. Default 'sample'.
+            threshold: Decision threshold, default 0.55. Must be a number (0.0-1.0).
             task_name: Optional task name.
 
         Returns:
