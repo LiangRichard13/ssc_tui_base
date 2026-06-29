@@ -3,8 +3,6 @@ import os
 import httpx
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
-from api_tools.auth_headers import build_auth_headers
-from api_tools.http_errors import raise_for_status_with_body
 
 API_BASE = os.getenv("CORE_API_BASE", "http://127.0.0.1:8000")
 HTTP_TIMEOUT = httpx.Timeout(timeout=120.0, connect=10.0)
@@ -14,7 +12,8 @@ def register_image_tools(mcp: FastMCP):
     """Register image detection tools to the MCP server."""
 
     def _headers() -> dict:
-        return build_auth_headers()
+        api_key = os.getenv("SAITEC_API_KEY", "")
+        return {"X-API-Key": api_key}
 
     # --- Tools ---
 
@@ -28,6 +27,10 @@ def register_image_tools(mcp: FastMCP):
         """
         Detect if an image is AI-generated (AIGC detection).
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - number parameters: pass as number, not "123" or "0.55"
+        - bool parameters: pass as true/false, not "true"/"false"
+
         IMPORTANT: For any operation that requires reading a local image file, you MUST first
         call the upload_file tool to upload the file to cloud storage, then use the returned
         storage_uri as the image_uri value.
@@ -36,9 +39,10 @@ def register_image_tools(mcp: FastMCP):
             image_uri: Image URI, must be the storage_uri returned by upload_file for a file_type
                 of 'image'. Supports server_path:/path, file:///path, /path formats only after
                 the file has been uploaded.
-            method: Detection method, 'deepfake_defenders', 'mapnet', or 'tamper_yolo'. Default 'deepfake_defenders'.
-            threshold: Decision threshold, default 0.55.
-            return_visuals: Whether to return visual results, default True.
+            method: Detection method. Options: 'deepfake_defenders', 'mapnet', 'tamper_yolo'.
+                Default 'deepfake_defenders'.
+            threshold: Decision threshold, default 0.55. Must be a number (0.0-1.0).
+            return_visuals: Whether to return visual results, default True. Must be true/false.
 
         Returns:
             Detection result including task_id, status, and detection results.
@@ -56,7 +60,7 @@ def register_image_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            raise_for_status_with_body(resp)
+            resp.raise_for_status()
             return resp.json()
 
     @mcp.tool()
@@ -67,14 +71,20 @@ def register_image_tools(mcp: FastMCP):
         """
         Batch detect if multiple images are AI-generated.
 
+        IMPORTANT: Parameters must be passed as native JSON types:
+        - array parameters: pass as JSON array, not "[{...}]"
+        - object parameters: pass as JSON object, not "{...}"
+
         IMPORTANT: For any operation that requires reading local image files, you MUST first
         call the upload_file tool to upload each file to cloud storage, then use the returned
         storage_uri values as the image_uri in each item.
 
         Args:
-            items: List of image items, each containing 'id' and 'image_uri'. The image_uri
-                must be the storage_uri returned by upload_file for a file_type of 'image'.
-            method: Detection method, 'deepfake_defenders', 'mapnet', or 'tamper_yolo'. Default 'tamper_yolo'.
+            items: List of image items, each containing 'id' and 'image_uri'. Must be a JSON array,
+                e.g., [{"id": "img-1", "image_uri": "server_path:xxx.jpg"}].
+                The image_uri must be the storage_uri returned by upload_file for a file_type of 'image'.
+            method: Detection method. Options: 'deepfake_defenders', 'mapnet', 'tamper_yolo'.
+                Default 'tamper_yolo'.
 
         Returns:
             Batch detection result with task_id and status.
@@ -90,7 +100,7 @@ def register_image_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            raise_for_status_with_body(resp)
+            resp.raise_for_status()
             return resp.json()
 
     @mcp.tool()
@@ -109,7 +119,7 @@ def register_image_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/image-detect/tasks/{task_id}",
                 headers=_headers(),
             )
-            raise_for_status_with_body(resp)
+            resp.raise_for_status()
             return resp.json()
 
     @mcp.tool()
@@ -128,5 +138,5 @@ def register_image_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/image-detect/tasks/{task_id}/artifacts",
                 headers=_headers(),
             )
-            raise_for_status_with_body(resp)
+            resp.raise_for_status()
             return resp.json()

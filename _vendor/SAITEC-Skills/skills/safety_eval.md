@@ -8,6 +8,28 @@
 
 ---
 
+## 重要：文件路径限制
+
+**所有涉及文件路径的工具（如 `dataset` 参数等），文件路径必须来自 `list_files` 工具的返回结果。**
+
+原因：
+- 所有检测和评测业务的服务都在云端服务器上
+- 只有通过 `list_files` 返回的文件，才是用户已上传到云端服务器且服务可访问的文件
+- 用户自定义的任意路径（如 `/home/user/xxx`）在云端服务器上可能不存在或无权访问，会导致任务失败
+
+**Agent 必须先调用 `list_files` 获取用户已上传的文件列表，再将文件路径用于后续工具调用。**
+
+---
+
+## 重要：参数类型规则
+
+- array 参数必须传 JSON array，不要传带引号的 JSON 字符串；例如 `["问题1"]`，不要传 `"[\"问题1\"]"`
+- object 参数必须传 JSON object，不要传带引号的 JSON 字符串；例如 `{"adapter_type": "openai"}`，不要传 `"{\"adapter_type\":\"openai\"}"`
+- bool 参数必须传 `true`/`false`，不要传 `"true"`/`"false"`
+- number 参数必须传数字，优先不要传字符串数字
+
+---
+
 ## 重要：文件上传说明
 
 **涉及需要读取本地文件进行业务操作的场景，必须先调用 `upload_file` 将文件上传至云端，获取 `storage_uri` 后再使用云端文件链接进行业务操作。**
@@ -303,18 +325,23 @@ echo adapter 不调用外部模型，将输入 prompt 原样作为模型 respons
 ### 场景一：prompts 直接评测（echo 模型，无需 API Key）
 
 ```
-用户意图 → 创建评测任务 → 查询结果 → 下载产物
+用户意图 → 创建评测任务 → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **确认 prompts**：用户提供的测试问题列表
 2. **调用 create_safety_eval**：传入 `task_name` 和 `prompts`
 3. **轮询任务状态**：使用 `get_safety_task` 查询直到 `status` 为 `succeeded`
-4. **下载产物（如需要）**：使用 `get_safety_task_artifacts` 获取文件列表，再用 `download_file` 下载
+4. **返回结果**：向用户展示评测摘要（风险数量、最高风险等级、是否通过）
+5. **询问用户**：主动询问用户"需要下载详细评测报告吗？"
+6. **下载产物（如用户需要）**：
+   - 调用 `get_safety_task_artifacts` 获取文件列表
+   - **询问用户确认本地保存路径**（Windows/Linux 路径格式不同）
+   - 调用 `download_file` 下载文件
 
 ### 场景二：prompts + 第三方模型（需要 API Key）
 
 ```
-用户意图 → 设置 API Key → 创建评测任务 → 查询结果 → 下载产物
+用户意图 → 设置 API Key → 创建评测任务 → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **确认模型配置**：被测模型和 judge 模型使用的服务商和模型名
@@ -325,7 +352,7 @@ echo adapter 不调用外部模型，将输入 prompt 原样作为模型 respons
 ### 场景三：dataset 文件上传 + 评测
 
 ```
-用户意图 → 上传数据集文件 → 获得 storage_uri → 创建评测任务 → 查询结果 → 下载产物
+用户意图 → 上传数据集文件 → 获得 storage_uri → 创建评测任务 → 查询结果 → 询问用户是否需要下载产物 → 下载产物
 ```
 
 1. **上传数据集**：调用 `upload_file(file_path=xxx, file_type="dataset")`
@@ -667,3 +694,18 @@ params: {
 | **汇总方式** | worst-case | 按 field 汇总 | **按 risk 汇总** |
 | **产物类型** | report/output/log | report/output/log | **report/response/log** |
 | **工具数量** | 8个（含文件管理） | 8个（含文件管理） | **8个（含文件管理）** |
+
+---
+
+## Pipeline Tier（付费等级）
+
+- 如果请求使用了当前 tier 未开放的能力，后端返回 `403`
+- 成功任务的 task metadata 会包含：`pipeline_tier`、`pipeline_profile`、`enabled_capabilities`
+
+### Safety Eval 能力矩阵
+
+| 等级 | 能力 |
+| --- | --- |
+| `free` | 基础安全测评 |
+| `pro` | 基础安全测评 + 内置越狱攻击 |
+| `max` | `pro` + 自定义安全规则 |

@@ -9,6 +9,6 @@ conda activate skills
 
 # 环境变量配置
 export SAITEC_API_KEY=c03d790c-c82f-400a-84ae-1fb3cf4ff6cb
-export CORE_API_BASE=http://127.0.0.1:8000
+export CORE_API_BASE=http://127.0.0.1:8080
 
 python "$SCRIPT_DIR/mcp_server/server.py"
