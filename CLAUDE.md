@@ -280,3 +280,49 @@ When switching between openai-compatible providers, all four vars are cleared fr
 - Windows x64 (primary), Windows ARM64
 - Linux x86_64, macOS aarch64
 - Mobile simulator (iOS via `jcode-mobile-core` + `jcode-mobile-sim`)
+
+## Project Memory
+
+### SAITEC-Skills vendor sync procedure
+
+`_vendor/SAITEC-Skills/` is a manually maintained vendor copy (NOT git submodule, NOT git subtree). It is tracked by git (~22 files) and is NOT excluded by `.gitignore`. `package_saitec.ps1` and `release.yml` both bundle it directly.
+
+#### Key facts (verified 2026-06-29)
+
+- The SAITEC-TUI team adds **two helper modules** to vendor that **upstream never has**:
+  - `mcp_server/api_tools/auth_headers.py` — `build_auth_headers()` / `resolve_api_key()`. Falls back to `~/.saitec_tui/auth.json` when `SAITEC_API_KEY` env is not set.
+  - `mcp_server/api_tools/http_errors.py` — `raise_for_status_with_body()` raises with response body attached, used in place of httpx's default `raise_for_status()`.
+- Every `*_tools.py` in vendor uses these helpers via `from api_tools.auth_headers import build_auth_headers` + `from api_tools.http_errors import raise_for_status_with_body`. **The selective sync MUST preserve these imports and call sites**, not blindly replace them with upstream's inlined `os.getenv("SAITEC_API_KEY")` and `resp.raise_for_status()` style.
+- `tests/` is vendor-only (upstream has no `tests/`).
+- Upstream has `test_data/` (data sets, not tests). Vendor does not.
+- Credentials are injected by Rust: `src/saitec/mcp.rs apply_runtime_env` writes `SAITEC_API_KEY` (constant value `"SAITEC_API_KEY"`, defined at `src/subscription_catalog.rs:3`) into the MCP subprocess env. So Python `os.getenv("SAITEC_API_KEY")` always works even without auth_headers.py. The auth_headers.py fallback to auth.json is **defense in depth**, not strictly required.
+
+#### Sync procedure (selective mode)
+
+1. **Richard clones upstream** at `C:\Users\Administrator\Desktop\projects\SAITEC-Skills` (separate git repo). Check `git log --oneline` to see the upstream commit history.
+2. **Per file**: Read source first, Read vendor current state second, then compare and decide:
+   - For new tools (e.g., `read_file_content`, `get_tested_models`): copy from upstream, BUT translate `resp.raise_for_status()` → `raise_for_status_with_body(resp)` to keep vendor style.
+   - For docstring hardening (IMPORTANT blocks, Must be a JSON rules): copy from upstream verbatim — these don't conflict with the helpers.
+   - For `run_mcp.sh` CORE_API_BASE port: upstream is 8080, vendor was 8000. Always sync to 8080.
+   - For `skills/*.md`: full copy from upstream (SOPs change frequently).
+3. **Run `python -m py_compile <file>` after every change** to catch syntax errors immediately.
+4. **Verify after all changes**:
+   - `python -m py_compile` on all 10 .py files
+   - `grep -h "async def " mcp_server/api_tools/*.py | grep -v register_` — count should match upstream (currently 30 tools)
+   - `cargo check` — should pass with no new warnings
+   - `diff -rq <src> <vendor>` — only expected diffs (helper imports, helper call sites, download_file stricter error body check)
+5. **Commit**: `chore(vendor): selective sync of SAITEC-Skills to upstream <short-sha>`. Include: tools added, docstring changes, port fix, docs sync, preserved items, verification results.
+
+#### Anti-patterns (mistakes made in past sessions)
+
+- **DO NOT** blindly `cp -f` upstream files into vendor — that loses the helper imports and breaks SAITEC-TUI's auth.json fallback.
+- **DO NOT** delete `auth_headers.py` / `http_errors.py` just because upstream doesn't have them. They are intentional SAITEC-TUI additions.
+- **DO NOT** rely on `grep -E` for verifying docstring presence — it can be misleading when output is sliced. Use `sed -n` for explicit line ranges, or read the actual docstring content.
+- **DO NOT** trust first read of file content. The `image_detect_tools.py` and `video_detect_tools.py` had vendor-leading content in some places (`upload_file` 6-type, `detect_image` method list) and vendor-trailing content in others (read_file_content missing). Always diff explicitly.
+- **DO NOT** make a single big Edit that combines `"""..."""` boundaries with content changes — repeated docstring opens from `"""` to `"""` cause "unterminated triple-quoted string literal" errors when the edit pattern overlaps. If an Edit fails with that error, `git checkout HEAD -- <file>` to revert and redo with a smaller `old_string` that does NOT include the closing `"""`.
+
+#### Diff direction (which side is "new")
+
+Vendor is **historically lagging** upstream. Upstream `b178ab8` has more tools, more docstring detail, and the 8080 port fix. Vendor's only advances over upstream are the two helper modules and the stricter `download_file` error-body check.
+
+Last sync: commit `9f350494` (2026-06-29), upstream at `b178ab8`. 14 files, +486 / -52.
