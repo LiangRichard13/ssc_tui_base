@@ -8,28 +8,6 @@
 
 ---
 
-## 重要：文件路径限制
-
-**所有涉及文件路径的工具（如 `batch_detect_texts` 的 `dataset` 参数等），文件路径必须来自 `list_files` 工具的返回结果。**
-
-原因：
-- 所有检测业务的服务都在云端服务器上
-- 只有通过 `list_files` 返回的文件，才是用户已上传到云端服务器且服务可访问的文件
-- 用户自定义的任意路径（如 `/home/user/xxx`）在云端服务器上可能不存在或无权访问，会导致任务失败
-
-**Agent 必须先调用 `list_files` 获取用户已上传的文件列表，再将文件路径用于后续工具调用。**
-
----
-
-## 重要：参数类型规则
-
-- array 参数必须传 JSON array，不要传带引号的 JSON 字符串；例如 `["问题1"]`，不要传 `"[\"问题1\"]"`
-- object 参数必须传 JSON object，不要传带引号的 JSON 字符串；例如 `{"adapter_type": "openai"}`，不要传 `"{\"adapter_type\":\"openai\"}"`
-- bool 参数必须传 `true`/`false`，不要传 `"true"`/`"false"`
-- number 参数必须传数字，优先不要传字符串数字
-
----
-
 ## 重要：文件上传说明
 
 **涉及需要读取本地文件进行业务操作的场景，必须先调用 `upload_file` 将文件上传至云端，获取 `storage_uri` 后再使用云端文件链接进行业务操作。**
@@ -57,26 +35,10 @@
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `method` | string | `"sample"` | 检测方法（见下方详细说明） |
+| `method` | string | `"sample"` | 检测方法：`sample`（启发式）/ `radar`（本地模型） |
 | `threshold` | float | `0.55` | 判定阈值，范围 0~1 |
 | `language` | string | `"zh"` | 文本语言 |
 | `task_name` | string | - | 任务名称（可选，不传则自动生成） |
-
-**method 可选值：**
-
-| 方法 | 说明 | 适用场景 |
-|------|------|----------|
-| `sample` | 本地启发式示例检测器（默认） | 接口冒烟测试、任务编排验证 |
-| `radar` | 基于预训练大模型微调的序列分类器 | 英文或中英混合的较规范长文本 |
-| `aigc_detector_zh` | 基于中文 BERT/Transformer 的监督式二分类模型 | 中文通用写作、资讯解读、知识科普 |
-| `chinese_ai_detector_bert` | 中文 BERT 二分类路线 | 中文 prose、题解、总结、改写类文本 |
-| `mgt_mini_chinese_bert` | NLPCC 2025 Task1 冠军方案的中文 BERT 子模型 | 较规范的中文生成文本、评测集风格样本 |
-| `qiyuan_llm_detector_small_en` | 基于小型 CausalLM/chat 检测器 | 英文问答、英文对话、英文指令响应 |
-| `qiyuan_llm_detector_small_zh` | 中文小型生成式检测器 | 中文问答、指令跟随式回复、聊天体 |
-| `raidar_original` | rewrite-invariance 特征 + 本地分类器 | 长文本、润色型回答、改写型内容 |
-| `raidar_rewrite` | rewrite-invariance 思路直接判别 | 较长、较完整、措辞润滑的文本 |
-| `roberta_pu_detector` | 基于 RoBERTa 序列分类器的 PU 路线 | 英文或特定 benchmark 风格样本 |
-| `sgd_char_ngram_cn` | 字符级 TF-IDF n-gram + SGD 分类器 | 中文新闻、客服/业务文本、问答文本 |
 
 **返回字段说明：**
 - `label`: 检测结果 — `human`（人类创作）/ `ai_generated`（AI生成）/ `uncertain`（不确定）
@@ -114,7 +76,7 @@
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `method` | string | `"sample"` | 检测方法（见上方 `detect_text` 的 method 可选值列表） |
+| `method` | string | `"sample"` | 检测方法：`sample`（启发式）/ `radar`（本地模型） |
 | `threshold` | float | `0.55` | 判定阈值，范围 0~1 |
 | `task_name` | string | - | 任务名称（可选，不传则自动生成） |
 
@@ -232,26 +194,14 @@
 
 | method | 说明 | 适用场景 | 依赖 |
 |--------|------|----------|------|
-| `sample` | 本地启发式示例检测器（默认） | 快速检测，无需额外依赖 | 无 |
-| `radar` | 基于预训练大模型微调的序列分类器 | 英文或中英混合的较规范长文本 | 本地模型 |
-| `aigc_detector_zh` | 基于中文 BERT/Transformer 的监督式二分类模型 | 中文通用写作、资讯解读、知识科普 | 本地模型 |
-| `chinese_ai_detector_bert` | 中文 BERT 二分类路线 | 中文 prose、题解、总结、改写类文本 | 本地模型 |
-| `mgt_mini_chinese_bert` | NLPCC 2025 Task1 冠军方案的中文 BERT 子模型 | 较规范的中文生成文本、评测集风格样本 | 本地模型 |
-| `qiyuan_llm_detector_small_en` | 基于小型 CausalLM/chat 检测器 | 英文问答、英文对话、英文指令响应 | 外部 API 或 mock |
-| `qiyuan_llm_detector_small_zh` | 中文小型生成式检测器 | 中文问答、指令跟随式回复、聊天体 | 外部 API 或 mock |
-| `raidar_original` | rewrite-invariance 特征 + 本地分类器 | 长文本、润色型回答、改写型内容 | 外部 LLM + 本地分类器 |
-| `raidar_rewrite` | rewrite-invariance 思路直接判别 | 较长、较完整、措辞润滑的文本 | 外部 LLM |
-| `roberta_pu_detector` | 基于 RoBERTa 序列分类器的 PU 路线 | 英文或特定 benchmark 风格样本 | 本地模型 |
-| `sgd_char_ngram_cn` | 字符级 TF-IDF n-gram + SGD 分类器 | 中文新闻、客服/业务文本、问答文本 | 无 |
+| `sample` | 启发式示例方法（默认） | 快速检测，无需额外依赖 | 无 |
+| `radar` | 本地模型推理（Vicuna-7B） | 更精确的检测 | 需要 RADAR 模型权重 |
 
 **选择建议**：
 - 快速测试或无额外依赖环境 → `sample`（默认）
-- 中文正式能力基线 → `aigc_detector_zh` 或 `chinese_ai_detector_bert`
-- 英文场景 → `radar`
-- 对话式/助手式文本 → `qiyuan_llm_detector_small_zh`
-- 对抗改写类文本 → `raidar_original` 或 `raidar_rewrite`
+- 生产环境需要更高精度 → `radar`
 
-**注意**：部分方法（如 `raidar_*`、`qiyuan_llm_detector_*`）依赖外部 LLM API 或本地模型权重，如不可用会回退到 mock 模式。
+**注意**：`radar` 方法使用本地模型推理，响应可能较慢。如仅做链路测试，可设置 `SAITEC_AIGC_TEXT_RADAR_MOCK_MODE=true`。
 
 ---
 
@@ -331,32 +281,26 @@
 ### 场景二：批量文本检测（内联 items）
 
 ```
-用户意图 → 调用 batch_detect_texts(items) → 查询结果 → 询问用户是否需要下载产物 → 下载产物
+用户意图 → 调用 batch_detect_texts(items) → 查询结果 → 下载产物（如需要）
 ```
 
 1. **确认文本列表**：用户提供的多段文本
 2. **构建 items 列表**：按格式组装 `id` + `text`
 3. **调用 batch_detect_texts**：传入 `items`
-4. **返回结果**：直接返回批量检测结果
-5. **询问用户**：主动询问用户"需要下载产物报告吗？"
-6. **下载产物（如用户需要）**：
-   - 调用 `get_text_task_artifacts` 获取文件列表
-   - **询问用户确认本地保存路径**（Windows/Linux 路径格式不同）
-   - 调用 `download_file` 下载文件
+4. **查询结果**：直接返回批量检测结果
+5. **下载产物（如需要）**：使用 `get_text_task_artifacts` 获取文件列表
 
 ### 场景三：批量文本检测（dataset 文件上传）
 
 ```
-用户意图 → 上传数据集文件 → 获得 storage_uri → 调用 batch_detect_texts(dataset) → 查询结果 → 询问用户是否需要下载产物 → 下载产物
+用户意图 → 上传数据集文件 → 获得 storage_uri → 调用 batch_detect_texts(dataset) → 查询结果 → 下载产物
 ```
 
 1. **上传数据集**：调用 `upload_file(file_path=xxx, file_type="dataset")`
 2. **获得 storage_uri**：从响应中获取 `storage_uri`
 3. **构建 dataset 配置**：按格式组装 `source_type`、`path`、`file_format`、`data_format`
 4. **调用 batch_detect_texts**：传入 `dataset` 参数
-5. **返回结果**：直接返回批量检测结果
-6. **询问用户**：主动询问用户"需要下载产物报告吗？"
-7. **下载产物（如用户需要）**：同上
+5. **后续流程同场景二**
 
 ---
 
@@ -638,18 +582,3 @@ params: {
 | **返回内容** | safety 判定 | 能力评分 | safety 判定 | **AI 生成判定** |
 | **产物类型** | report/output/log | report/output/log | report/response/log | **report/response/runtime** |
 | **工具数量** | 8个（含文件管理） | 8个（含文件管理） | 8个（含文件管理） | **8个（含文件管理）** |
-
----
-
-## Pipeline Tier（付费等级）
-
-- 如果请求使用了当前 tier 未开放的能力，后端返回 `403`
-- 成功任务的 task metadata 会包含：`pipeline_tier`、`pipeline_profile`、`enabled_capabilities`
-
-### AIGC Text 能力矩阵
-
-| 等级 | 能力 |
-| --- | --- |
-| `free` | 单条 + `sample`，不允许 threshold |
-| `pro` | 批量 + 所有文本方法 |
-| `max` | `pro` + threshold |

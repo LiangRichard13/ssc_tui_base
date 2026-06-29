@@ -8,28 +8,6 @@
 
 ---
 
-## 重要：文件路径限制
-
-**所有涉及文件路径的工具（如 `dataset` 参数等），文件路径必须来自 `list_files` 工具的返回结果。**
-
-原因：
-- 所有检测和评测业务的服务都在云端服务器上
-- 只有通过 `list_files` 返回的文件，才是用户已上传到云端服务器且服务可访问的文件
-- 用户自定义的任意路径（如 `/home/user/xxx`）在云端服务器上可能不存在或无权访问，会导致任务失败
-
-**Agent 必须先调用 `list_files` 获取用户已上传的文件列表，再将文件路径用于后续工具调用。**
-
----
-
-## 重要：参数类型规则
-
-- array 参数必须传 JSON array，不要传带引号的 JSON 字符串；例如 `["问题1"]`，不要传 `"[\"问题1\"]"`
-- object 参数必须传 JSON object，不要传带引号的 JSON 字符串；例如 `{"adapter_type": "openai"}`，不要传 `"{\"adapter_type\":\"openai\"}"`
-- bool 参数必须传 `true`/`false`，不要传 `"true"`/`"false"`
-- number 参数必须传数字，优先不要传字符串数字
-
----
-
 ## 重要：文件上传说明
 
 **涉及需要读取本地文件进行业务操作的场景，必须先调用 `upload_file` 将文件上传至云端，获取 `storage_uri` 后再使用云端文件链接进行业务操作。**
@@ -272,34 +250,14 @@
 ### 标准执行流程（texts 直接评测）
 
 ```
-用户请求 → 判断是否需要设 API Key → 创建评测任务 → 查询结果 → 询问用户是否需要下载产物 → 下载产物
+用户请求 → 判断是否需要设 API Key → 创建评测任务 → 查询结果 → 下载产物
 ```
-
-1. **确认 texts**：用户提供的语料文本列表
-2. **判断是否需要 API Key**：使用 `echo` judge 不需要，使用第三方模型需要
-3. **创建评测任务**：调用 `create_corpus_safety_eval`
-4. **查询结果**：使用 `get_corpus_safety_task` 查询状态
-5. **返回结果**：向用户展示评测摘要（风险数量、最高风险等级）
-6. **询问用户**：主动询问用户"需要下载详细评测报告吗？"
-7. **下载产物（如用户需要）**：
-   - 调用 `get_corpus_safety_task_artifacts` 获取文件列表
-   - **询问用户确认本地保存路径**（Windows/Linux 路径格式不同）
-   - 调用 `download_file` 下载文件
 
 ### 完整执行流程（dataset 文件评测）
 
 ```
-用户请求 → 询问并确认本地文件路径 → 上传 dataset 文件 → 获得 storage_uri → 创建评测任务 → 查询结果 → 询问用户是否需要下载产物 → 下载产物
+用户请求 → 询问并确认本地文件路径 → 上传 dataset 文件 → 获得 storage_uri → 创建评测任务 → 查询结果 → 询问并确认保存路径 → 下载产物
 ```
-
-1. **询问并确认本地文件路径**：Linux/Mac 用户路径以 `/` 开头，Windows 用户路径如 `C:\Users\...`
-2. **上传 dataset 文件**：调用 `upload_file(file_path=xxx, file_type="dataset")`
-3. **获得 storage_uri**：从响应中获取 `storage_uri`
-4. **创建评测任务**：调用 `create_corpus_safety_eval` 传入 dataset 配置
-5. **查询结果**：使用 `get_corpus_safety_task` 查询状态
-6. **返回结果**：向用户展示评测摘要
-7. **询问用户**：主动询问用户"需要下载详细评测报告吗？"
-8. **下载产物（如用户需要）**：同上
 
 ### 何时需要设置 API Key
 
@@ -514,18 +472,3 @@
 - [ ] 如果使用第三方 judge，已通过 `inject_corpus_credentials` 设置 API Key
 - [ ] `judge_caller` 中的 `api_key_env` 与 `inject_corpus_credentials` 的 `env_name` 一致
 - [ ] chunking 配置：`overlap_chars < max_chars`
-
----
-
-## Pipeline Tier（付费等级）
-
-- 如果请求使用了当前 tier 未开放的能力，后端返回 `403`
-- 成功任务的 task metadata 会包含：`pipeline_tier`、`pipeline_profile`、`enabled_capabilities`
-
-### Corpus Safety Eval 能力矩阵
-
-| 等级 | 能力 |
-| --- | --- |
-| `free` | 默认安全规则 + chunking |
-| `pro` | 默认安全规则 + chunking |
-| `max` | `pro` + 自定义安全规则 |

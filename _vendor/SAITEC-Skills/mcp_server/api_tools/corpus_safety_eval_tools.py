@@ -3,6 +3,8 @@ import os
 import httpx
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from api_tools.auth_headers import build_auth_headers
+from api_tools.http_errors import raise_for_status_with_body
 
 API_BASE = os.getenv("CORE_API_BASE", "http://127.0.0.1:8000")
 HTTP_TIMEOUT = httpx.Timeout(timeout=60.0, connect=10.0)
@@ -12,8 +14,7 @@ def register_corpus_tools(mcp: FastMCP):
     """Register corpus safety evaluation tools to the MCP server."""
 
     def _headers() -> dict:
-        api_key = os.getenv("SAITEC_API_KEY", "")
-        return {"X-API-Key": api_key}
+        return build_auth_headers()
 
     # --- Tools ---
 
@@ -30,21 +31,13 @@ def register_corpus_tools(mcp: FastMCP):
         """
         Create a corpus safety evaluation task.
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - array parameters: pass as JSON array, not "[\"item\"]"
-        - object parameters: pass as JSON object, not "{\"key\": \"value\"}"
-
         Args:
             task_name: Task ID, recommended to be unique.
             texts: List of texts to evaluate (mutually exclusive with dataset).
-                Must be a JSON array, e.g., ["text1", "text2"].
             dataset: Batch input with source_type/path/file_format/data_format (mutually exclusive with texts).
-                Must be a JSON object.
             judge_model_name: Judge model display name, default 'echo'.
             judge_caller: Judge model call configuration, adapter_type supports 'openai'/'echo'.
-                Must be a JSON object.
             chunking: Text chunking configuration with enabled/max_chars/overlap_chars.
-                Must be a JSON object, e.g., {"enabled": true, "max_chars": 4000, "overlap_chars": 200}.
             safety_rules_text: Custom safety rules text.
 
         Returns:
@@ -68,7 +61,7 @@ def register_corpus_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -80,13 +73,10 @@ def register_corpus_tools(mcp: FastMCP):
         """
         Inject runtime credentials for corpus safety evaluation.
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - bool parameters: pass as true/false, not "true"/"false"
-
         Args:
             env_name: Environment variable name, e.g., 'DEEPSEEK_API_KEY'.
             api_key: API key plaintext.
-            overwrite: Whether to overwrite existing variable, default True. Must be true/false.
+            overwrite: Whether to overwrite existing variable, default True.
 
         Returns:
             Result of credential injection.
@@ -103,7 +93,7 @@ def register_corpus_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -122,7 +112,7 @@ def register_corpus_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/corpus-safety-eval/tasks/{task_id}",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -145,5 +135,5 @@ def register_corpus_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/corpus-safety-eval/tasks/{task_id}/artifacts",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()

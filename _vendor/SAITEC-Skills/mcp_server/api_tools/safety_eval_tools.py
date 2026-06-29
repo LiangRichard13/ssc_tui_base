@@ -3,6 +3,8 @@ import os
 import httpx
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from api_tools.auth_headers import build_auth_headers
+from api_tools.http_errors import raise_for_status_with_body
 
 API_BASE = os.getenv("CORE_API_BASE", "http://127.0.0.1:8000")
 HTTP_TIMEOUT = httpx.Timeout(timeout=60.0, connect=10.0)
@@ -12,8 +14,7 @@ def register_safety_tools(mcp: FastMCP):
     """Register safety evaluation tools to the MCP server."""
 
     def _headers() -> dict:
-        api_key = os.getenv("SAITEC_API_KEY", "")
-        return {"X-API-Key": api_key}
+        return build_auth_headers()
 
     # --- Tools ---
 
@@ -33,27 +34,17 @@ def register_safety_tools(mcp: FastMCP):
         """
         Create and execute an LLM safety evaluation task.
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - array parameters: pass as JSON array, not "[\"item\"]"
-        - object parameters: pass as JSON object, not "{\"key\": \"value\"}"
-        - bool parameters: pass as true/false, not "true"/"false"
-
         Args:
             task_name: Task ID, recommended to be unique.
             model_name: Model under test display name, default 'echo'.
             judge_model_name: Judge model display name, default 'echo'.
             prompts: String list for direct input (use with dataset or instead of it).
-                Must be a JSON array, e.g., ["prompt1", "prompt2"].
             dataset: Batch input with source_type/path/file_format/data_format.
-                Must be a JSON object.
             caller: Model call configuration, adapter_type supports 'openai'/'echo'.
-                Must be a JSON object.
-            judge_caller: Judge model call configuration. Must be a JSON object.
+            judge_caller: Judge model call configuration.
             attacks: Attack configuration, attack_names supports 'roleplay'/'ignore_previous'/'translation'.
-                Must be a JSON object, e.g., {"attack_names": ["roleplay"]}.
             safety_rules_text: Custom judge rules text.
             risk_categories: List of risk categories to evaluate.
-                Must be a JSON array, e.g., ["unsafe_content"].
 
         Returns:
             Task result including task_id, status, summary, risks, and artifacts.
@@ -80,7 +71,7 @@ def register_safety_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -92,13 +83,10 @@ def register_safety_tools(mcp: FastMCP):
         """
         Inject runtime credentials for safety evaluation.
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - bool parameters: pass as true/false, not "true"/"false"
-
         Args:
             env_name: Environment variable name, e.g., 'DEEPSEEK_API_KEY'.
             api_key: API key plaintext.
-            overwrite: Whether to overwrite existing variable, default True. Must be true/false.
+            overwrite: Whether to overwrite existing variable, default True.
 
         Returns:
             Result of credential injection.
@@ -115,7 +103,7 @@ def register_safety_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -134,7 +122,7 @@ def register_safety_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/safety-eval/tasks/{task_id}",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -157,5 +145,5 @@ def register_safety_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/safety-eval/tasks/{task_id}/artifacts",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()

@@ -3,6 +3,8 @@ import os
 import httpx
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+from api_tools.auth_headers import build_auth_headers
+from api_tools.http_errors import raise_for_status_with_body
 
 API_BASE = os.getenv("CORE_API_BASE", "http://127.0.0.1:8000")
 HTTP_TIMEOUT = httpx.Timeout(timeout=120.0, connect=10.0)
@@ -12,8 +14,7 @@ def register_text_tools(mcp: FastMCP):
     """Register text detection tools to the MCP server."""
 
     def _headers() -> dict:
-        api_key = os.getenv("SAITEC_API_KEY", "")
-        return {"X-API-Key": api_key}
+        return build_auth_headers()
 
     # --- Tools ---
 
@@ -28,19 +29,10 @@ def register_text_tools(mcp: FastMCP):
         """
         Detect if a text is AI-generated (AIGC detection).
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - string parameters: pass as string, not "\"string\""
-        - number parameters: pass as number, not "123" or "0.55"
-        - bool parameters: pass as true/false, not "true"/"false"
-
         Args:
             text: The text content to detect.
-            method: Detection method. Options: 'sample', 'radar', 'aigc_detector_zh',
-                'chinese_ai_detector_bert', 'mgt_mini_chinese_bert',
-                'qiyuan_llm_detector_small_en', 'qiyuan_llm_detector_small_zh',
-                'raidar_original', 'raidar_rewrite', 'roberta_pu_detector',
-                'sgd_char_ngram_cn'. Default 'sample'.
-            threshold: Decision threshold, default 0.55. Must be a number (0.0-1.0).
+            method: Detection method, 'sample' or 'radar'. Default 'sample'.
+            threshold: Decision threshold, default 0.55.
             language: Text language, default 'zh'.
             task_name: Optional task name.
 
@@ -62,7 +54,7 @@ def register_text_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -75,21 +67,10 @@ def register_text_tools(mcp: FastMCP):
         """
         Batch detect if multiple texts are AI-generated.
 
-        IMPORTANT: Parameters must be passed as native JSON types:
-        - array parameters: pass as JSON array, not "[{...}]"
-        - object parameters: pass as JSON object, not "{...}"
-        - number parameters: pass as number, not "123" or "0.55"
-        - bool parameters: pass as true/false, not "true"/"false"
-
         Args:
-            items: List of text items, each containing 'text' key. Must be a JSON array,
-                e.g., [{"id": "case-1", "text": "文本内容"}].
-            method: Detection method. Options: 'sample', 'radar', 'aigc_detector_zh',
-                'chinese_ai_detector_bert', 'mgt_mini_chinese_bert',
-                'qiyuan_llm_detector_small_en', 'qiyuan_llm_detector_small_zh',
-                'raidar_original', 'raidar_rewrite', 'roberta_pu_detector',
-                'sgd_char_ngram_cn'. Default 'sample'.
-            threshold: Decision threshold, default 0.55. Must be a number (0.0-1.0).
+            items: List of text items, each containing 'text' key.
+            method: Detection method, 'sample' or 'radar'. Default 'sample'.
+            threshold: Decision threshold, default 0.55.
             task_name: Optional task name.
 
         Returns:
@@ -109,7 +90,7 @@ def register_text_tools(mcp: FastMCP):
                 json=payload,
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -128,7 +109,7 @@ def register_text_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/text-detect/tasks/{task_id}",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
 
     @mcp.tool()
@@ -147,5 +128,5 @@ def register_text_tools(mcp: FastMCP):
                 f"{API_BASE}/api/v1/skills/text-detect/tasks/{task_id}/artifacts",
                 headers=_headers(),
             )
-            resp.raise_for_status()
+            raise_for_status_with_body(resp)
             return resp.json()
