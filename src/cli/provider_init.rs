@@ -1118,7 +1118,13 @@ async fn init_provider_with_options(
         if let Some(profile) = profile_for_choice(choice) {
             apply_openai_compatible_profile_env(Some(profile));
         } else {
-            apply_openai_compatible_profile_env(None);
+            // No specific openai-compatible profile for this choice (e.g. Jcode/Auto
+            // startup). Clear stale *runtime* env vars only — do NOT rewrite the env
+            // file. JCODE_OPENAI_COMPAT_API_BASE / DEFAULT_MODEL in the env file are
+            // durable user configuration that must survive restart, so a plain
+            // `jcode` launch must not wipe the user's configured custom endpoint and
+            // model name (which would fall back to the OpenAI default endpoint).
+            crate::provider_catalog::clear_openai_compatible_runtime_env_keep_config();
         }
     }
 

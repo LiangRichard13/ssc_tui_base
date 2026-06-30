@@ -142,7 +142,11 @@ impl JcodeProvider {
                     "Failed to activate configured SAITEC base model `{}`: {}",
                     model_spec, error
                 ));
-                crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+                // Roll back the *runtime* env vars only — leave the env file's
+                // JCODE_OPENAI_COMPAT_API_BASE / DEFAULT_MODEL intact so a
+                // transient activation failure does not wipe the user's
+                // configured endpoint and model name on the next launch.
+                crate::provider_catalog::clear_openai_compatible_runtime_env_keep_config();
             }
         }
     }

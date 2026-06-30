@@ -335,12 +335,70 @@ pub fn openai_compatible_profile_context_limit(profile_id: &str, model: &str) ->
     }
 }
 
+/// Runtime env vars derived from an openai-compatible profile activation.
+///
+/// These are the process-env variables (the `JCODE_OPENROUTER_*` derived set,
+/// the named-profile lock guards, and the generic `JCODE_OPENAI_COMPAT_*`
+/// overrides) that represent *runtime* activation state rather than durable
+/// user configuration. Shared between [`apply_openai_compatible_profile_env_impl`]
+/// (which clears them before re-deriving from a profile) and
+/// [`clear_openai_compatible_runtime_env_keep_config`] (which clears only these
+/// process-env vars on logout / activation-failure rollback, leaving the env
+/// file's `JCODE_OPENAI_COMPAT_API_BASE` / `DEFAULT_MODEL` intact).
+const RUNTIME_OPENAI_COMPAT_ENV_VARS: &[&str] = &[
+    "JCODE_OPENROUTER_API_BASE",
+    "JCODE_OPENROUTER_API_KEY_NAME",
+    "JCODE_OPENROUTER_ENV_FILE",
+    "JCODE_OPENROUTER_CACHE_NAMESPACE",
+    "JCODE_OPENROUTER_PROVIDER_FEATURES",
+    "JCODE_OPENROUTER_ALLOW_NO_AUTH",
+    "JCODE_OPENROUTER_MODEL_CATALOG",
+    "JCODE_OPENROUTER_MODEL",
+    "JCODE_OPENROUTER_STATIC_MODELS",
+    "JCODE_OPENROUTER_AUTH_HEADER",
+    "JCODE_OPENROUTER_AUTH_HEADER_NAME",
+    "JCODE_OPENROUTER_DYNAMIC_BEARER_PROVIDER",
+    "JCODE_OPENROUTER_PROVIDER",
+    "JCODE_OPENROUTER_NO_FALLBACK",
+    "JCODE_NAMED_PROVIDER_PROFILE",
+    "JCODE_PROVIDER_PROFILE_ACTIVE",
+    "JCODE_PROVIDER_PROFILE_NAME",
+    // Generic openai-compatible overrides — must be cleared so
+    // switching from one openai-compatible provider to another
+    // does not carry over stale values.
+    "JCODE_OPENAI_COMPAT_API_BASE",
+    "JCODE_OPENAI_COMPAT_API_KEY_NAME",
+    "JCODE_OPENAI_COMPAT_ENV_FILE",
+    "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
+];
+
 pub fn apply_openai_compatible_profile_env(profile: Option<OpenAiCompatibleProfile>) {
     apply_openai_compatible_profile_env_impl(profile, true);
 }
 
 pub fn force_apply_openai_compatible_profile_env(profile: Option<OpenAiCompatibleProfile>) {
     apply_openai_compatible_profile_env_impl(profile, false);
+}
+
+/// Clear the openai-compatible *runtime* env vars from the process environment
+/// **without** rewriting the env file.
+///
+/// Unlike [`force_apply_openai_compatible_profile_env`]`(None)`, this leaves
+/// `JCODE_OPENAI_COMPAT_API_BASE` and `JCODE_OPENAI_COMPAT_DEFAULT_MODEL` in the
+/// env file untouched. Those are durable user configuration (the custom
+/// endpoint and model name), not credentials — they must survive a base-model
+/// logout so the user does not have to re-enter them after logging back in, and
+/// they must survive a startup activation rollback so a transient
+/// `set_model` failure does not wipe a working configuration on the next launch.
+///
+/// The API key itself (and the local-enabled flag) are removed from the env
+/// file separately by the caller; this function only drops the process-env
+/// runtime/override variables so the next activation starts from a clean
+/// runtime state.
+pub fn clear_openai_compatible_runtime_env_keep_config() {
+    for var in RUNTIME_OPENAI_COMPAT_ENV_VARS {
+        crate::env::remove_var(var);
+    }
 }
 
 fn apply_openai_compatible_profile_env_impl(
@@ -351,34 +409,7 @@ fn apply_openai_compatible_profile_env_impl(
         return;
     }
 
-    let vars = [
-        "JCODE_OPENROUTER_API_BASE",
-        "JCODE_OPENROUTER_API_KEY_NAME",
-        "JCODE_OPENROUTER_ENV_FILE",
-        "JCODE_OPENROUTER_CACHE_NAMESPACE",
-        "JCODE_OPENROUTER_PROVIDER_FEATURES",
-        "JCODE_OPENROUTER_ALLOW_NO_AUTH",
-        "JCODE_OPENROUTER_MODEL_CATALOG",
-        "JCODE_OPENROUTER_MODEL",
-        "JCODE_OPENROUTER_STATIC_MODELS",
-        "JCODE_OPENROUTER_AUTH_HEADER",
-        "JCODE_OPENROUTER_AUTH_HEADER_NAME",
-        "JCODE_OPENROUTER_DYNAMIC_BEARER_PROVIDER",
-        "JCODE_OPENROUTER_PROVIDER",
-        "JCODE_OPENROUTER_NO_FALLBACK",
-        "JCODE_NAMED_PROVIDER_PROFILE",
-        "JCODE_PROVIDER_PROFILE_ACTIVE",
-        "JCODE_PROVIDER_PROFILE_NAME",
-        // Generic openai-compatible overrides — must be cleared so
-        // switching from one openai-compatible provider to another
-        // does not carry over stale values.
-        "JCODE_OPENAI_COMPAT_API_BASE",
-        "JCODE_OPENAI_COMPAT_API_KEY_NAME",
-        "JCODE_OPENAI_COMPAT_ENV_FILE",
-        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
-    ];
-
-    for var in vars {
+    for var in RUNTIME_OPENAI_COMPAT_ENV_VARS {
         crate::env::remove_var(var);
     }
 
