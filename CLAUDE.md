@@ -349,3 +349,24 @@ Two production call sites used to wipe config via `force_apply_openai_compatible
 2. Cross-reference the `.env` mtime against `~/.saitec_tui/logs/jcode-<date>.log`. A `jcode starting` line at that exact second means the wipe happened during **startup** (→ `init_provider_with_options` / `try_activate_configured_base_model`); a `Logged out from` line means **logout** (→ `clear_openai_compatible_profile_credentials`); a `Hot-initialized ... after auth change` line means **auth-change reinit**.
 3. `jcode_version` in `ENV_SNAPSHOT` log lines tells you which commit the running binary was built from — if it does not include the fix commit, the user is running a stale binary (rebuild via `dev_saitec_tui.ps1`, which runs `cargo build --profile selfdev`).
 4. The fix function is `clear_openai_compatible_runtime_env_keep_config()` in `src/provider_catalog.rs` — grep for any remaining `force_apply_openai_compatible_profile_env(None)` / `apply_openai_compatible_profile_env(None)` in NON-test code; each such call site in a logout/startup/auth-change path is a candidate config-wipe bug.
+
+
+### AuthTest deadlocks via stale `auth-validation.json` record
+
+Symptom: user configures an openai-compatible provider (e.g. deepseek) successfully and can chat, but pressing `R` in the login picker shows `validation failed (just now)` with NO error detail visible in the picker. The actual failure cause lives in `~/.saitec_tui/auth-validation.json`.
+
+**Where the deadlock lives** (proven 2026-07-01, fixed in commit `b18a4c17`):
+- `src/auth/mod.rs:245` `state_for_provider` for `OpenAiCompatible` returns `Expired` whenever there is a stale `success: false` row in `auth-validation.json` for that provider_id — regardless of whether the env-file key is still present.
+- `src/cli/auth_test/probes.rs` (pre-fix) used `state_for_provider` for `credential_probe`, so an `Expired` result short-circuited the probe and made `report.success = false` before smoke even ran.
+- `src/cli/auth_test/run.rs:9` (`maybe_run_auth_test_smoke`) gates the smoke on `report.success`, so smoke was skipped entirely.
+- `populate_auth_test_target_report` then wrote the new failure back to `auth-validation.json` — locking the state in until the user manually deleted the file.
+
+**Why the picker label is uninformative**: `auth/validation.rs:40` `format_record_label` always renders failure as `"validation failed ({age})"`. The actual `record.summary` (e.g. `credential_probe: OpenAI-compatible auth status is expired (not configured).`) is not shown in the picker label — read `auth-validation.json` directly to see why.
+
+**Fix** (commit `b18a4c17`, file `src/cli/auth_test/probes.rs`): for `OpenAiCompatible` targets, `probe_generic_provider_auth` now bypasses the stale `Expired` status by checking `openai_compatible_profile_is_configured(profile)` directly (key still present on disk → credential is `Available`). The smoke then runs for real and either passes or surfaces a concrete HTTP error. Non-OpenAiCompatible targets still use `state_for_provider` unchanged.
+
+**Diagnostic method for "validation failed (just now)" on picker `R`**:
+1. **Read `~/.saitec_tui/auth-validation.json` first** — `summary` field tells you the precise failure (HTTP 401, model not supported, connection timeout, etc.). Do NOT trust the picker label alone.
+2. If `summary` starts with `credential_probe: ... auth status is expired (not configured)` — this is the deadlock above. With the fix (`b18a4c17`) it cannot recur. Without the fix (older binary), the recovery is `rm ~/.saitec_tui/auth-validation.json` then re-press `R`.
+3. If `summary` is `provider_smoke: ...`: the smoke actually ran and failed. Look at the trailing HTTP status / response body for the real cause (auth header, model name not accepted by the endpoint, TLS, etc.). Config + key are fine; the endpoint rejected something.
+4. If the file is missing entirely, the picker shows `not validated yet`; if the row exists with `success: true`, the picker shows `runtime + tool validated` / `runtime validated` per `format_record_label` (`auth/validation.rs:40`).
