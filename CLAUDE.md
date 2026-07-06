@@ -446,3 +446,23 @@ Even after all the above fixes, the `MultiProvider::model()` static-label and `c
 - **Do NOT** call `MultiProvider::set_active_provider(Claude)` in revalidate / `handle_notify_auth_changed` paths. The auto-detection is wrong; forcing Claude makes it worse. Fix #3 (preference flag) is the right place to fix this.
 - **Do NOT** silently swallow `OpenRouterProvider::new()` errors in `MultiProvider::on_auth_changed` (`src/provider/mod.rs:1397-1424`). If it fails, log loudly. Currently `MultiProvider.openrouter` is left as `Some(stale_provider)` with the wrong model; if the error is propagated, the caller can either retry or fall back to a known-good state.
 - **Do NOT** call `force_apply_openai_compatible_profile_env(None)` (full env file wipe) from any revalidate / restart / logout code path. Use `clear_openai_compatible_runtime_env_keep_config` for those (preserves the env file's `JCODE_OPENAI_COMPAT_DEFAULT_MODEL` so fix #4 has something to read).
+
+### Config.toml named provider: `JCODE_OPENROUTER_MODEL` symmetric cleanup
+
+The same class of bug (env cleared but not re-set) existed in `apply_named_provider_profile_env_from_config` (`src/provider_catalog.rs:475-619`, the config.toml `[providers.xxx]` path). When the user configured a named profile in config.toml without a `default_model`, `JCODE_OPENROUTER_MODEL` was not explicitly removed after the `apply_openai_compatible_profile_env(None)` clear, leaving a stale value from the previous provider.
+
+**Fix** (verified 2026-07-06, after commit `e05304a1`): line 531-540 — added an `else` branch that explicitly removes `JCODE_OPENROUTER_MODEL` when the config has no `default_model`. Mirrors the "re-set" in the generic path (fix #4 above) with a symmetric "clear cleanly" for the named-profile path.
+
+```rust
+if let Some(model) = profile.default_model.as_deref()... {
+    crate::env::set_var("JCODE_OPENROUTER_MODEL", model);
+} else {
+    crate::env::remove_var("JCODE_OPENROUTER_MODEL");
+}
+```
+
+**Tests**: `named_provider_profile_env_sets_model_when_default_model_configured` and `named_provider_profile_env_clears_model_when_default_model_missing` (in `provider_catalog_tests.rs`).
+
+**Diagnostic**: if a config-toml-based provider falls back to `"anthropic/claude-sonnet-4"`, check whether `default_model` is set in the config's `[providers.xxx]` section. If missing and `JCODE_OPENROUTER_MODEL` is absent from the process env, `OpenRouterProvider::new()` will use its hardcoded `DEFAULT_MODEL`.
+
+**Note**: other native providers (Claude, OpenAI native, Bedrock, Copilot, Cursor, Antigravity, Gemini) do NOT use the `apply_*_env` pattern and are NOT affected by this class of bug. Their `MultiProvider.model()` fallback strings (`"gpt-5.5"`, `"anthropic.claude-3-5-sonnet-20241022-v2:0"`, `"claude-sonnet-4"`, etc.) only fire when the sub-provider fails to construct — a fundamentally different failure mode.

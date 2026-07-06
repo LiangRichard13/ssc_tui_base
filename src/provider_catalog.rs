@@ -530,6 +530,15 @@ pub fn apply_named_provider_profile_env_from_config(
         .filter(|v| !v.is_empty())
     {
         crate::env::set_var("JCODE_OPENROUTER_MODEL", model);
+    } else {
+        // Config did not provide a default_model. apply_openai_compatible_profile_env(None)
+        // above already cleared JCODE_OPENROUTER_MODEL from the process env; explicitly
+        // remove it here so OpenRouterProvider::new() falls through to its
+        // autodetected_profile path (or DEFAULT_MODEL) rather than picking up a
+        // stale value from the previous provider. Mirrors commit e05304a1 which
+        // re-set the env in the generic openai-compatible path; this is the
+        // symmetric "clear cleanly" side for the named-profile path.
+        crate::env::remove_var("JCODE_OPENROUTER_MODEL");
     }
 
     let static_models = profile

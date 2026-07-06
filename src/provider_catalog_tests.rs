@@ -647,3 +647,70 @@ fn load_api_key_accepts_legacy_zai_key_name() {
         Some("legacy-secret")
     );
 }
+
+#[test]
+fn named_provider_profile_env_sets_model_when_default_model_configured() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&[
+        "JCODE_OPENROUTER_MODEL",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "MY_GATEWAY_API_KEY",
+    ]);
+
+    let cfg: crate::config::Config = toml::from_str(
+        r#"
+        [providers.my-gateway]
+        type = "openai-compatible"
+        base_url = "https://llm.example.com/v1/"
+        auth = "bearer"
+        api_key_env = "MY_GATEWAY_API_KEY"
+        default_model = "qwen/qwen3-32b"
+
+        [[providers.my-gateway.models]]
+        id = "qwen/qwen3-32b"
+        "#,
+    )
+    .expect("config should parse");
+
+    apply_named_provider_profile_env_from_config("my-gateway", &cfg).expect("apply profile");
+
+    assert_eq!(
+        std::env::var("JCODE_OPENROUTER_MODEL").ok().as_deref(),
+        Some("qwen/qwen3-32b"),
+        "JCODE_OPENROUTER_MODEL should be set from config's default_model"
+    );
+}
+
+#[test]
+fn named_provider_profile_env_clears_model_when_default_model_missing() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&[
+        "JCODE_OPENROUTER_MODEL",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "MY_GATEWAY_API_KEY",
+    ]);
+
+    crate::env::set_var("JCODE_OPENROUTER_MODEL", "stale/old-model");
+
+    let cfg: crate::config::Config = toml::from_str(
+        r#"
+        [providers.my-gateway]
+        type = "openai-compatible"
+        base_url = "https://llm.example.com/v1/"
+        auth = "bearer"
+        api_key_env = "MY_GATEWAY_API_KEY"
+
+        [[providers.my-gateway.models]]
+        id = "opaque/model@id"
+        "#,
+    )
+    .expect("config should parse");
+
+    apply_named_provider_profile_env_from_config("my-gateway", &cfg).expect("apply profile");
+
+    assert_eq!(
+        std::env::var("JCODE_OPENROUTER_MODEL").ok(),
+        None,
+        "JCODE_OPENROUTER_MODEL should be removed when config has no default_model"
+    );
+}
