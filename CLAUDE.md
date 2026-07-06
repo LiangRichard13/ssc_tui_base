@@ -370,3 +370,79 @@ Symptom: user configures an openai-compatible provider (e.g. deepseek) successfu
 2. If `summary` starts with `credential_probe: ... auth status is expired (not configured)` — this is the deadlock above. With the fix (`b18a4c17`) it cannot recur. Without the fix (older binary), the recovery is `rm ~/.saitec_tui/auth-validation.json` then re-press `R`.
 3. If `summary` is `provider_smoke: ...`: the smoke actually ran and failed. Look at the trailing HTTP status / response body for the real cause (auth header, model name not accepted by the endpoint, TLS, etc.). Config + key are fine; the endpoint rejected something.
 4. If the file is missing entirely, the picker shows `not validated yet`; if the row exists with `success: true`, the picker shows `runtime + tool validated` / `runtime validated` per `format_record_label` (`auth/validation.rs:40`).
+
+### OpenAI-compatible context window + revalidate: 200K fallback and `anthropic/claude-sonnet-4` regression
+
+Symptom (fixed 2026-07-06, commit `e05304a1`): user configures the generic `openai-compatible` profile (e.g. `api_base = https://api.deepseek.com`, `model = deepseek-v4-flash`) and can chat. After TUI restart or pressing `R` in the picker to revalidate, the right-side context bar drops to **200K** and requests fail with `400 Bad Request: The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed anthropic/claude-sonnet-4.`
+
+This single symptom had **four independent root causes**, all of which needed fixing to make restart + revalidate + logout/login actually preserve deepseek as the active configuration.
+
+#### 1. Hardcoded `"anthropic/claude-sonnet-4"` fallback in `MultiProvider.model()` / `context_window()`
+
+**Files**: `src/provider/mod.rs:732-735` (model) and `src/provider/mod.rs:1926-1929` (context_window).
+
+```rust
+ActiveProvider::OpenRouter => self
+    .openrouter_provider()
+    .map(|o| o.model())
+    .unwrap_or_else(|| "anthropic/claude-sonnet-4".to_string()),
+```
+
+When `MultiProvider.openrouter` is `None` (no sub-provider constructed) **or** the sub-provider's model is wrong, the hardcoded `"anthropic/claude-sonnet-4"` is returned. Same `unwrap_or(DEFAULT_CONTEXT_LIMIT)` returns **200K** for context_window. This string is also the value of `DEFAULT_MODEL` in `src/provider/openrouter.rs:63` — the same fallback fires inside `OpenRouterProvider::new()` when `JCODE_OPENROUTER_MODEL` env var is unset and `autodetected_openai_compatible_profile()` returns `None`.
+
+**Fix**: added an exact-match model→context table in `jcode-provider-core` (`OPENAI_COMPAT_MODEL_CONTEXT_LIMITS` in `crates/jcode-provider-core/src/models.rs:39-101`) covering DeepSeek, Kimi, GLM, Qwen. The function `openai_compatible_model_context_limit()` is now called from `context_limit_for_model_with_provider_and_cache` (`models.rs:247-249`) so **every provider** (including the inert client provider in self-dev mode) hits the table for common openai-compatible models. Without this, even the `InertRuntimeProvider.model()` = `"unknown"` path (used at startup before the first server event) has no chance of resolving to the right context window.
+
+#### 2. Server bootstrap env vars not set → `MultiProvider.openrouter = None`
+
+`new_with_auth_status` (`src/provider/startup.rs:50-247`) computes `has_openrouter_creds` from `active_compatible_profile`, which itself comes from `active_openai_compatible_profile_id()` — that function reads `JCODE_OPENROUTER_CACHE_NAMESPACE` / `JCODE_NAMED_PROVIDER_PROFILE` env vars. At server bootstrap **none** of these are set, so `active_compatible_profile = None` → `has_openrouter_creds = false` → `openrouter = None` in the resulting `MultiProvider`. Even if I forced `active = OpenRouter` (fix #3 below), the sub-provider doesn't exist → `model()` falls back to the hardcoded string.
+
+**Fix** (commit `e05304a1`, `src/provider/startup.rs:87-99`): at the start of `new_with_auth_status`, scan disk env files for any `openai_compatible_profile_is_configured` profile, and call `apply_openai_compatible_profile_env(Some(profile))` **before** the `active_compatible_profile` lookup. This sets `JCODE_OPENROUTER_CACHE_NAMESPACE` etc. on the process env so the rest of the function (and `OpenRouterProvider::new()` shortly after) all agree.
+
+#### 3. `auto_default_provider` priority ignored user's actual config
+
+`auto_default_provider` (`crates/jcode-provider-core/src/selection.rs:45`) returns `OpenRouter` only as a last-resort fallback (after OpenAI/Claude/Copilot/Antigravity/Gemini/Cursor/Bedrock). When the user has Claude credentials on disk (from a previous Anthropic login) **and** an openai-compatible profile configured (e.g. deepseek), Claude wins → `MultiProvider.active = Claude` → `MultiProvider.model()` returns the Claude sub-provider's default (`claude-opus-4-5-20251101`) — but actual API requests still go to deepseek because `complete_with_failover` falls through to the openai-compatible sub-provider. **The static label and the real routing model are decoupled**, which is the architectural cause of the 200K / wrong-model symptoms.
+
+**Fix** (commit `e05304a1`): added `prefer_openai_compatible: bool` parameter to `auto_default_provider`. When `true` (detected from the env-file scan in fix #2), it returns `OpenRouter` **before** OpenAI/Claude. Plumbed through `src/provider/selection.rs` and the two test call sites in `src/provider/tests/fallback_failover.rs`. **Trade-off**: if a user has both Claude and openai-compatible configured, this prefers openai-compatible. Acceptable in the common case; future-proof via step 2 below.
+
+#### 4. `JCODE_OPENROUTER_MODEL` cleared but never re-set by `apply_openai_compatible_profile_env_impl`
+
+`src/provider_catalog.rs:347-372` lists `JCODE_OPENROUTER_MODEL` in `RUNTIME_OPENAI_COMPAT_ENV_VARS`. `apply_openai_compatible_profile_env_impl` (`src/provider_catalog.rs:403-446`) clears that list, then re-sets `JCODE_OPENROUTER_API_BASE` / `API_KEY_NAME` / `ENV_FILE` / `CACHE_NAMESPACE` / `STATIC_MODELS` / `ALLOW_NO_AUTH` — but **never re-sets `JCODE_OPENROUTER_MODEL`**. Every call site that triggers this function (server bootstrap, revalidate via `apply_login_provider_profile_env` at `src/cli/auth_test/run.rs:125`, `MultiProvider::on_auth_changed` rebuild, logout/login) therefore wipes the user's chosen model from process env. The next `OpenRouterProvider::new()` then reads a missing `JCODE_OPENROUTER_MODEL`, finds `autodetected_profile = None` (because explicit runtime vars are now set), and falls back to `DEFAULT_MODEL = "anthropic/claude-sonnet-4"`. The newly-constructed OpenRouterProvider's `self.model` is the wrong string, and **subsequent server events carry it to the client**, triggering `update_context_limit_for_model("anthropic/claude-sonnet-4")` → 200K + 400 errors on every request.
+
+**Fix** (commit `e05304a1`, `src/provider_catalog.rs:444-450`): after the runtime env var assignments, also re-apply the persistent default model so `OpenRouterProvider::new()` always sees the correct model regardless of which caller invoked this function:
+
+```rust
+if let Some(model) = resolved.default_model {
+    crate::env::set_var("JCODE_OPENROUTER_MODEL", &model);
+}
+```
+
+`resolved.default_model` already reflects `JCODE_OPENAI_COMPAT_DEFAULT_MODEL` (read from env or env file at `provider_catalog.rs:75-77`), so it stays in sync with whatever the user actually configured.
+
+#### 5. Startup session has no model in self-dev mode
+
+In self-dev mode the TUI client uses `InertRuntimeProvider`, whose `model()` always returns `"unknown"` (`src/tui/app.rs:1022-1024`). Without `--resume`, `dev_saitec_tui.ps1` calls `new_minimal_with_session` with a fresh `Session::create(None, None)` → `session.model = None`. The startup-time `context_limit = provider.context_window()` therefore looks up `"unknown"` and gets 200K. Fix #1's mapping table catches this for known openai-compatible model names, but a fresh session has no model to pass at all.
+
+**Fix** (commit `e05304a1`, `src/tui/app/tui_lifecycle.rs:166-180`): after computing `context_limit`, if `provider.model() == "unknown"` and `session.model` is `Some(real_model)`, recompute with `context_limit_for_model_with_provider(session_model, Some(provider.name()))` so fix #1's table is hit on the freshly-resumed session.
+
+#### 6. Display formatting: `1000K` → `1M`
+
+Bonus fix (commit `e05304a1`, `src/tui/info_widget_usage.rs:321-329`): `format_token_k` for ≥ 1,000,000 tokens now renders `1M` (matches the convention used by the existing `format_tokens`). Test fixture updated in `src/tui/info_widget_tests.rs`.
+
+#### Architectural note: the static-label / real-routing decoupling is the root cause
+
+Even after all the above fixes, the `MultiProvider::model()` static-label and `complete_with_failover()` dynamic-routing remain architecturally decoupled. Step #4 (re-apply default_model as `JCODE_OPENROUTER_MODEL`) is the **practical resolution** because it makes the static label and the routing result converge at the env-var source. A future more architecturally clean fix would be to add a `MultiProvider::effective_provider_and_model()` dry-run that replays `fallback_sequence_for` without making a request, and use that for `ServerEvent::History.provider_model` / `context_window`. **This is not required for the current bug** but is the long-term fix for the same class of "label says X, routing does Y" issues. Track separately.
+
+#### Diagnostic method for "context stuck at 200K" or "model is anthropic/claude-sonnet-4"
+
+1. **Read `~/.saitec_tui/logs/jcode-<date>.log`** for the most recent `remote bootstrap` line — it prints the `model` field that `MultiProvider.model()` returned to the client at startup. If it's `claude-opus-4-5-20251101` instead of `deepseek-v4-flash`, you're seeing the static-label / real-routing decoupling.
+2. **`jcode_version` field in the `ENV_SNAPSHOT` log line** tells you which commit the running binary was built from. If it does not include `e05304a1` (or later), the user is running a stale binary.
+3. Check `JCODE_OPENROUTER_MODEL` in the process env (`Get-ChildItem Env:JCODE_OPENROUTER_MODEL` in pwsh). If it's missing while a `JCODE_OPENAI_COMPAT_DEFAULT_MODEL=...` is set in the env file, fix #4 was not applied or not active.
+4. `MultiProvider.openrouter` is `None` ⇒ fall back to the hardcoded `"anthropic/claude-sonnet-4"`. The `openrouter.is_some()` decision is logged at startup; cross-reference with the timing of fix #2's `apply_openai_compatible_profile_env` call.
+5. For follow-up failures: if the user re-logs in via `/login base-model` and the model **still** says claude, walk through fixes #4 → #3 → #2 → #1 in order. Each one is independently insufficient.
+
+#### Anti-patterns to avoid when touching this area
+
+- **Do NOT** add `JCODE_OPENROUTER_MODEL` to `RUNTIME_OPENAI_COMPAT_ENV_VARS` excludes in `provider_catalog.rs:347-372`. The "clear-then-set" pattern is correct; the bug was the missing **re-set** (fix #4), not the **clear**.
+- **Do NOT** call `MultiProvider::set_active_provider(Claude)` in revalidate / `handle_notify_auth_changed` paths. The auto-detection is wrong; forcing Claude makes it worse. Fix #3 (preference flag) is the right place to fix this.
+- **Do NOT** silently swallow `OpenRouterProvider::new()` errors in `MultiProvider::on_auth_changed` (`src/provider/mod.rs:1397-1424`). If it fails, log loudly. Currently `MultiProvider.openrouter` is left as `Some(stale_provider)` with the wrong model; if the error is propagated, the caller can either retry or fall back to a known-good state.
+- **Do NOT** call `force_apply_openai_compatible_profile_env(None)` (full env file wipe) from any revalidate / restart / logout code path. Use `clear_openai_compatible_runtime_env_keep_config` for those (preserves the env file's `JCODE_OPENAI_COMPAT_DEFAULT_MODEL` so fix #4 has something to read).
