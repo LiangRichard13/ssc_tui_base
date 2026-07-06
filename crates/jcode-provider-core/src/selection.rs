@@ -42,9 +42,18 @@ impl ProviderAvailability {
     }
 }
 
-pub fn auto_default_provider(availability: ProviderAvailability) -> ActiveProvider {
+pub fn auto_default_provider(
+    availability: ProviderAvailability,
+    prefer_openai_compatible: bool,
+) -> ActiveProvider {
     if availability.copilot_premium_zero && availability.copilot {
         ActiveProvider::Copilot
+    } else if prefer_openai_compatible && availability.openrouter {
+        // User has configured an openai-compatible provider with stored
+        // credentials and a model name.  Prefer OpenRouter over Claude/OpenAI
+        // on restart so the context window and model match the user's actual
+        // configuration, rather than a stale credential from another provider.
+        ActiveProvider::OpenRouter
     } else if availability.openai {
         ActiveProvider::OpenAI
     } else if availability.claude {
@@ -303,12 +312,15 @@ mod tests {
 
     #[test]
     fn auto_default_prefers_copilot_zero_mode() {
-        let provider = auto_default_provider(ProviderAvailability {
-            openai: true,
-            copilot: true,
-            copilot_premium_zero: true,
-            ..ProviderAvailability::default()
-        });
+        let provider = auto_default_provider(
+            ProviderAvailability {
+                openai: true,
+                copilot: true,
+                copilot_premium_zero: true,
+                ..ProviderAvailability::default()
+            },
+            false,
+        );
         assert_eq!(provider, ActiveProvider::Copilot);
     }
 

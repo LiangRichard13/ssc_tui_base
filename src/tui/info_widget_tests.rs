@@ -593,14 +593,15 @@ fn usage_bar_shows_centered_numeric_label_when_space_allows() {
     assert!(text.starts_with('['), "expected opening bracket: {text}");
     assert!(text.ends_with(']'), "expected closing bracket: {text}");
     assert!(
-        text.contains("200k/1000k"),
+        text.contains("200k/1M"),
         "expected inline usage label: {text}"
     );
 }
 
 #[test]
 fn usage_bar_omits_numeric_label_when_bar_too_narrow() {
-    let line = super::render_usage_bar(200_000, 1_000_000, 10);
+    // "200k/1M" is 7 chars wide — use width 6 to force plain fill
+    let line = super::render_usage_bar(200_000, 1_000_000, 6);
     let text: String = line
         .spans
         .iter()
@@ -608,7 +609,7 @@ fn usage_bar_omits_numeric_label_when_bar_too_narrow() {
         .collect();
 
     assert!(
-        !text.contains("200k/1000k"),
+        !text.contains("200k"),
         "narrow bar should fall back to plain fill: {text}"
     );
 }

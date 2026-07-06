@@ -194,6 +194,49 @@ fn matrix_cli_login_selection_preserves_existing_order() {
 }
 
 #[test]
+fn openai_compatible_profile_context_limit_falls_back_to_exact_match_table() {
+    // Generic "openai-compatible" profile with known model → found in table
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "deepseek-v4-flash"),
+        Some(1_000_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "glm-4.5-air"),
+        Some(128_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "kimi-k2.6"),
+        Some(256_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "qwen3.7-max"),
+        Some(1_000_000)
+    );
+
+    // Generic profile with unknown model → None (triggers 200K fallback)
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "unknown-model"),
+        None
+    );
+
+    // Named profile (e.g., Z.AI) with known model also benefits from table
+    assert_eq!(
+        openai_compatible_profile_context_limit("zai", "glm-4.5-air"),
+        Some(128_000)
+    );
+
+    // "deepseek" profile's prefix match still works
+    assert_eq!(
+        openai_compatible_profile_context_limit("deepseek", "deepseek-v4-flash"),
+        Some(1_000_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("deepseek", "deepseek-v4-pro"),
+        Some(1_000_000)
+    );
+}
+
+#[test]
 fn matrix_openrouter_like_sources_include_all_static_profiles() {
     let _lock = crate::storage::lock_test_env();
     let guard = EnvGuard::save(&[

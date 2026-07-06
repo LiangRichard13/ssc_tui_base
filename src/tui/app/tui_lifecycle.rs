@@ -163,7 +163,20 @@ impl App {
         let autojudge_enabled = session
             .autojudge_enabled
             .unwrap_or(config().autojudge.enabled);
-        let context_limit = provider.context_window() as u64;
+        let mut context_limit = provider.context_window() as u64;
+        // InertRuntimeProvider always returns model() = "unknown". If the
+        // session has a stored model (from a previous run), recalculate using
+        // that model so the mapping table is hit on restart.
+        if provider.model() == "unknown"
+            && let Some(ref session_model) = session.model
+            && *session_model != "unknown"
+        {
+            context_limit = crate::provider::context_limit_for_model_with_provider(
+                session_model,
+                Some(provider.name()),
+            )
+            .unwrap_or(crate::provider::DEFAULT_CONTEXT_LIMIT) as u64;
+        }
         let mut runtime_memory_log = if crate::runtime_memory_log::client_logging_enabled() {
             Some(crate::runtime_memory_log::RuntimeMemoryLogController::new(
                 crate::runtime_memory_log::client_logging_config(),

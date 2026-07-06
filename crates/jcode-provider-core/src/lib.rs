@@ -19,9 +19,12 @@ pub use failover::{
 };
 pub use models::{
     ALL_CLAUDE_MODELS, ALL_OPENAI_MODELS, DEFAULT_CONTEXT_LIMIT, ModelCapabilities,
+    OPENAI_COMPAT_MODEL_CONTEXT_LIMITS,
     context_limit_for_model, context_limit_for_model_with_provider,
-    context_limit_for_model_with_provider_and_cache, is_listable_model_name,
-    normalize_copilot_model_name, provider_for_model as core_provider_for_model,
+    context_limit_for_model_with_provider_and_cache,
+    is_listable_model_name, normalize_copilot_model_name,
+    openai_compatible_model_context_limit,
+    provider_for_model as core_provider_for_model,
     provider_for_model_with_hint as core_provider_for_model_with_hint, provider_key_from_hint,
 };
 pub use selection::{

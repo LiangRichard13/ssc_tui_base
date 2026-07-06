@@ -327,11 +327,10 @@ pub fn openai_compatible_profile_context_limit(profile_id: &str, model: &str) ->
     let model = model.trim().to_ascii_lowercase();
 
     match profile_id.as_str() {
-        // DeepSeek V4 direct API models advertise a 1M token context window. The
-        // direct profile runs through the OpenRouter/OpenAI-compatible provider
-        // implementation, whose live catalog can be unavailable during startup.
         "deepseek" if model.starts_with("deepseek-v4-") => Some(1_000_000),
-        _ => None,
+        // For all other profiles (including generic "openai-compatible"),
+        // fall back to the exact-match table.
+        _ => openai_compatible_model_context_limit(&model),
     }
 }
 
@@ -442,6 +441,14 @@ fn apply_openai_compatible_profile_env_impl(
             crate::env::remove_var("JCODE_OPENROUTER_ALLOW_NO_AUTH");
         } else {
             crate::env::set_var("JCODE_OPENROUTER_ALLOW_NO_AUTH", "1");
+        }
+        // Re-apply the persistent default model so OpenRouterProvider::new()
+        // (at bootstrap, after revalidate, after notify_auth_changed, etc.)
+        // always sees the correct model instead of falling back to
+        // DEFAULT_MODEL = "anthropic/claude-sonnet-4" when this function
+        // clears the env vars above.
+        if let Some(model) = resolved.default_model {
+            crate::env::set_var("JCODE_OPENROUTER_MODEL", &model);
         }
     }
 }

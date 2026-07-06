@@ -859,17 +859,30 @@ impl Provider for OpenRouterProvider {
 
     fn context_window(&self) -> usize {
         let model_id = self.model();
-        // Try cached model data from OpenRouter API
+        // Try cached model data from OpenRouter API.  A cached value equal to
+        // the project fallback (`DEFAULT_CONTEXT_LIMIT`) is suspicious: it may
+        // be a stale entry from a different provider, or a placeholder the
+        // /models endpoint returned.  Skip it so the exact-match table below
+        // can take over for known openai-compatible models.
         let cache = self.models_cache.try_read();
         if let Ok(cache) = cache
             && let Some(model) = cache.models.iter().find(|m| m.id == model_id)
             && let Some(ctx) = model.context_length
+            && ctx as usize != crate::provider::DEFAULT_CONTEXT_LIMIT
         {
             return ctx as usize;
         }
         let normalized_model_id = model_id.trim().to_ascii_lowercase();
         if let Some(limit) = self.static_context_limits.get(&normalized_model_id) {
             return *limit;
+        }
+        // Exact-match table for known openai-compatible models.  Runs
+        // independent of `profile_id`, so the generic "openai-compatible"
+        // profile (where `profile_id` is None) benefits too.
+        if let Some(limit) =
+            crate::provider_catalog::openai_compatible_model_context_limit(&model_id)
+        {
+            return limit;
         }
         if let Some(profile_id) = self.profile_id.as_deref()
             && let Some(limit) = crate::provider_catalog::openai_compatible_profile_context_limit(
