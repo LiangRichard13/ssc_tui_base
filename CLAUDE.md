@@ -213,18 +213,17 @@ When switching between openai-compatible providers, all four vars are cleared fr
 ## SAITEC Credential Storage
 
 - **`~/.saitec_tui/auth.json`** — main session file (`SaitecSession` struct with `api_key`, `auth_token`, `user_id`, `email`, `display_name`, `api_key_id`, etc.)
-- **`~/.saitec_tui/saitec.env`** — env bridge file, stores `SAITEC_API_KEY=<key>` for MCP subprocess injection
-- **`~/.saitec_tui/mcp.json`** — MCP server config (Python command + args, no API key persisted on disk)
-- API key flows to MCP via `runtime_api_key()` (`src/saitec/mcp.rs:113`): reads `configured_api_key()` (from `saitec.env`) first, falls back to `load_session()` (from `auth.json`)
+- **`~/.saitec_tui/saitec.env`** — env bridge file, stores `SAITEC_API_KEY=<key>` for runtime credential injection
+- **`~/.saitec_tui/mcp.json`** — MCP server config (HTTP transport: `{type: "http", url, headers}`; no API key persisted on disk, only in-memory via `apply_runtime_env()`)
+- API key flows to MCP via `runtime_api_key()` (`src/saitec/mcp.rs:113`): reads `configured_api_key()` (from `saitec.env`) first, falls back to `load_session()` (from `auth.json`). Applied as `X-API-Key` header in `apply_runtime_env()`.
 - `clear_session()` on logout: deletes `auth.json`, clears `SAITEC_API_KEY` from `saitec.env`, removes process env var
 
 ## SAITEC Platform Integration
 
-- SAITEC-Skills MCP service handles detection/evaluation task dispatch
-- Skills stored in `SAITEC-Skills/` (external resource directory, resolved at runtime from `_vendor/`, `resources/`, or `SAITEC_SKILLS_ROOT` env var)
+- SAITEC-Skills MCP service (public HTTP at `DEFAULT_SAITEC_MCP_URL`, defined in `src/saitec/auth.rs`, overridable via `SAITEC_MCP_URL` env var) handles detection/evaluation task dispatch. Authentication is via the `X-API-Key` header injected at every config load by `apply_runtime_env()`.
 - Task flow: upload file → get `storage_uri` → create task → poll → download results
 - Default API endpoints: `http://101.133.153.37:8080` (overridable via `CORE_API_BASE`, `SAITEC_AUTH_BASE`, `SAITEC_API_BASE` env vars)
-- **MCP Lifecycle Sync** (`src/saitec/mcp.rs`): SAITEC-Skills MCP server is automatically reconnected on SAITEC login (`reconnect_saitec_mcp()`) and disconnected on SAITEC logout (`disconnect_saitec_mcp()`). This ensures the MCP subprocess always has the current API key without manual restart.
+- **MCP Lifecycle Sync** (`src/saitec/mcp.rs`): SAITEC-Skills MCP server is automatically reconnected on SAITEC login (`reconnect_saitec_mcp()`) and disconnected on SAITEC logout (`disconnect_saitec_mcp()`). This ensures the HTTP transport always has the current API key without manual restart.
   - `reconnect_saitec_mcp()` — disconnects existing server, loads fresh `McpConfig` (triggers `apply_runtime_env` with current credentials), reconnects via `SharedMcpPool`
   - `disconnect_saitec_mcp()` — disconnects server from shared pool, logs the action
 
@@ -236,15 +235,13 @@ When switching between openai-compatible providers, all four vars are cleared fr
 
 ## Project Memory
 
-### SAITEC-Skills vendor sync
+### SAITEC-Skills HTTP transport (no local vendor)
 
-`_vendor/SAITEC-Skills/` is a manually maintained git-tracked vendor copy (bundled by `package_saitec.ps1` & `release.yml`).
+`_vendor/SAITEC-Skills/` is no longer vendored. The SAITEC-Skills MCP server runs as a public HTTP service at `DEFAULT_SAITEC_MCP_URL` (`src/saitec/auth.rs`, overridable via `SAITEC_MCP_URL` env var), authenticated via the `X-API-Key` header. The `McpTransport::Http` transport is selected by `{type: "http", url, headers}` in `~/.saitec_tui/mcp.json`.
 
-**Key facts**: SAITEC-TUI adds two helper modules upstream lacks: `auth_headers.py` (auth.json fallback) and `http_errors.py` (richer error body). Every `*_tools.py` imports both. `tests/` is vendor-only; upstream has `test_data/`.
-
-**Sync**: clone upstream at `C:\Users\Administrator\Desktop\projects\SAITEC-Skills`. Per file: read upstream → read vendor → selectively copy. Translate `resp.raise_for_status()` → `raise_for_status_with_body(resp)`. Port: 8080. Verify: `python -m py_compile` on all .py files, `cargo check`, `diff -rq` for expected diffs only.
-
-**Anti-patterns**: DO NOT `cp -f` (loses helper imports). DO NOT delete `auth_headers.py`/`http_errors.py`. DO NOT trust first read — diff explicitly. DO NOT make `"""..."""` spanning edits.
+**Updating MCP tools**: changes happen in-place on the public HTTP server. No sync step required.
+**Security**: the endpoint is gated by per-user SAITEC API keys. Anti-distillation controls (rate limits, output validation) live on the server.
+**Transport**: `MessageTransport` trait with two impls (`StdioMessageTransport` + `HttpMessageTransport`). Dispatched by `transport_for()` in `src/mcp/transport.rs`. The public surface (`McpHandle::request`, `call_tool`, `refresh_tools`) remains unchanged for callers.
 
 ### OpenAI-compatible: config vs credentials env hygiene
 
