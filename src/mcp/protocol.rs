@@ -166,14 +166,38 @@ pub struct ResourceContent {
     pub blob: Option<String>,
 }
 
+/// MCP transport — how messages are exchanged with the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum McpTransport {
+    /// Spawn `command` as a subprocess; exchange JSON-RPC over its stdio.
+    #[default]
+    Stdio,
+    /// Stream JSON-RPC to `{url}` over HTTP(S); response is JSON or SSE.
+    Http,
+}
+
 /// MCP server configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct McpServerConfig {
+    /// Transport selection. Stdio by default; legacy configs without a
+    /// `type` field continue to be treated as stdio for back-compat.
+    #[serde(default, rename = "type")]
+    pub transport: McpTransport,
+    /// Stdio transport fields. Required when `transport = "stdio"`,
+    /// ignored otherwise.
+    #[serde(default)]
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
+    /// HTTP transport fields. Required when `transport = "http"`,
+    /// ignored otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub headers: std::collections::HashMap<String, String>,
     /// Whether this server can be shared across sessions (default: true).
     /// Stateless API wrappers (Todoist, Canvas) should be shared.
     /// Stateful servers (Playwright browser) should not be shared.
@@ -316,6 +340,9 @@ impl McpConfig {
                             args,
                             env,
                             shared,
+                            transport: crate::mcp::McpTransport::Stdio,
+                            url: None,
+                            headers: Default::default(),
                         },
                     );
                 }

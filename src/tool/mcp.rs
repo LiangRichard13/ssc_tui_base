@@ -162,6 +162,9 @@ impl McpManagementTool {
             args: params.args.unwrap_or_default(),
             env: params.env.unwrap_or_default(),
             shared: true,
+            transport: crate::mcp::McpTransport::Stdio,
+            url: None,
+            headers: Default::default(),
         };
 
         let manager = self.manager.read().await;

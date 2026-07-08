@@ -389,3 +389,31 @@ fn test_initialize_result() {
     assert_eq!(result.protocol_version, "2024-11-05");
     assert!(result.server_info.is_some());
 }
+
+#[test]
+fn http_server_config_deserializes_with_url_and_headers() {
+    let json = r#"{
+        "type": "http",
+        "url": "http://example.com/mcp",
+        "headers": {"X-API-Key": "sk-test"},
+        "shared": true
+    }"#;
+    let cfg: McpServerConfig = serde_json::from_str(json).expect("http cfg should parse");
+    assert_eq!(cfg.transport, McpTransport::Http);
+    assert_eq!(cfg.url.as_deref(), Some("http://example.com/mcp"));
+    assert_eq!(
+        cfg.headers.get("X-API-Key").map(String::as_str),
+        Some("sk-test")
+    );
+    assert!(cfg.shared);
+}
+
+#[test]
+fn stdio_server_config_defaults_to_stdio_transport() {
+    let json = r#"{"command": "python", "args": ["server.py"]}"#;
+    let cfg: McpServerConfig = serde_json::from_str(json).expect("stdio cfg should parse");
+    assert_eq!(cfg.transport, McpTransport::Stdio);
+    assert_eq!(cfg.command, "python");
+    assert!(cfg.url.is_none());
+    assert!(cfg.headers.is_empty());
+}

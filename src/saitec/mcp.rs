@@ -70,6 +70,9 @@ pub fn ensure_bootstrap() -> Result<()> {
                     args: desired_args,
                     env: desired_env,
                     shared: true,
+                    transport: crate::mcp::McpTransport::Stdio,
+                    url: None,
+                    headers: Default::default(),
                 },
             );
             changed = true;
