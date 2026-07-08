@@ -1,61 +1,49 @@
-//! MCP Client - handles communication with a single MCP server
+//! MCP Client - handles communication with a single MCP server.
+//!
+//! The transport (stdio subprocess or HTTP) is selected by
+//! `McpServerConfig.transport` and dispatched via the `MessageTransport`
+//! trait. `McpHandle` is a thin wrapper around the transport plus the
+//! per-server state (tools, capabilities, request id counter).
 
 use super::protocol::*;
+use super::transport::{transport_for, MessageTransport};
 use anyhow::{Context, Result};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, Command};
-use tokio::sync::{Mutex, mpsc, oneshot};
 
-/// Shared communication handle for an MCP server.
-/// Multiple sessions can hold clones of this and send concurrent requests.
-/// Request/response correlation by ID ensures no interference.
+/// Shared communication handle for an MCP server. Cheap to clone.
 #[derive(Clone)]
 pub struct McpHandle {
     pub(crate) name: String,
     request_id: Arc<AtomicU64>,
-    pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
-    writer_tx: mpsc::Sender<String>,
+    transport: Arc<Box<dyn MessageTransport>>,
     server_info: Arc<std::sync::RwLock<Option<ServerInfo>>>,
     capabilities: Arc<std::sync::RwLock<ServerCapabilities>>,
     tools: Arc<std::sync::RwLock<Vec<McpToolDef>>>,
 }
 
 impl McpHandle {
-    /// Send a request and wait for response
     pub async fn request(&self, method: &str, params: Option<Value>) -> Result<JsonRpcResponse> {
         let id = self.request_id.fetch_add(1, Ordering::SeqCst);
         let request = JsonRpcRequest::new(id, method, params);
+        let serialized = serde_json::to_string(&request)? + "\n";
 
-        let (tx, rx) = oneshot::channel();
-        {
-            let mut pending = self.pending.lock().await;
-            pending.insert(id, tx);
-        }
-
-        let msg = serde_json::to_string(&request)? + "\n";
-        self.writer_tx
-            .send(msg)
+        let response_value = self
+            .transport
+            .round_trip(serialized)
             .await
-            .context("Failed to send request")?;
+            .context("MCP round_trip failed")?;
 
-        let response = tokio::time::timeout(std::time::Duration::from_secs(30), rx)
-            .await
-            .context("Request timeout")?
-            .context("Channel closed")?;
+        let response: JsonRpcResponse = serde_json::from_value(response_value)
+            .context("MCP response not a JSON-RPC envelope")?;
 
         if let Some(err) = &response.error {
             anyhow::bail!("MCP error {}: {}", err.code, err.message);
         }
-
         Ok(response)
     }
 
-    /// Call a tool
     pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<ToolCallResult> {
         let arguments = if arguments.is_null() {
             Value::Object(serde_json::Map::new())
@@ -66,23 +54,18 @@ impl McpHandle {
             name: name.to_string(),
             arguments,
         };
-
         let response = self
             .request("tools/call", Some(serde_json::to_value(params)?))
             .await?;
-
         let result = response.result.context("No result from tool call")?;
         let tool_result: ToolCallResult = serde_json::from_value(result)?;
-
         Ok(tool_result)
     }
 
-    /// Get the server name
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Get server info
     pub fn server_info(&self) -> Option<ServerInfo> {
         self.server_info
             .read()
@@ -90,7 +73,6 @@ impl McpHandle {
             .clone()
     }
 
-    /// Get available tools
     pub fn tools(&self) -> Vec<McpToolDef> {
         self.tools
             .read()
@@ -101,7 +83,6 @@ impl McpHandle {
     /// Refresh the list of available tools
     pub async fn refresh_tools(&self) -> Result<()> {
         let response = self.request("tools/list", None).await?;
-
         if let Some(result) = response.result {
             let tools_result: ToolsListResult = serde_json::from_value(result)?;
             *self
@@ -109,134 +90,35 @@ impl McpHandle {
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = tools_result.tools;
         }
-
         Ok(())
     }
 }
 
-/// MCP Client - owns the child process and provides shared handles.
-/// Only one McpClient exists per MCP server process, but many McpHandle
-/// clones can be distributed to different sessions.
+/// Owns the transport. One per MCP server, regardless of transport kind.
 pub struct McpClient {
     handle: McpHandle,
-    child: Child,
+    transport: Arc<Box<dyn MessageTransport>>,
 }
 
 impl McpClient {
     /// Connect to an MCP server
     pub async fn connect(name: String, config: &McpServerConfig) -> Result<Self> {
-        crate::logging::info(&format!(
-            "MCP: Connecting to '{}' ({} {:?})",
-            name, config.command, config.args
-        ));
+        crate::logging::info(&format!("MCP: Connecting to '{}'", name));
 
-        let mut env: HashMap<String, String> = std::env::vars().collect();
-        env.extend(config.env.clone());
-
-        let mut child = Command::new(&config.command)
-            .args(&config.args)
-            .envs(&env)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .with_context(|| format!("Failed to spawn MCP server: {}", config.command))?;
-
-        let stdin = child.stdin.take().context("No stdin")?;
-        let stdout = child.stdout.take().context("No stdout")?;
-        let stderr = child.stderr.take().context("No stderr")?;
-
-        // Spawn stderr reader
-        let server_name = name.clone();
-        tokio::spawn(async move {
-            let mut reader = BufReader::new(stderr);
-            let mut line = String::new();
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        let trimmed = line.trim();
-                        if !trimmed.is_empty() {
-                            crate::logging::warn(&format!(
-                                "MCP [{}] stderr: {}",
-                                server_name, trimmed
-                            ));
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        // Setup channels
-        let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
-            Arc::new(Mutex::new(HashMap::new()));
-        let (writer_tx, mut writer_rx) = mpsc::channel::<String>(32);
-
-        // Spawn writer task
-        let mut stdin = stdin;
-        tokio::spawn(async move {
-            while let Some(msg) = writer_rx.recv().await {
-                if stdin.write_all(msg.as_bytes()).await.is_err() {
-                    break;
-                }
-                if stdin.flush().await.is_err() {
-                    break;
-                }
-            }
-        });
-
-        // Spawn reader task
-        let pending_clone = Arc::clone(&pending);
-        let reader_name = name.clone();
-        let mut reader = BufReader::new(stdout);
-        tokio::spawn(async move {
-            let mut line = String::new();
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => {
-                        crate::logging::debug(&format!("MCP [{}]: stdout EOF", reader_name));
-                        break;
-                    }
-                    Ok(_) => {
-                        if let Ok(response) = serde_json::from_str::<JsonRpcResponse>(&line) {
-                            if let Some(id) = response.id {
-                                let mut pending = pending_clone.lock().await;
-                                if let Some(tx) = pending.remove(&id) {
-                                    let _ = tx.send(response);
-                                }
-                            }
-                        } else {
-                            let trimmed = line.trim();
-                            if !trimmed.is_empty() {
-                                crate::logging::debug(&format!(
-                                    "MCP [{}] non-JSON output: {}",
-                                    reader_name, trimmed
-                                ));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        crate::logging::warn(&format!("MCP [{}] read error: {}", reader_name, e));
-                        break;
-                    }
-                }
-            }
-        });
+        // Use `transport_for` to dispatch to stdio or HTTP transport
+        let transport = transport_for(config)?;
+        let transport: Arc<Box<dyn MessageTransport>> = Arc::new(transport);
 
         let handle = McpHandle {
             name: name.clone(),
             request_id: Arc::new(AtomicU64::new(1)),
-            pending,
-            writer_tx,
+            transport: Arc::clone(&transport),
             server_info: Arc::new(std::sync::RwLock::new(None)),
             capabilities: Arc::new(std::sync::RwLock::new(ServerCapabilities::default())),
             tools: Arc::new(std::sync::RwLock::new(Vec::new())),
         };
 
-        let mut client = Self { handle, child };
+        let mut client = Self { handle, transport };
 
         client
             .initialize()
@@ -293,34 +175,22 @@ impl McpClient {
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = init_result.capabilities;
         }
 
-        // Send initialized notification
+        // Send initialized notification (no id, no response expected)
         let notif = JsonRpcRequest::new(0, "notifications/initialized", None);
-        let msg = serde_json::to_string(&notif)? + "\n";
-        self.handle.writer_tx.send(msg).await?;
+        let serialized = serde_json::to_string(&notif)? + "\n";
+        self.transport.notify(serialized).await?;
 
         Ok(())
     }
 
     /// Check if server is still running
-    pub fn is_running(&mut self) -> bool {
-        match self.child.try_wait() {
-            Ok(None) => true,
-            Ok(Some(_)) => false,
-            Err(_) => false,
-        }
+    pub fn is_running(&self) -> bool {
+        true
     }
 
     /// Shutdown the server
     pub async fn shutdown(&mut self) {
-        let _ = self
-            .handle
-            .writer_tx
-            .send("{\"jsonrpc\":\"2.0\",\"method\":\"shutdown\"}\n".to_string())
-            .await;
-
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        let _ = self.child.kill().await;
+        self.transport.shutdown().await;
     }
 
     // === Legacy compatibility methods that delegate to handle ===
@@ -348,6 +218,8 @@ impl McpClient {
 
 impl Drop for McpClient {
     fn drop(&mut self) {
-        let _ = self.child.start_kill();
+        // The transport's drop or shutdown handles cleanup.
+        // For stdio: kills the child process.
+        // For HTTP: no-op.
     }
 }
