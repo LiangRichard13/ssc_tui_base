@@ -26,26 +26,14 @@ fn sample_saitec_session(api_key: &str) -> crate::saitec::auth::SaitecSession {
 }
 
 #[test]
-fn test_saitec_mcp_load_injects_saved_session_runtime_env_without_persisting_secret() {
+fn test_saitec_mcp_load_injects_saved_session_runtime_header_without_persisting_secret() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
     let prev_api_key = std::env::var_os("SAITEC_API_KEY");
-    let prev_core_api_base = std::env::var_os("CORE_API_BASE");
-    let prev_saitec_api_base = std::env::var_os("SAITEC_API_BASE");
-    let prev_auth_base = std::env::var_os("SAITEC_AUTH_BASE");
 
     let temp = tempfile::TempDir::new().unwrap();
-    let skills_root = temp.path().join("vendored-skills");
-    let server_dir = skills_root.join("mcp_server");
-    std::fs::create_dir_all(&server_dir).unwrap();
-    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
-    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
     crate::env::remove_var("SAITEC_API_KEY");
-    crate::env::remove_var("CORE_API_BASE");
-    crate::env::remove_var("SAITEC_API_BASE");
-    crate::env::remove_var("SAITEC_AUTH_BASE");
 
     let auth_path = crate::saitec::paths::auth_file().unwrap();
     crate::storage::write_json_secret(&auth_path, &sample_saitec_session("sk-session-only"))
@@ -53,14 +41,13 @@ fn test_saitec_mcp_load_injects_saved_session_runtime_env_without_persisting_sec
 
     let config = McpConfig::load();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(saitec.transport, McpTransport::Http);
     assert_eq!(
-        saitec.env.get("SAITEC_API_KEY").map(String::as_str),
+        saitec.headers.get("X-API-Key").map(String::as_str),
         Some("sk-session-only")
     );
-    assert_eq!(
-        saitec.env.get("CORE_API_BASE").map(String::as_str),
-        Some(crate::saitec::auth::DEFAULT_CORE_API_BASE)
-    );
+    let url = saitec.url.as_deref().expect("http url must be set");
+    assert!(url.ends_with("/mcp"), "url should end in /mcp, got {url}");
 
     let mcp_path = temp
         .path()
@@ -74,25 +61,18 @@ fn test_saitec_mcp_load_injects_saved_session_runtime_env_without_persisting_sec
     );
 
     restore_env_var("JCODE_HOME", prev_home);
-    restore_env_var("SAITEC_SKILLS_ROOT", prev_skills_root);
     restore_env_var("SAITEC_API_KEY", prev_api_key);
-    restore_env_var("CORE_API_BASE", prev_core_api_base);
-    restore_env_var("SAITEC_API_BASE", prev_saitec_api_base);
-    restore_env_var("SAITEC_AUTH_BASE", prev_auth_base);
 }
 
 #[test]
-fn test_saitec_bootstrap_creates_missing_mcp_config() {
+fn test_saitec_bootstrap_creates_http_entry_when_no_mcp_config() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let prev_api_key = std::env::var_os("SAITEC_API_KEY");
+
     let temp = tempfile::TempDir::new().unwrap();
-    let skills_root = temp.path().join("vendored-skills");
-    let server_dir = skills_root.join("mcp_server");
-    std::fs::create_dir_all(&server_dir).unwrap();
-    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
-    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+    crate::env::set_var("SAITEC_API_KEY", "sk-bootstrap");
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
@@ -104,48 +84,26 @@ fn test_saitec_bootstrap_creates_missing_mcp_config() {
     assert!(mcp_path.exists(), "expected bootstrap to create mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
-    assert_eq!(saitec.command, "python");
-    assert_eq!(
-        saitec.args,
-        vec![server_dir.join("server.py").display().to_string()]
+    assert_eq!(saitec.transport, McpTransport::Http);
+    assert!(
+        saitec.headers.get("X-API-Key").is_none(),
+        "API key must not be persisted in mcp.json"
     );
-    assert_eq!(
-        saitec.env.get("PYTHONIOENCODING"),
-        Some(&"utf-8".to_string())
-    );
+    assert!(saitec.url.as_deref().unwrap().ends_with("/mcp"));
 
-    if let Some(prev_home) = prev_home {
-        crate::env::set_var("JCODE_HOME", prev_home);
-    } else {
-        crate::env::remove_var("JCODE_HOME");
-    }
-    if let Some(prev_skills_root) = prev_skills_root {
-        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
-    } else {
-        crate::env::remove_var("SAITEC_SKILLS_ROOT");
-    }
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("SAITEC_API_KEY", prev_api_key);
 }
 
 #[test]
-fn test_saitec_bootstrap_prefers_private_installed_mcp_resources() {
+fn test_saitec_bootstrap_writes_http_entry_unaffected_by_disk_layout() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
-    let prev_local_appdata = std::env::var_os("LOCALAPPDATA");
-    let temp = tempfile::TempDir::new().unwrap();
-    let local_appdata = temp.path().join("local-appdata");
-    let private_skills_root = local_appdata
-        .join("saitec-tui")
-        .join("resources")
-        .join(".saitec-mcp")
-        .join("SAITEC-Skills");
-    let server_dir = private_skills_root.join("mcp_server");
-    std::fs::create_dir_all(&server_dir).unwrap();
-    std::fs::write(server_dir.join("server.py"), "print('private saitec')\n").unwrap();
+    let prev_api_key = std::env::var_os("SAITEC_API_KEY");
 
+    let temp = tempfile::TempDir::new().unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
-    crate::env::remove_var("SAITEC_SKILLS_ROOT");
-    crate::env::set_var("LOCALAPPDATA", &local_appdata);
+    crate::env::set_var("SAITEC_API_KEY", "sk-direct");
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
@@ -156,31 +114,26 @@ fn test_saitec_bootstrap_prefers_private_installed_mcp_resources() {
         .join("mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
-    assert_eq!(
-        saitec.args,
-        vec![server_dir.join("server.py").display().to_string()]
+    assert_eq!(saitec.transport, McpTransport::Http);
+    assert!(
+        saitec.headers.get("X-API-Key").is_none(),
+        "API key must not be persisted in mcp.json"
     );
+    assert!(saitec.url.as_deref().unwrap().ends_with("/mcp"));
 
     restore_env_var("JCODE_HOME", prev_home);
-    restore_env_var("SAITEC_SKILLS_ROOT", prev_skills_root);
-    restore_env_var("LOCALAPPDATA", prev_local_appdata);
+    restore_env_var("SAITEC_API_KEY", prev_api_key);
 }
 
 #[test]
-fn test_saitec_bootstrap_preserves_existing_servers_and_refreshes_saitec_entry() {
+fn test_saitec_bootstrap_migrates_existing_stdio_entry_to_http() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
-    let prev_saitec_python = std::env::var_os("SAITEC_TUI_PYTHON");
+    let prev_api_key = std::env::var_os("SAITEC_API_KEY");
+
     let temp = tempfile::TempDir::new().unwrap();
-    let skills_root = temp.path().join("vendored-skills");
-    let server_dir = skills_root.join("mcp_server");
-    std::fs::create_dir_all(&server_dir).unwrap();
-    std::fs::write(server_dir.join("server.py"), "print('saitec')\n").unwrap();
-    let managed_python = temp.path().join("venv").join("Scripts").join("python.exe");
     crate::env::set_var("JCODE_HOME", temp.path());
-    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
-    crate::env::set_var("SAITEC_TUI_PYTHON", &managed_python);
+    crate::env::set_var("SAITEC_API_KEY", "sk-refresh");
 
     let mcp_dir = temp.path().join("external").join(".saitec_tui");
     std::fs::create_dir_all(&mcp_dir).unwrap();
@@ -195,6 +148,7 @@ fn test_saitec_bootstrap_preserves_existing_servers_and_refreshes_saitec_entry()
                     "env": {"EXISTING": "1"}
                 },
                 "SAITEC-Skills": {
+                    "type": "stdio",
                     "command": "custom-bin",
                     "args": ["--custom"],
                     "env": {"CUSTOM": "1"}
@@ -213,44 +167,29 @@ fn test_saitec_bootstrap_preserves_existing_servers_and_refreshes_saitec_entry()
     assert_eq!(existing.env.get("EXISTING"), Some(&"1".to_string()));
 
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
-    assert_eq!(saitec.command, managed_python.display().to_string());
-    assert_eq!(
-        saitec.args,
-        vec![server_dir.join("server.py").display().to_string()]
+    assert_eq!(saitec.transport, McpTransport::Http);
+    assert!(saitec.command.is_empty(), "stdio fields should be cleared");
+    assert!(saitec.args.is_empty());
+    assert!(saitec.env.is_empty());
+    assert!(
+        saitec.headers.get("X-API-Key").is_none(),
+        "API key must not be persisted by ensure_bootstrap"
     );
-    assert_eq!(saitec.env.get("CUSTOM"), Some(&"1".to_string()));
-    assert_eq!(
-        saitec.env.get("PYTHONPATH"),
-        Some(&server_dir.display().to_string())
-    );
+    assert!(saitec.url.as_deref().unwrap().ends_with("/mcp"));
 
-    if let Some(prev_home) = prev_home {
-        crate::env::set_var("JCODE_HOME", prev_home);
-    } else {
-        crate::env::remove_var("JCODE_HOME");
-    }
-    if let Some(prev_skills_root) = prev_skills_root {
-        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
-    } else {
-        crate::env::remove_var("SAITEC_SKILLS_ROOT");
-    }
-    if let Some(prev_saitec_python) = prev_saitec_python {
-        crate::env::set_var("SAITEC_TUI_PYTHON", prev_saitec_python);
-    } else {
-        crate::env::remove_var("SAITEC_TUI_PYTHON");
-    }
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("SAITEC_API_KEY", prev_api_key);
 }
 
 #[test]
-fn test_saitec_bootstrap_skips_when_vendored_script_missing() {
+fn test_saitec_bootstrap_writes_http_entry_even_without_api_key() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
-    let prev_skills_root = std::env::var_os("SAITEC_SKILLS_ROOT");
+    let prev_api_key = std::env::var_os("SAITEC_API_KEY");
+
     let temp = tempfile::TempDir::new().unwrap();
-    let skills_root = temp.path().join("missing-vendored-skills");
-    std::fs::create_dir_all(&skills_root).unwrap();
     crate::env::set_var("JCODE_HOME", temp.path());
-    crate::env::set_var("SAITEC_SKILLS_ROOT", &skills_root);
+    crate::env::remove_var("SAITEC_API_KEY");
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
@@ -259,21 +198,14 @@ fn test_saitec_bootstrap_skips_when_vendored_script_missing() {
         .join("external")
         .join(".saitec_tui")
         .join("mcp.json");
-    assert!(
-        !mcp_path.exists(),
-        "expected bootstrap to skip config creation when the vendored server script is missing"
-    );
+    let config = McpConfig::load_from_file(&mcp_path).unwrap();
+    let saitec = config.servers.get("SAITEC-Skills").unwrap();
+    assert_eq!(saitec.transport, McpTransport::Http);
+    assert!(saitec.headers.get("X-API-Key").is_none());
+    assert!(saitec.url.as_deref().unwrap().ends_with("/mcp"));
 
-    if let Some(prev_home) = prev_home {
-        crate::env::set_var("JCODE_HOME", prev_home);
-    } else {
-        crate::env::remove_var("JCODE_HOME");
-    }
-    if let Some(prev_skills_root) = prev_skills_root {
-        crate::env::set_var("SAITEC_SKILLS_ROOT", prev_skills_root);
-    } else {
-        crate::env::remove_var("SAITEC_SKILLS_ROOT");
-    }
+    restore_env_var("JCODE_HOME", prev_home);
+    restore_env_var("SAITEC_API_KEY", prev_api_key);
 }
 
 #[test]

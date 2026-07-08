@@ -1,7 +1,7 @@
 use crate::mcp::{McpConfig, McpServerConfig, McpTransport};
 use anyhow::Result;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub const SAITEC_MCP_SERVER_NAME: &str = "SAITEC-Skills";
 
@@ -28,7 +28,6 @@ pub fn ensure_bootstrap() -> Result<()> {
     };
 
     let url = crate::saitec::auth::saitec_mcp_url();
-    let api_key = runtime_api_key();
     let mut changed = false;
 
     match config.servers.get_mut(SAITEC_MCP_SERVER_NAME) {
@@ -49,15 +48,13 @@ pub fn ensure_bootstrap() -> Result<()> {
                 server.env.clear();
                 changed = true;
             }
+            // Strip any persisted X-API-Key header (it's runtime-only via apply_runtime_env).
+            if server.headers.remove("X-API-Key").is_some() {
+                changed = true;
+            }
             if server.url.as_deref() != Some(url.as_str()) {
                 server.url = Some(url.clone());
                 changed = true;
-            }
-            if let Some(ref key) = api_key {
-                if server.headers.get("X-API-Key").map(String::as_str) != Some(key.as_str()) {
-                    server.headers.insert("X-API-Key".to_string(), key.clone());
-                    changed = true;
-                }
             }
             if !server.shared {
                 server.shared = true;
@@ -65,10 +62,6 @@ pub fn ensure_bootstrap() -> Result<()> {
             }
         }
         None => {
-            let mut headers = HashMap::new();
-            if let Some(ref key) = api_key {
-                headers.insert("X-API-Key".to_string(), key.clone());
-            }
             config.servers.insert(
                 SAITEC_MCP_SERVER_NAME.to_string(),
                 McpServerConfig {
@@ -77,7 +70,7 @@ pub fn ensure_bootstrap() -> Result<()> {
                     args: Vec::new(),
                     env: HashMap::new(),
                     url: Some(url.clone()),
-                    headers,
+                    headers: HashMap::new(),
                     shared: true,
                 },
             );
@@ -169,7 +162,7 @@ mod tests {
     use crate::mcp::McpConfig;
 
     #[test]
-    fn ensure_bootstrap_writes_http_entry_with_x_api_key_header() {
+    fn ensure_bootstrap_writes_http_entry_without_persisting_api_key() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::TempDir::new().unwrap();
         crate::env::set_var("JCODE_HOME", temp.path());
@@ -195,8 +188,8 @@ mod tests {
         // Run the bootstrap.
         crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-        let path = crate::saitec::mcp::mcp_config_file().unwrap();
-        let cfg = McpConfig::load_from_file(&path).unwrap();
+        let cfg_path = crate::saitec::mcp::mcp_config_file().unwrap();
+        let cfg = McpConfig::load_from_file(&cfg_path).unwrap();
         let saitec = cfg
             .servers
             .get(crate::saitec::mcp::SAITEC_MCP_SERVER_NAME)
@@ -205,34 +198,33 @@ mod tests {
         assert_eq!(saitec.transport, McpTransport::Http);
         let url = saitec.url.as_deref().expect("http url must be set");
         assert!(url.ends_with("/mcp"), "url should end in /mcp, got {url}");
-        assert_eq!(
-            saitec.headers.get("X-API-Key").map(String::as_str),
-            Some("sk-http-bootstrap")
+        // API key must NOT be persisted in the file — apply_runtime_env injects it in-memory.
+        assert!(
+            saitec.headers.get("X-API-Key").is_none(),
+            "API key must not be persisted in mcp.json"
         );
         assert!(saitec.shared);
     }
 
     #[test]
-    fn ensure_bootstrap_skips_when_no_api_key_present() {
+    fn ensure_bootstrap_writes_http_entry_when_no_api_key_set() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::TempDir::new().unwrap();
         crate::env::set_var("JCODE_HOME", temp.path());
         crate::env::remove_var("SAITEC_API_KEY");
 
-        // Even without an API key, bootstrap should still succeed (it just
-        // writes an entry without the X-API-Key header).
+        // Bootstrap should still write the HTTP config even without an API key.
         crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-        let path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
-        if path.exists() {
-            let cfg = McpConfig::load_from_file(&path).unwrap();
-            let saitec = cfg
-                .servers
-                .get(SAITEC_MCP_SERVER_NAME)
-                .expect("SAITEC-Skills entry must be written");
-            assert_eq!(saitec.transport, McpTransport::Http);
-            assert!(saitec.headers.get("X-API-Key").is_none());
-        }
+        let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+        assert!(mcp_path.exists(), "bootstrap should create config even without API key");
+        let cfg = McpConfig::load_from_file(&mcp_path).unwrap();
+        let saitec = cfg
+            .servers
+            .get(SAITEC_MCP_SERVER_NAME)
+            .expect("SAITEC-Skills entry must be written");
+        assert_eq!(saitec.transport, McpTransport::Http);
+        assert!(saitec.headers.get("X-API-Key").is_none());
     }
 
     #[test]
@@ -278,9 +270,10 @@ mod tests {
         assert!(saitec.command.is_empty(), "stdio fields should be cleared");
         assert!(saitec.args.is_empty());
         assert!(saitec.env.is_empty());
-        assert_eq!(
-            saitec.headers.get("X-API-Key").map(String::as_str),
-            Some("sk-refresh")
+        // API key must NOT be persisted by ensure_bootstrap
+        assert!(
+            saitec.headers.get("X-API-Key").is_none(),
+            "API key must not be persisted in mcp.json"
         );
         assert!(saitec.url.as_deref().unwrap().ends_with("/mcp"));
     }
