@@ -6,6 +6,7 @@ pub const DEFAULT_CALLBACK_PORT: u16 = 1455;
 pub const CALLBACK_PATH: &str = "/auth/callback";
 pub const DEFAULT_AUTH_BASE: &str = "http://101.133.153.37:8080";
 pub const DEFAULT_CORE_API_BASE: &str = "http://101.133.153.37:8080";
+pub const DEFAULT_SAITEC_MCP_URL: &str = "http://101.133.153.37:8000/mcp";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SaitecSession {
@@ -299,6 +300,19 @@ pub fn core_api_base() -> String {
                 .filter(|value| !value.is_empty())
         })
         .unwrap_or_else(|| DEFAULT_CORE_API_BASE.to_string())
+}
+
+/// URL of the SAITEC-Skills MCP server. Reads the `SAITEC_MCP_URL`
+/// env var first, then falls back to `DEFAULT_SAITEC_MCP_URL`.
+/// Trims trailing slashes for normalization.
+pub fn saitec_mcp_url() -> String {
+    std::env::var("SAITEC_MCP_URL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_SAITEC_MCP_URL.to_string())
+        .trim_end_matches('/')
+        .to_string()
 }
 
 pub(crate) fn generate_api_key_name_for_time(now: chrono::DateTime<chrono::Utc>) -> String {
@@ -1686,5 +1700,31 @@ mod tests {
                 .expect("write response");
         });
         format!("http://127.0.0.1:{}", addr.port())
+    }
+
+    #[test]
+    fn saitec_mcp_url_defaults_to_constant() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("SAITEC_MCP_URL");
+        crate::env::remove_var("SAITEC_MCP_URL");
+        assert_eq!(saitec_mcp_url(), DEFAULT_SAITEC_MCP_URL);
+        if let Some(prev) = prev {
+            crate::env::set_var("SAITEC_MCP_URL", prev);
+        } else {
+            crate::env::remove_var("SAITEC_MCP_URL");
+        }
+    }
+
+    #[test]
+    fn saitec_mcp_url_honors_env_override() {
+        let _lock = crate::storage::lock_test_env();
+        let prev = std::env::var_os("SAITEC_MCP_URL");
+        crate::env::set_var("SAITEC_MCP_URL", "http://override.example.com:9999/mcp/");
+        assert_eq!(saitec_mcp_url(), "http://override.example.com:9999/mcp");
+        if let Some(prev) = prev {
+            crate::env::set_var("SAITEC_MCP_URL", prev);
+        } else {
+            crate::env::remove_var("SAITEC_MCP_URL");
+        }
     }
 }
