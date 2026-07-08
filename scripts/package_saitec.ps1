@@ -11,9 +11,6 @@ function Write-Info([string]$Message) {
     Write-Host $Message -ForegroundColor Blue
 }
 
-$PackageSupportScript = Join-Path $PSScriptRoot "package_saitec_support.ps1"
-. $PackageSupportScript
-
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BuildDir = if ([string]::IsNullOrWhiteSpace($TargetTriple)) {
     Join-Path $RepoRoot "target\$Profile"
@@ -29,8 +26,6 @@ $BrandedPdb = Join-Path $DistDir "saitec-tui.pdb"
 $InstallScriptPath = Join-Path $DistDir "install.ps1"
 $LogoAsset = Join-Path $RepoRoot "SAITEC_logo.png"
 $PackagedLogoAsset = Join-Path $DistDir "SAITEC_logo.png"
-$SaitecSkillsSource = Join-Path $RepoRoot "_vendor\SAITEC-Skills"
-$McpResourceArchive = Join-Path $DistDir $script:SaitecMcpArchiveName
 
 if (-not (Test-Path -LiteralPath $SourceExe)) {
     throw "Missing build artifact: $SourceExe"
@@ -47,15 +42,14 @@ if (Test-Path -LiteralPath $LogoAsset) {
     Copy-Item -LiteralPath $LogoAsset -Destination $PackagedLogoAsset -Force
 }
 
-New-SaitecMcpResourceArchive -SourceDir $SaitecSkillsSource -DestinationPath $McpResourceArchive
-
 if ($IncludeDebugSymbols -and (Test-Path -LiteralPath $SourcePdb)) {
     Copy-Item -LiteralPath $SourcePdb -Destination $BrandedPdb -Force
 }
 
-# Keep the packaged installer self-contained so the SAITEC bundle can be copied
-# around without depending on the repo-level JCode installer behavior.
-$mcpInstallerSupport = Get-SaitecMcpInstallerSupportScript
+# SAITEC-Skills MCP server is now HTTP-based (see crate MCP transport).
+# The MCP endpoint URL is defined in DEFAULT_SAITEC_MCP_URL (src/saitec/auth.rs)
+# and is injected at runtime via apply_runtime_env(). No local MCP resources
+# are bundled in the installer.
 $installScript = @'
 param(
     [string]$InstallDir,
@@ -69,11 +63,6 @@ function Write-Info([string]$Message) {
     Write-Host $Message -ForegroundColor Blue
 }
 
-function Write-Warn([string]$Message) {
-    Write-Host $Message -ForegroundColor Yellow
-}
-'@ + "`r`n" + $mcpInstallerSupport + @'
-
 if (-not $InstallDir) {
     $InstallDir = Join-Path $env:LOCALAPPDATA "saitec-tui\bin"
 }
@@ -82,8 +71,6 @@ $SourceExe = Join-Path $PSScriptRoot "saitec-tui.exe"
 $TargetExe = Join-Path $InstallDir "saitec-tui.exe"
 $SourceLogo = Join-Path $PSScriptRoot "SAITEC_logo.png"
 $TargetLogo = Join-Path $InstallDir "SAITEC_logo.png"
-$SourceMcpArchive = Join-Path $PSScriptRoot "saitec-mcp.resources"
-$PrivateMcpRoot = Get-SaitecMcpPrivateResourceRoot -InstallDir $InstallDir
 
 if (-not (Test-Path -LiteralPath $SourceExe)) {
     throw "Missing packaged executable: $SourceExe"
@@ -93,13 +80,6 @@ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -LiteralPath $SourceExe -Destination $TargetExe -Force
 if (Test-Path -LiteralPath $SourceLogo) {
     Copy-Item -LiteralPath $SourceLogo -Destination $TargetLogo -Force
-}
-if (Test-Path -LiteralPath $SourceMcpArchive) {
-    Expand-SaitecMcpResourceArchive -ArchivePath $SourceMcpArchive -DestinationRoot $PrivateMcpRoot
-    Set-SaitecMcpPrivateAcl -Path $PrivateMcpRoot
-    Write-Info "Installed private SAITEC MCP resources: $PrivateMcpRoot"
-} else {
-    Write-Warn "Packaged SAITEC MCP resources were not found; MCP bootstrap may stay disabled."
 }
 
 if (-not $SkipPathUpdate) {
@@ -136,7 +116,6 @@ Write-Host ""
 Write-Info "SAITEC package ready at $DistDir"
 Write-Info "  exe: $BrandedExe"
 Write-Info "  installer: $InstallScriptPath"
-Write-Info "  mcp resources: $McpResourceArchive"
 if ($IncludeDebugSymbols -and (Test-Path -LiteralPath $BrandedPdb)) {
     Write-Info "  symbols: $BrandedPdb"
 }
