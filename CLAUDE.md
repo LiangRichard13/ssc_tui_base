@@ -285,3 +285,18 @@ Env file: `AppData/Roaming/jcode/openai-compatible.env` (NOT `~/.jcode/` or `~/.
 **Fix** (`src/provider_catalog.rs:531-540`): explicit `remove_var("JCODE_OPENROUTER_MODEL")` in `else` branch when no `default_model`. Tests: `named_provider_profile_env_*_model_*` in `provider_catalog_tests.rs`.
 
 **Note**: other native providers (Claude, OpenAI, Bedrock, Copilot, Cursor, Antigravity, Gemini) don't use the `apply_*_env` pattern and are unaffected.
+
+### Restart endpoint reversion to localhost:11434 from stale Ollama marker
+
+**Symptom** (fixed `dba79fc3`): generic openai-compatible profile configured with DeepSeek endpoint works during session but reverts to `http://localhost:11434/v1` / model `anthropic/claude-sonnet-4` after restart.
+
+**Root cause**: a stale `ollama.env` containing `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1` (left by a prior Ollama probe) makes `openai_compatible_profile_is_configured(OLLAMA_PROFILE)` return true. In `MultiProvider::new_with_auth_status` (`src/provider/startup.rs:96-100`), `find()` traverses `OPENAI_COMPAT_PROFILES` in array order — `OLLAMA_PROFILE` (index 27) sorts before `OPENAI_COMPAT_PROFILE` (index 29) — so the stale marker wins over the user's real generic DeepSeek config.
+
+**3‑layer fix** (all in `dba79fc3`):
+1. **`src/provider/startup.rs`**: bootstrap scan checks `OPENAI_COMPAT_PROFILE` first before falling through to named profiles, so the user's explicit custom endpoint wins over a stale local-enabled marker.
+2. **`src/provider/openrouter.rs`**: `autodetected_openai_compatible_profile()` adds an env_override-based bypass for the generic profile when the key check misses due to a customized key env var name.
+3. **`src/cli/dispatch.rs`**: `detect_bootstrap_credentials()` scans env files on disk too, avoiding a false "no credentials" state at server bootstrap time.
+
+**Diagnostic**: check `$APPDATA/jcode/` for `ollama.env` with `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1` — delete it if not using Ollama. Compare `openai-compatible.env` mtime vs the `ollama.env` timestamp to see which was written more recently.
+
+**Tools**: `git show dba79fc3` for the full change. Regression tests (JCODE_HOME-isolated) in `src/provider/openrouter_tests.rs` and `src/provider/tests/model_resolution.rs`.
