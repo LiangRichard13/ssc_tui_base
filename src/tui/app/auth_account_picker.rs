@@ -1,7 +1,11 @@
 use super::*;
 
 impl App {
-    pub(crate) fn handle_login_command_local(&mut self, input: &str) -> bool {
+    pub(crate) fn handle_login_command_local(
+        &mut self,
+        input: &str,
+        remote: Option<&mut crate::tui::backend::RemoteConnection>,
+    ) -> bool {
         let trimmed = input.trim();
         if trimmed == "/login"
             || trimmed.starts_with("/login ")
@@ -9,7 +13,7 @@ impl App {
             || trimmed == "/logout"
             || trimmed.starts_with("/logout ")
         {
-            return super::handle_auth_command(self, trimmed);
+            return super::handle_auth_command(self, trimmed, remote);
         }
 
         false
@@ -716,7 +720,7 @@ impl App {
                 provider_filter,
             } => self.open_account_center(provider_filter.as_deref()),
             crate::tui::account_picker::AccountPickerCommand::SubmitInput(input) => {
-                if !self.handle_login_command_local(&input) {
+                if !self.handle_login_command_local(&input, None) {
                     self.input = input;
                     self.cursor_pos = self.input.len();
                     self.submit_input();
@@ -730,7 +734,7 @@ impl App {
             } => self.prompt_account_value(prompt, command_prefix, empty_value, status_notice),
             other => {
                 if let Some(input) = Self::account_command_for_picker(&other) {
-                    if !self.handle_login_command_local(&input) {
+                    if !self.handle_login_command_local(&input, None) {
                         self.input = input;
                         self.cursor_pos = self.input.len();
                         self.submit_input();

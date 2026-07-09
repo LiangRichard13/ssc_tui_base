@@ -4,7 +4,11 @@ fn unsupported_provider_error() -> String {
     crate::saitec::product_profile::unsupported_base_model_provider_message()
 }
 
-pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
+pub(crate) fn handle_auth_command(
+    app: &mut App,
+    trimmed: &str,
+    remote: Option<&mut crate::tui::backend::RemoteConnection>,
+) -> bool {
     if let Some(rest) = trimmed.strip_prefix("/auth doctor") {
         let provider_id = (!rest.trim().is_empty()).then(|| rest.trim().to_string());
         app.push_display_message(DisplayMessage::system(render_auth_doctor_markdown(
@@ -25,7 +29,7 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     }
 
     if let Some(rest) = trimmed.strip_prefix("/logout ") {
-        handle_logout_target_command(app, rest.trim());
+        handle_logout_target_command(app, rest.trim(), remote);
         return true;
     }
 
@@ -80,7 +84,11 @@ pub(crate) fn handle_auth_command(app: &mut App, trimmed: &str) -> bool {
     false
 }
 
-fn handle_logout_target_command(app: &mut App, requested: &str) {
+fn handle_logout_target_command(
+    app: &mut App,
+    requested: &str,
+    remote: Option<&mut crate::tui::backend::RemoteConnection>,
+) {
     let mut parts = requested.split_whitespace();
     let target = parts.next().unwrap_or_default();
     let mut provider_id: Option<&str> = None;
@@ -142,7 +150,7 @@ fn handle_logout_target_command(app: &mut App, requested: &str) {
         || target.eq_ignore_ascii_case("jcode-subscription")
     {
         if confirm {
-            clear_saitec_session_after_confirmation(app);
+            clear_saitec_session_after_confirmation(app, remote);
         } else {
             app.open_saitec_logout_confirmation();
         }
@@ -155,7 +163,10 @@ fn handle_logout_target_command(app: &mut App, requested: &str) {
     ));
 }
 
-fn clear_saitec_session_after_confirmation(app: &mut App) {
+fn clear_saitec_session_after_confirmation(
+    app: &mut App,
+    remote: Option<&mut crate::tui::backend::RemoteConnection>,
+) {
     match crate::saitec::auth::clear_session() {
         Ok(()) => {
             crate::auth::AuthStatus::invalidate_cache();
@@ -163,12 +174,34 @@ fn clear_saitec_session_after_confirmation(app: &mut App) {
             app.pending_login = None;
             app.invalidate_model_picker_cache();
             app.trigger_provider_auth_changed();
-            // Disconnect SAITEC-Skills MCP since credentials are now invalid
+
+            // TUI 本地三层清理（pool transport → manager handles → registry tools）
             if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                let mcp_manager = Arc::clone(&app.mcp_manager);
+                let registry = app.registry.clone();
                 handle.spawn(async move {
                     crate::saitec::mcp::disconnect_saitec_mcp().await;
+                    let _ = mcp_manager
+                        .read()
+                        .await
+                        .disconnect("SAITEC-Skills")
+                        .await;
+                    registry
+                        .unregister_prefix("mcp__SAITEC-Skills__")
+                        .await;
                 });
             }
+            app.mcp_server_names.retain(|(n, _)| n != "SAITEC-Skills");
+
+            // 关键：通知 server 进程做对应的清理。两条路径：
+            //  1. 直接持有 remote 句柄（命令从 remote 输入路径进来）
+            //  2. 通过 BusEvent → remote hook 转发（命令从本地 input 进来）
+            if let Some(r) = remote {
+                r.notify_auth_changed_detached();
+            } else {
+                crate::bus::Bus::global().publish(crate::bus::BusEvent::SaitecAuthCleared);
+            }
+
             app.push_display_message(DisplayMessage::system(
                 "Logged out from Saitec. Local SAITEC credentials were cleared.".to_string(),
             ));

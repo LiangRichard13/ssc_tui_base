@@ -2360,7 +2360,7 @@ impl App {
             || super::commands::handle_usage_command(self, trimmed)
             || super::commands::handle_feedback_command(self, trimmed)
             || super::state_ui::handle_info_command(self, trimmed)
-            || super::auth::handle_auth_command(self, trimmed)
+            || super::auth::handle_auth_command(self, trimmed, None)
             || super::tui_lifecycle_runtime::handle_dev_command(self, trimmed);
         if trimmed == "/login" || trimmed == "/login jcode" {
             crate::logging::info(&format!(

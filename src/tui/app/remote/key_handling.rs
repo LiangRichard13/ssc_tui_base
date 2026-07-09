@@ -181,7 +181,7 @@ impl App {
                 provider_filter,
             } => self.open_account_center(provider_filter.as_deref()),
             crate::tui::account_picker::AccountPickerCommand::SubmitInput(input) => {
-                if !self.handle_login_command_local(&input) {
+                if !self.handle_login_command_local(&input, Some(remote)) {
                     crate::tui::app::auth::handle_account_command_remote(self, &input, remote)
                         .await?;
                 }
@@ -195,7 +195,7 @@ impl App {
             crate::tui::account_picker::AccountPickerCommand::PromptNew { .. } => {}
             other => {
                 if let Some(input) = Self::account_command_for_picker(&other) {
-                    if !self.handle_login_command_local(&input) {
+                    if !self.handle_login_command_local(&input, Some(remote)) {
                         crate::tui::app::auth::handle_account_command_remote(self, &input, remote)
                             .await?;
                     }
@@ -1129,7 +1129,7 @@ async fn handle_remote_key_internal(
                     return Ok(());
                 }
 
-                if app.handle_login_command_local(trimmed) {
+                if app.handle_login_command_local(trimmed, Some(remote)) {
                     return Ok(());
                 }
 

@@ -1758,7 +1758,7 @@ impl App {
             return;
         }
 
-        if super::auth::handle_auth_command(self, trimmed) {
+        if super::auth::handle_auth_command(self, trimmed, None) {
             return;
         }
 
@@ -2715,8 +2715,24 @@ impl App {
                 crate::subscription_catalog::clear_runtime_env();
                 // Reconnect SAITEC-Skills MCP with the newly saved API key
                 if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                    let mcp_manager = Arc::clone(&self.mcp_manager);
+                    let registry = self.registry.clone();
                     handle.spawn(async move {
+                        // 1. Pool 层：重建连接（新 transport + 新 API key）
                         crate::saitec::mcp::reconnect_saitec_mcp().await;
+
+                        // 2. Manager 层：从 pool 重新获取 handle
+                        let mgr = mcp_manager.read().await;
+                        mgr.reacquire_pool_handle("SAITEC-Skills").await;
+                        drop(mgr);
+
+                        // 3. Registry 层：重新注册 SAITEC-Skills 工具
+                        let tools = crate::mcp::create_mcp_tools(mcp_manager).await;
+                        for (name, tool) in tools {
+                            if name.starts_with("mcp__SAITEC-Skills__") {
+                                registry.register(name, tool).await;
+                            }
+                        }
                     });
                 }
             } else {

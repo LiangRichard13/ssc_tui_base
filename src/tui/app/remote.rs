@@ -383,11 +383,15 @@ pub(super) async fn handle_bus_event(
         }
         Ok(BusEvent::LoginCompleted(login)) => {
             let success =
-                login.success && login.provider != "copilot_code" && login.provider != "jcode";
+                login.success && login.provider != "copilot_code";
             app.handle_login_completed(login);
             if success {
                 remote.notify_auth_changed_detached();
             }
+        }
+        Ok(BusEvent::SaitecAuthCleared) => {
+            // TUI 端 logout 时通过 Bus 发出的信号，转发到 server 让其清理 MCP。
+            remote.notify_auth_changed_detached();
         }
         Ok(BusEvent::ProviderValidationCompleted(event)) => {
             if event.success {
@@ -987,7 +991,7 @@ fn handle_disconnected_local_command(app: &mut App, trimmed: &str) -> bool {
         || super::commands::handle_usage_command(app, trimmed)
         || super::commands::handle_feedback_command(app, trimmed)
         || super::state_ui::handle_info_command(app, trimmed)
-        || super::auth::handle_auth_command(app, trimmed)
+        || super::auth::handle_auth_command(app, trimmed, None)
         || super::commands::handle_dev_command(app, trimmed);
 
     if handled {
