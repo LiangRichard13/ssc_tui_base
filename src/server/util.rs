@@ -2,7 +2,6 @@ use crate::build;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::OnceCell;
 
 /// Default embedding idle unload threshold (15 minutes).
 const EMBEDDING_IDLE_UNLOAD_DEFAULT_SECS: u64 = 15 * 60;
@@ -37,11 +36,20 @@ pub(crate) fn embedding_idle_unload_secs() -> u64 {
 }
 
 pub(crate) async fn get_shared_mcp_pool(
-    cell: &OnceCell<Arc<crate::mcp::SharedMcpPool>>,
+    cell: &tokio::sync::OnceCell<Arc<crate::mcp::SharedMcpPool>>,
 ) -> Arc<crate::mcp::SharedMcpPool> {
-    cell.get_or_init(|| async { Arc::new(crate::mcp::SharedMcpPool::from_default_config()) })
+    let pool = cell
+        .get_or_init(|| async {
+            let pool = Arc::new(crate::mcp::SharedMcpPool::from_default_config());
+            // Sync to the global static so free functions like
+            // reconnect_saitec_mcp() / disconnect_saitec_mcp() operate
+            // on the same pool that the server actually uses.
+            let _ = crate::mcp::pool::init_shared_pool_with(pool.clone());
+            pool
+        })
         .await
-        .clone()
+        .clone();
+    pool
 }
 
 pub(crate) fn server_update_candidate(is_selfdev_session: bool) -> Option<(PathBuf, &'static str)> {

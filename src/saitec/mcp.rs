@@ -6,7 +6,7 @@ use std::path::PathBuf;
 pub const SAITEC_MCP_SERVER_NAME: &str = "SAITEC-Skills";
 
 pub fn mcp_config_file() -> Result<PathBuf> {
-    crate::storage::user_home_path(".saitec_tui/mcp.json")
+    crate::storage::jcode_dir().map(|p| p.join("mcp.json"))
 }
 
 pub fn ensure_bootstrap() -> Result<()> {
@@ -145,15 +145,16 @@ pub async fn disconnect_saitec_mcp() {
 }
 
 fn runtime_api_key() -> Option<String> {
-    crate::subscription_catalog::configured_api_key().or_else(|| {
-        crate::saitec::auth::load_session()
-            .ok()
-            .flatten()
-            .and_then(|session| {
-                let trimmed = session.api_key.trim();
-                (!trimmed.is_empty()).then(|| trimmed.to_string())
-            })
-    })
+    // Prefer auth.json (always current) over process env (may be stale in
+    // the long-running server process after a logout + re-login cycle).
+    crate::saitec::auth::load_session()
+        .ok()
+        .flatten()
+        .and_then(|session| {
+            let trimmed = session.api_key.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
+        .or_else(|| crate::subscription_catalog::configured_api_key())
 }
 
 #[cfg(test)]
@@ -216,7 +217,7 @@ mod tests {
         // Bootstrap should still write the HTTP config even without an API key.
         crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-        let mcp_path = temp.path().join("external").join(".saitec_tui").join("mcp.json");
+        let mcp_path = temp.path().join("mcp.json");
         assert!(mcp_path.exists(), "bootstrap should create config even without API key");
         let cfg = McpConfig::load_from_file(&mcp_path).unwrap();
         let saitec = cfg
@@ -234,7 +235,7 @@ mod tests {
         crate::env::set_var("JCODE_HOME", temp.path());
         crate::env::set_var("SAITEC_API_KEY", "sk-refresh");
 
-        let mcp_dir = temp.path().join("external").join(".saitec_tui");
+        let mcp_dir = temp.path();
         std::fs::create_dir_all(&mcp_dir).unwrap();
         let mcp_path = mcp_dir.join("mcp.json");
         std::fs::write(

@@ -216,6 +216,14 @@ impl Agent {
         }
     }
 
+    /// Drop all tools whose name starts with the given prefix, returning
+    /// the removed tool names. Used when SAITEC credentials are cleared
+    /// to immediately revoke `mcp__SAITEC-Skills__*` from this agent's tool
+    /// registry (and, paired with `unlock_tools`, from the locked tool list).
+    pub async fn drop_tool_prefix(&mut self, prefix: &str) -> Vec<String> {
+        self.registry.unregister_prefix(prefix).await
+    }
+
     /// Unlock tools if a tool execution may have changed the registry
     /// (e.g., mcp connect/disconnect/reload)
     pub(super) fn unlock_tools_if_needed(&mut self, tool_name: &str) {

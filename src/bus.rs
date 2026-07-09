@@ -265,6 +265,10 @@ pub enum BusEvent {
     UsageReportProgress(crate::usage::ProviderUsageProgress),
     /// OAuth/login flow completed in the background
     LoginCompleted(LoginCompleted),
+    /// SAITEC session credentials cleared (logout). Server should disconnect
+    /// SAITEC-Skills MCP, drop its tools from session agents, and unlock
+    /// the locked tool list.
+    SaitecAuthCleared,
     /// Provider runtime validation completed outside the login flow
     ProviderValidationCompleted(ProviderValidationCompleted),
     /// Local `!cmd` shell command completed from the input line
