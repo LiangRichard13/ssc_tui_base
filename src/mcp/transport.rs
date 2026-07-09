@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 
@@ -131,6 +132,7 @@ pub struct HttpMessageTransport {
     headers: HashMap<String, String>,
     client: reqwest::Client,
     session_id: tokio::sync::Mutex<Option<String>>,
+    closed: AtomicBool,
 }
 
 impl HttpMessageTransport {
@@ -140,6 +142,7 @@ impl HttpMessageTransport {
             headers,
             client: reqwest::Client::new(),
             session_id: tokio::sync::Mutex::new(None),
+            closed: AtomicBool::new(false),
         }
     }
 }
@@ -171,6 +174,9 @@ fn parse_sse_payload(body: &str) -> Result<Value> {
 #[async_trait]
 impl MessageTransport for HttpMessageTransport {
     async fn round_trip(&self, request: String) -> Result<Value> {
+        if self.closed.load(Ordering::SeqCst) {
+            anyhow::bail!("MCP HTTP transport is closed");
+        }
         let mut req = self
             .client
             .post(&self.url)
@@ -211,6 +217,9 @@ impl MessageTransport for HttpMessageTransport {
     }
 
     async fn notify(&self, notification: String) -> Result<()> {
+        if self.closed.load(Ordering::SeqCst) {
+            anyhow::bail!("MCP HTTP transport is closed");
+        }
         let mut req = self
             .client
             .post(&self.url)
@@ -228,7 +237,8 @@ impl MessageTransport for HttpMessageTransport {
     }
 
     async fn shutdown(&self) {
-        // Stateless — no server-side session to close.
+        self.closed.store(true, Ordering::SeqCst);
+        self.session_id.lock().await.take();
     }
 }
 

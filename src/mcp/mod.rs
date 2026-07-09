@@ -13,7 +13,7 @@ pub mod transport;
 
 pub use client::{McpClient, McpHandle};
 pub use manager::McpManager;
-pub use pool::{SharedMcpPool, get_shared_pool, init_shared_pool};
+pub use pool::{SharedMcpPool, get_shared_pool, init_shared_pool, init_shared_pool_with};
 pub use protocol::*;
 pub use tool::{McpTool, create_mcp_tools};
 

@@ -402,6 +402,14 @@ pub fn get_shared_pool() -> Option<Arc<SharedMcpPool>> {
     SHARED_POOL.get().cloned()
 }
 
+/// Set the global shared pool from an already-constructed pool.
+/// Returns `Ok(())` if the pool was set, or `Err(Arc<SharedMcpPool>)` if
+/// the global pool was already initialized (the supplied pool is not stored).
+/// Used by the server to sync its pool to the global static.
+pub fn init_shared_pool_with(pool: Arc<SharedMcpPool>) -> Result<(), Arc<SharedMcpPool>> {
+    SHARED_POOL.set(pool).map_err(|_| unreachable!())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ConnectAttempt, SharedMcpPool};
