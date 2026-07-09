@@ -49,6 +49,95 @@ function Get-DevBuildArtifactPaths {
     }
 }
 
+function Get-DevSaitecMcpLayout {
+    param([string]$RepoRootPath)
+
+    $skillsRoot = Join-Path $RepoRootPath "_vendor\SAITEC-Skills"
+    $requirementsPath = Join-Path $skillsRoot "requirements.txt"
+    $serverPath = Join-Path $skillsRoot "mcp_server\server.py"
+    $venvDir = Join-Path $RepoRootPath "target\saitec-mcp-venv"
+    $windowsPython = Join-Path $venvDir "Scripts\python.exe"
+    $posixPython = Join-Path $venvDir "bin\python"
+
+    [pscustomobject]@{
+        SkillsRoot = $skillsRoot
+        RequirementsPath = $requirementsPath
+        ServerPath = $serverPath
+        VenvDir = $venvDir
+        PythonPath = if (Test-Path -LiteralPath $windowsPython) { $windowsPython } else { $windowsPython }
+        PosixPythonPath = $posixPython
+        RequirementsStampPath = Join-Path $venvDir ".requirements.sha256"
+    }
+}
+
+function Resolve-DevPythonCommand {
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -ne $pythonCommand -and -not [string]::IsNullOrWhiteSpace($pythonCommand.Source)) {
+        return $pythonCommand.Source
+    }
+
+    $pyCommand = Get-Command py -ErrorAction SilentlyContinue
+    if ($null -ne $pyCommand -and -not [string]::IsNullOrWhiteSpace($pyCommand.Source)) {
+        return $pyCommand.Source
+    }
+
+    throw "python was not found on PATH; install Python or set SAITEC_TUI_PYTHON to a Python executable with SAITEC-Skills dependencies."
+}
+
+function Ensure-DevSaitecMcpPython {
+    param([string]$RepoRootPath)
+
+    $layout = Get-DevSaitecMcpLayout -RepoRootPath $RepoRootPath
+    if (Test-Path -LiteralPath $layout.SkillsRoot) {
+        $env:SAITEC_SKILLS_ROOT = $layout.SkillsRoot
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:SAITEC_TUI_PYTHON)) {
+        return $env:SAITEC_TUI_PYTHON
+    }
+
+    if (-not (Test-Path -LiteralPath $layout.ServerPath) -or -not (Test-Path -LiteralPath $layout.RequirementsPath)) {
+        return $null
+    }
+
+    if (-not (Test-Path -LiteralPath $layout.PythonPath) -and -not (Test-Path -LiteralPath $layout.PosixPythonPath)) {
+        $basePython = Resolve-DevPythonCommand
+        Write-Info "Creating SAITEC MCP Python environment at $($layout.VenvDir)"
+        & $basePython -m venv $layout.VenvDir 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            throw "python -m venv failed with exit code $LASTEXITCODE"
+        }
+    }
+
+    $venvPython = if (Test-Path -LiteralPath $layout.PythonPath) {
+        $layout.PythonPath
+    } elseif (Test-Path -LiteralPath $layout.PosixPythonPath) {
+        $layout.PosixPythonPath
+    } else {
+        throw "SAITEC MCP Python environment was created but no Python executable was found under $($layout.VenvDir)"
+    }
+
+    $requirementsHash = (Get-FileHash -LiteralPath $layout.RequirementsPath -Algorithm SHA256).Hash
+    $installedHash = if (Test-Path -LiteralPath $layout.RequirementsStampPath) {
+        (Get-Content -LiteralPath $layout.RequirementsStampPath -Raw).Trim()
+    } else {
+        ""
+    }
+
+    if ($installedHash -ne $requirementsHash) {
+        Write-Info "Installing SAITEC MCP Python dependencies"
+        & $venvPython -m pip install --disable-pip-version-check -r $layout.RequirementsPath 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            throw "pip install for SAITEC MCP dependencies failed with exit code $LASTEXITCODE"
+        }
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($layout.RequirementsStampPath, $requirementsHash, $utf8NoBom)
+    }
+
+    $env:SAITEC_TUI_PYTHON = $venvPython
+    $env:SAITEC_SKILLS_ROOT = $layout.SkillsRoot
+    return $venvPython
+}
 
 function New-DevRuntimeLayout {
     param(
