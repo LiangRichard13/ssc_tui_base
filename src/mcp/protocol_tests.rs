@@ -49,11 +49,7 @@ fn test_saitec_mcp_load_injects_saved_session_runtime_header_without_persisting_
     let url = saitec.url.as_deref().expect("http url must be set");
     assert!(url.ends_with("/mcp"), "url should end in /mcp, got {url}");
 
-    let mcp_path = temp
-        .path()
-        .join("external")
-        .join(".saitec_tui")
-        .join("mcp.json");
+    let mcp_path = temp.path().join("mcp.json");
     let persisted = std::fs::read_to_string(mcp_path).unwrap();
     assert!(
         !persisted.contains("sk-session-only"),
@@ -76,11 +72,7 @@ fn test_saitec_bootstrap_creates_http_entry_when_no_mcp_config() {
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-    let mcp_path = temp
-        .path()
-        .join("external")
-        .join(".saitec_tui")
-        .join("mcp.json");
+    let mcp_path = temp.path().join("mcp.json");
     assert!(mcp_path.exists(), "expected bootstrap to create mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
@@ -107,11 +99,7 @@ fn test_saitec_bootstrap_writes_http_entry_unaffected_by_disk_layout() {
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-    let mcp_path = temp
-        .path()
-        .join("external")
-        .join(".saitec_tui")
-        .join("mcp.json");
+    let mcp_path = temp.path().join("mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
     assert_eq!(saitec.transport, McpTransport::Http);
@@ -135,7 +123,7 @@ fn test_saitec_bootstrap_migrates_existing_stdio_entry_to_http() {
     crate::env::set_var("JCODE_HOME", temp.path());
     crate::env::set_var("SAITEC_API_KEY", "sk-refresh");
 
-    let mcp_dir = temp.path().join("external").join(".saitec_tui");
+    let mcp_dir = temp.path();
     std::fs::create_dir_all(&mcp_dir).unwrap();
     let mcp_path = mcp_dir.join("mcp.json");
     std::fs::write(
@@ -193,11 +181,7 @@ fn test_saitec_bootstrap_writes_http_entry_even_without_api_key() {
 
     crate::saitec::mcp::ensure_bootstrap().unwrap();
 
-    let mcp_path = temp
-        .path()
-        .join("external")
-        .join(".saitec_tui")
-        .join("mcp.json");
+    let mcp_path = temp.path().join("mcp.json");
     let config = McpConfig::load_from_file(&mcp_path).unwrap();
     let saitec = config.servers.get("SAITEC-Skills").unwrap();
     assert_eq!(saitec.transport, McpTransport::Http);

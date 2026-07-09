@@ -228,3 +228,31 @@ async fn http_transport_parses_sse_response() {
 
     server.await.unwrap();
 }
+
+#[tokio::test]
+async fn http_transport_shutdown_prevents_round_trip() {
+    let mut hdrs = HashMap::new();
+    hdrs.insert("X-API-Key".to_string(), "sk-closed".to_string());
+    let transport = HttpMessageTransport::new("http://127.0.0.1:1/mcp".to_string(), hdrs);
+
+    // Shutdown — marks transport as closed
+    transport.shutdown().await;
+
+    // round_trip should fail immediately without making any HTTP call
+    let req = JsonRpcRequest::new(1, "ping", None);
+    let result = transport
+        .round_trip(serde_json::to_string(&req).unwrap() + "\n")
+        .await;
+    assert!(result.is_err(), "round_trip after shutdown must fail");
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("closed"),
+        "error should mention 'closed', got: {err}"
+    );
+
+    // notify should also fail
+    let result = transport
+        .notify(serde_json::to_string(&req).unwrap() + "\n")
+        .await;
+    assert!(result.is_err(), "notify after shutdown must fail");
+}
