@@ -2,8 +2,11 @@ use super::*;
 pub(super) use jcode_provider_core::{ActiveProvider, ProviderAvailability};
 
 impl MultiProvider {
-    pub(super) fn auto_default_provider(availability: ProviderAvailability) -> ActiveProvider {
-        jcode_provider_core::auto_default_provider(availability)
+    pub(super) fn auto_default_provider(
+        availability: ProviderAvailability,
+        prefer_openai_compatible: bool,
+    ) -> ActiveProvider {
+        jcode_provider_core::auto_default_provider(availability, prefer_openai_compatible)
     }
 
     pub(super) fn parse_provider_hint(value: &str) -> Option<ActiveProvider> {

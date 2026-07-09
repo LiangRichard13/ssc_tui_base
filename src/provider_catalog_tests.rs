@@ -194,6 +194,49 @@ fn matrix_cli_login_selection_preserves_existing_order() {
 }
 
 #[test]
+fn openai_compatible_profile_context_limit_falls_back_to_exact_match_table() {
+    // Generic "openai-compatible" profile with known model → found in table
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "deepseek-v4-flash"),
+        Some(1_000_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "glm-4.5-air"),
+        Some(128_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "kimi-k2.6"),
+        Some(256_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "qwen3.7-max"),
+        Some(1_000_000)
+    );
+
+    // Generic profile with unknown model → None (triggers 200K fallback)
+    assert_eq!(
+        openai_compatible_profile_context_limit("openai-compatible", "unknown-model"),
+        None
+    );
+
+    // Named profile (e.g., Z.AI) with known model also benefits from table
+    assert_eq!(
+        openai_compatible_profile_context_limit("zai", "glm-4.5-air"),
+        Some(128_000)
+    );
+
+    // "deepseek" profile's prefix match still works
+    assert_eq!(
+        openai_compatible_profile_context_limit("deepseek", "deepseek-v4-flash"),
+        Some(1_000_000)
+    );
+    assert_eq!(
+        openai_compatible_profile_context_limit("deepseek", "deepseek-v4-pro"),
+        Some(1_000_000)
+    );
+}
+
+#[test]
 fn matrix_openrouter_like_sources_include_all_static_profiles() {
     let _lock = crate::storage::lock_test_env();
     let guard = EnvGuard::save(&[
@@ -602,5 +645,72 @@ fn load_api_key_accepts_legacy_zai_key_name() {
     assert_eq!(
         load_api_key_from_env_or_config("ZHIPU_API_KEY", "zai.env").as_deref(),
         Some("legacy-secret")
+    );
+}
+
+#[test]
+fn named_provider_profile_env_sets_model_when_default_model_configured() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&[
+        "JCODE_OPENROUTER_MODEL",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "MY_GATEWAY_API_KEY",
+    ]);
+
+    let cfg: crate::config::Config = toml::from_str(
+        r#"
+        [providers.my-gateway]
+        type = "openai-compatible"
+        base_url = "https://llm.example.com/v1/"
+        auth = "bearer"
+        api_key_env = "MY_GATEWAY_API_KEY"
+        default_model = "qwen/qwen3-32b"
+
+        [[providers.my-gateway.models]]
+        id = "qwen/qwen3-32b"
+        "#,
+    )
+    .expect("config should parse");
+
+    apply_named_provider_profile_env_from_config("my-gateway", &cfg).expect("apply profile");
+
+    assert_eq!(
+        std::env::var("JCODE_OPENROUTER_MODEL").ok().as_deref(),
+        Some("qwen/qwen3-32b"),
+        "JCODE_OPENROUTER_MODEL should be set from config's default_model"
+    );
+}
+
+#[test]
+fn named_provider_profile_env_clears_model_when_default_model_missing() {
+    let _lock = crate::storage::lock_test_env();
+    let _guard = EnvGuard::save(&[
+        "JCODE_OPENROUTER_MODEL",
+        "JCODE_NAMED_PROVIDER_PROFILE",
+        "MY_GATEWAY_API_KEY",
+    ]);
+
+    crate::env::set_var("JCODE_OPENROUTER_MODEL", "stale/old-model");
+
+    let cfg: crate::config::Config = toml::from_str(
+        r#"
+        [providers.my-gateway]
+        type = "openai-compatible"
+        base_url = "https://llm.example.com/v1/"
+        auth = "bearer"
+        api_key_env = "MY_GATEWAY_API_KEY"
+
+        [[providers.my-gateway.models]]
+        id = "opaque/model@id"
+        "#,
+    )
+    .expect("config should parse");
+
+    apply_named_provider_profile_env_from_config("my-gateway", &cfg).expect("apply profile");
+
+    assert_eq!(
+        std::env::var("JCODE_OPENROUTER_MODEL").ok(),
+        None,
+        "JCODE_OPENROUTER_MODEL should be removed when config has no default_model"
     );
 }

@@ -269,9 +269,14 @@ fn clear_openai_compatible_profile_credentials(
         &resolved.env_file,
         None,
     )?;
-    // Clear all JCODE_OPENROUTER_* runtime env vars so the next login
-    // starts from a clean state.
-    crate::provider_catalog::force_apply_openai_compatible_profile_env(None);
+    // Clear the openai-compatible *runtime* env vars (JCODE_OPENROUTER_* and
+    // the generic JCODE_OPENAI_COMPAT_* process-env overrides) so the next
+    // login starts from a clean runtime state — WITHOUT rewriting the env
+    // file. JCODE_OPENAI_COMPAT_API_BASE and JCODE_OPENAI_COMPAT_DEFAULT_MODEL
+    // are durable user configuration (custom endpoint + model name) and must
+    // survive logout so the user does not have to re-enter them after logging
+    // back in. Only the API key (cleared above) is a credential.
+    crate::provider_catalog::clear_openai_compatible_runtime_env_keep_config();
     Ok(())
 }
 

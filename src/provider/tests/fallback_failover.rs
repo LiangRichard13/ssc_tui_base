@@ -201,33 +201,39 @@ fn test_set_model_rejects_cross_provider_without_creds() {
 
 #[test]
 fn test_auto_default_prefers_openai_over_claude_when_both_available() {
-    let active = MultiProvider::auto_default_provider(ProviderAvailability {
-        openai: true,
-        claude: true,
-        copilot: false,
-        antigravity: false,
-        gemini: false,
-        cursor: false,
-        bedrock: false,
-        openrouter: false,
-        copilot_premium_zero: false,
-    });
+    let active = MultiProvider::auto_default_provider(
+        ProviderAvailability {
+            openai: true,
+            claude: true,
+            copilot: false,
+            antigravity: false,
+            gemini: false,
+            cursor: false,
+            bedrock: false,
+            openrouter: false,
+            copilot_premium_zero: false,
+        },
+        false,
+    );
     assert_eq!(active, ActiveProvider::OpenAI);
 }
 
 #[test]
 fn test_auto_default_prefers_copilot_when_zero_premium_mode_enabled() {
-    let active = MultiProvider::auto_default_provider(ProviderAvailability {
-        openai: true,
-        claude: true,
-        copilot: true,
-        antigravity: true,
-        gemini: true,
-        cursor: true,
-        bedrock: false,
-        openrouter: true,
-        copilot_premium_zero: true,
-    });
+    let active = MultiProvider::auto_default_provider(
+        ProviderAvailability {
+            openai: true,
+            claude: true,
+            copilot: true,
+            antigravity: true,
+            gemini: true,
+            cursor: true,
+            bedrock: false,
+            openrouter: true,
+            copilot_premium_zero: true,
+        },
+        false,
+    );
     assert_eq!(active, ActiveProvider::Copilot);
 }
 

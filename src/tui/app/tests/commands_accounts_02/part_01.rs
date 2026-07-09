@@ -1632,6 +1632,121 @@ fn test_logout_base_model_picker_selection_opens_provider_confirmation() {
 }
 
 #[test]
+fn test_logout_base_model_openai_compatible_keeps_base_and_model_but_clears_key() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let _home_guard = ScopedTestEnvVar::set("JCODE_HOME", temp.path());
+    let _custom_provider_env_guards = capture_and_clear_custom_provider_env_state();
+    let _saitec_key_guard =
+        ScopedTestEnvVar::capture(crate::subscription_catalog::JCODE_API_KEY_ENV);
+
+    save_test_saitec_session();
+
+    // Simulate a fully-configured generic openai-compatible provider: custom
+    // API base, custom model name, and an API key — all stored in the
+    // openai-compatible env file (the only durable home for these values).
+    let env_file = crate::provider_catalog::OPENAI_COMPAT_PROFILE.env_file;
+    crate::provider_catalog::save_env_value_to_env_file(
+        "JCODE_OPENAI_COMPAT_API_BASE",
+        env_file,
+        Some("https://llm.example.com/v1"),
+    )
+    .expect("save api base");
+    crate::provider_catalog::save_env_value_to_env_file(
+        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
+        env_file,
+        Some("custom-model-name"),
+    )
+    .expect("save default model");
+    crate::provider_catalog::save_env_value_to_env_file(
+        "OPENAI_COMPAT_API_KEY",
+        env_file,
+        Some("sk-custom-key"),
+    )
+    .expect("save api key");
+
+    let mut app = create_test_app();
+    app.input = "/logout base-models openai-compatible --confirm".to_string();
+    app.submit_input();
+
+    // The API key (credential) must be cleared from both the process env and
+    // the env file — that is the real logout semantic.
+    assert!(
+        std::env::var_os("OPENAI_COMPAT_API_KEY").is_none(),
+        "logout must remove the API key from the process env"
+    );
+    let file_path = crate::storage::app_config_dir()
+        .expect("config dir")
+        .join(env_file);
+    let env_contents = std::fs::read_to_string(&file_path).unwrap_or_default();
+    assert!(
+        !env_contents.contains("OPENAI_COMPAT_API_KEY="),
+        "logout must remove the API key line from the env file:\n{env_contents}"
+    );
+
+    // The API base and model name (configuration, not credentials) must be
+    // preserved in the env file so the user does not have to re-enter them.
+    assert!(
+        env_contents.contains("JCODE_OPENAI_COMPAT_API_BASE=https://llm.example.com/v1"),
+        "logout must KEEP the API base in the env file:\n{env_contents}"
+    );
+    assert!(
+        env_contents.contains("JCODE_OPENAI_COMPAT_DEFAULT_MODEL=custom-model-name"),
+        "logout must KEEP the default model in the env file:\n{env_contents}"
+    );
+
+    // resolve_openai_compatible_profile must read the preserved values back,
+    // not fall back to the default OpenAI endpoint.
+    let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
+        crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+    );
+    assert_eq!(
+        resolved.api_base, "https://llm.example.com/v1",
+        "resolved api base must be the preserved custom endpoint, not the OpenAI default"
+    );
+    assert_eq!(
+        resolved.default_model.as_deref(),
+        Some("custom-model-name"),
+        "resolved default model must be the preserved custom model"
+    );
+    assert!(
+        !crate::provider_catalog::openai_compatible_profile_is_configured(
+            crate::provider_catalog::OPENAI_COMPAT_PROFILE
+        ),
+        "profile must be unconfigured after logout (no API key)"
+    );
+
+    // Runtime env vars must still be cleared so the next login starts clean.
+    assert!(
+        std::env::var_os("JCODE_OPENROUTER_API_BASE").is_none(),
+        "runtime JCODE_OPENROUTER_* vars must be cleared from the process env"
+    );
+    assert!(
+        std::env::var_os("JCODE_OPENROUTER_CACHE_NAMESPACE").is_none(),
+        "runtime cache namespace must be cleared"
+    );
+    assert!(
+        std::env::var_os("JCODE_OPENAI_COMPAT_API_BASE").is_none(),
+        "process-env generic override must be cleared (env-file copy kept)"
+    );
+
+    // SAITEC credentials must be untouched by a base-model logout.
+    assert!(
+        crate::saitec::auth::load_session()
+            .expect("load SAITEC session")
+            .is_some(),
+        "base-model logout must not clear SAITEC credentials"
+    );
+
+    assert!(
+        app.display_messages()
+            .iter()
+            .any(|msg| msg.role == "system" && msg.content.contains("Logged out from OpenAI-compatible")),
+        "base-model logout confirmation should be present in system messages"
+    );
+}
+
+#[test]
 fn test_logout_base_model_confirm_clears_only_selected_provider_credentials() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");

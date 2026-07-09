@@ -8,4 +8,5 @@ name = "jcode_provider_metadata"
 path = "src/lib.rs"
 
 [dependencies]
+jcode-provider-core = { path = "../jcode-provider-core" }
 url = "2"

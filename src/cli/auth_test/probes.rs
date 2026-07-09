@@ -47,9 +47,41 @@ fn probe_generic_provider_auth(
     // Keep generic provider probes provider-local. A DeepSeek/Z.AI/OpenRouter
     // auth-test should never be delayed or wedged by an unrelated Cursor/Gemini
     // external auth probe.
-    let status = crate::auth::AuthStatus::check_fast();
-    let state = status.state_for_provider(provider);
-    let detail = status.method_detail_for_provider(provider);
+    //
+    // For openai-compatible presets (DeepSeek/Z.AI/Kimi/...), `AuthStatus`
+    // considers a stale `auth-validation.json` `success: false` record as
+    // `Expired` (see `auth::state_for_provider` for OpenAiCompatible). That
+    // makes `credential_probe` fail immediately, which short-circuits the
+    // provider smoke (`maybe_run_auth_test_smoke` checks `report.success`),
+    // and the new run writes another `success: false` — a deadlock that
+    // the user cannot recover from without deleting `auth-validation.json`
+    // by hand. We avoid that here by checking the on-disk configuration
+    // (`openai_compatible_profile_is_configured`) directly: if the API key is
+    // still present in the env file, the credential is configured regardless
+    // of any past validation record. The provider_smoke step then runs and
+    // actually exercises the endpoint; if it fails, the user sees a real
+    // error (HTTP status, model not supported, etc.) instead of a generic
+    // "auth status is expired" that masks the truth.
+    let (state, detail) = match provider.target {
+        crate::provider_catalog::LoginProviderTarget::OpenAiCompatible(profile) => {
+            if crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
+                let status = crate::auth::AuthStatus::check_fast();
+                let detail = status.method_detail_for_provider(provider);
+                (crate::auth::AuthState::Available, detail)
+            } else {
+                let status = crate::auth::AuthStatus::check_fast();
+                let state = status.state_for_provider(provider);
+                let detail = status.method_detail_for_provider(provider);
+                (state, detail)
+            }
+        }
+        _ => {
+            let status = crate::auth::AuthStatus::check_fast();
+            let state = status.state_for_provider(provider);
+            let detail = status.method_detail_for_provider(provider);
+            (state, detail)
+        }
+    };
     report.push_step(
         "credential_probe",
         state == crate::auth::AuthState::Available,
@@ -262,4 +294,84 @@ async fn probe_cursor_auth(report: &mut AuthTestProviderReport) {
         "Skipped: Cursor provider does not expose a native refresh-token probe in jcode today."
             .to_string(),
     );
+}
+
+#[cfg(test)]
+mod probes_tests {
+    use super::*;
+    use crate::auth::validation::{ProviderValidationRecord, save};
+
+    /// `probe_generic_provider_auth` must NOT be wedged by a stale
+    /// `success: false` row in `auth-validation.json` while the underlying
+    /// configuration is still present on disk. Otherwise the auth-test smoke
+    /// short-circuits at the credential_probe step and writes another failure,
+    /// which the user cannot recover from without deleting the file by hand.
+    #[test]
+    fn probe_generic_provider_auth_ignores_stale_failure_when_key_present() {
+        let _lock = crate::storage::lock_test_env();
+        let temp = tempfile::TempDir::new().expect("create temp dir");
+        let prev_home = std::env::var_os("JCODE_HOME");
+        crate::env::set_var("JCODE_HOME", temp.path());
+
+        // Plant a real API key so `openai_compatible_profile_is_configured`
+        // returns true on the synthetic JCODE_HOME. `app_config_dir()` joins
+        // `$JCODE_HOME/config/jcode` when JCODE_HOME is set.
+        let config_dir = temp.path().join("config").join("jcode");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+        std::fs::write(
+            config_dir.join("openai-compatible.env"),
+            "JCODE_OPENAI_COMPAT_API_BASE=https://api.deepseek.com\n\
+             OPENAI_COMPAT_API_KEY=test-key-not-real\n\
+             JCODE_OPENAI_COMPAT_DEFAULT_MODEL=deepseek-chat\n",
+        )
+        .expect("write openai-compatible.env");
+
+        // Plant a stale `success: false` row — this is the deadlock trigger.
+        let stale = ProviderValidationRecord {
+            checked_at_ms: chrono::Utc::now().timestamp_millis(),
+            success: false,
+            provider_smoke_ok: None,
+            tool_smoke_ok: None,
+            validated_models: Vec::new(),
+            summary: "credential_probe: OpenAI-compatible auth status is expired \
+                      (not configured)."
+                .to_string(),
+        };
+        save("openai-compatible", stale).expect("plant stale record");
+
+        // AuthStatus has a short TTL; invalidate to be sure we observe the
+        // planted record (otherwise the cached `Available` from a previous
+        // test would mask the regression).
+        crate::auth::AuthStatus::invalidate_cache();
+
+        let mut report =
+            AuthTestProviderReport::new_generic("openai-compatible".to_string(), Vec::new());
+        probe_generic_provider_auth(
+            crate::provider_catalog::OPENAI_COMPAT_LOGIN_PROVIDER,
+            &mut report,
+        );
+
+        let credential_probe = report
+            .steps
+            .iter()
+            .find(|step| step.name == "credential_probe")
+            .expect("credential_probe step recorded");
+        assert!(
+            credential_probe.ok,
+            "credential_probe should be Available when key is on disk, got: {}",
+            credential_probe.detail
+        );
+        assert!(
+            report.success,
+            "report should remain viable so the provider smoke can run; steps: {:?}",
+            report.steps
+        );
+
+        if let Some(prev_home) = prev_home {
+            crate::env::set_var("JCODE_HOME", prev_home);
+        } else {
+            crate::env::remove_var("JCODE_HOME");
+        }
+        crate::auth::AuthStatus::invalidate_cache();
+    }
 }

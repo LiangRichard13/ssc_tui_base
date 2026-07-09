@@ -85,6 +85,22 @@ impl MultiProvider {
         let has_cursor_creds = matches!(auth_status.cursor, auth::AuthState::Available);
         let has_bedrock_creds = bedrock::BedrockProvider::has_credentials();
         let subscription_runtime = crate::subscription_catalog::is_runtime_mode_enabled();
+        // openai_compatible_profiles()' runtime state depends on env vars
+        // (JCODE_OPENROUTER_CACHE_NAMESPACE / API_KEY_NAME / etc.), but those
+        // are unset at server bootstrap.  Scan the disk env files directly so
+        // active_compatible_profile / has_openrouter_creds / MultiProvider's
+        // OpenRouter sub-provider all agree, instead of `active=OpenRouter`
+        // with `MultiProvider.openrouter=None` — which would make
+        // `MultiProvider::model()` fall back to a hardcoded
+        // "anthropic/claude-sonnet-4" and break deepseek requests with HTTP 400.
+        let configured_compat_profile: Option<crate::provider_catalog::OpenAiCompatibleProfile> =
+            crate::provider_catalog::openai_compatible_profiles()
+                .iter()
+                .copied()
+                .find(|p| crate::provider_catalog::openai_compatible_profile_is_configured(*p));
+        if let Some(profile) = configured_compat_profile {
+            crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
+        }
         let active_compatible_profile =
             crate::provider_catalog::active_openai_compatible_profile_id();
         let generic_openrouter_key_present = std::env::var_os("OPENROUTER_API_KEY").is_some();
@@ -234,7 +250,17 @@ impl MultiProvider {
             openrouter: openrouter.is_some(),
             copilot_premium_zero,
         };
-        let mut active = Self::auto_default_provider(availability);
+        let mut active = Self::auto_default_provider(
+            availability,
+            // If the user has an openai-compatible provider configured on disk
+            // (env file with API key and model), prefer it over stale credentials
+            // from other providers on restart so the context window reflects
+            // the model the user is actually using.
+            crate::provider_catalog::openai_compatible_profiles()
+                .iter()
+                .copied()
+                .any(crate::provider_catalog::openai_compatible_profile_is_configured),
+        );
 
         if copilot_premium_zero && matches!(active, ActiveProvider::Copilot) {
             crate::logging::info(

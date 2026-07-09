@@ -38,6 +38,56 @@ pub const ALL_OPENAI_MODELS: &[&str] = &[
 /// Default context window size when model-specific data isn't known.
 pub const DEFAULT_CONTEXT_LIMIT: usize = 200_000;
 
+/// Exact-match model → context limit for common openai-compatible models.
+///
+/// Each entry is `(lowercased_model_id, context_limit)`.  Exact string match
+/// (after trim + ascii-lowercase), no prefix/suffix/glob — a non-match falls
+/// back to [`DEFAULT_CONTEXT_LIMIT`].
+///
+/// Source: official API documentation of each provider, retrieved 2026-07-01.
+/// Keep entries sorted by vendor then by model id for easy scanning.
+pub const OPENAI_COMPAT_MODEL_CONTEXT_LIMITS: &[(&str, usize)] = &[
+    // DeepSeek — https://api-docs.deepseek.com/quick_start/pricing
+    ("deepseek-v4-flash", 1_000_000),
+    ("deepseek-v4-pro", 1_000_000),
+    // Kimi — https://platform.kimi.com/docs/api/chat  (256K context family)
+    ("kimi-k2.5", 256_000),
+    ("kimi-k2.6", 256_000),
+    ("kimi-k2.7-code", 256_000),
+    // Zhipu GLM — https://docs.bigmodel.cn/  (model list page)
+    ("glm-4.5-air", 128_000),
+    ("glm-4.5-airx", 128_000),
+    ("glm-4.5-flash", 128_000),
+    ("glm-4.6", 200_000),
+    ("glm-4.7", 200_000),
+    ("glm-4.7-flash", 200_000),
+    ("glm-4.7-flashx", 200_000),
+    ("glm-4-flash-250414", 128_000),
+    ("glm-4-flashx-250414", 128_000),
+    ("glm-4-long", 1_000_000),
+    ("glm-5", 200_000),
+    ("glm-5.1", 200_000),
+    ("glm-5.2", 1_000_000),
+    ("glm-5-turbo", 200_000),
+    // Qwen/DashScope — https://help.aliyun.com/zh/model-studio/getting-started/models
+    ("qwen3.6-flash", 1_000_000),
+    ("qwen3.7-max", 1_000_000),
+    ("qwen3.7-plus", 1_000_000),
+];
+
+/// Returns the context limit for a known openai-compatible model ID via
+/// exact-match lookup, or [`None`] if the model is not in the table.
+///
+/// Callers should fall back to [`DEFAULT_CONTEXT_LIMIT`] when this returns
+/// [`None`].
+pub fn openai_compatible_model_context_limit(model: &str) -> Option<usize> {
+    let model = model.trim().to_ascii_lowercase();
+    OPENAI_COMPAT_MODEL_CONTEXT_LIMITS
+        .iter()
+        .find(|(name, _)| *name == model)
+        .map(|(_, limit)| *limit)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelCapabilities {
     pub provider: Option<String>,
@@ -187,6 +237,14 @@ pub fn context_limit_for_model_with_provider_and_cache(
     }
 
     if let Some(limit) = cached_context_limit(model) {
+        return Some(limit);
+    }
+
+    // Openai-compatible models (DeepSeek, Kimi, GLM, Qwen, etc.) are routed
+    // through the OpenRouter/OpenAI-compatible provider and have no provider-
+    // specific override here.  Check the exact-match table before falling
+    // back to DEFAULT_CONTEXT_LIMIT.
+    if let Some(limit) = openai_compatible_model_context_limit(model) {
         return Some(limit);
     }
 

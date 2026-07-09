@@ -3630,6 +3630,7 @@ dependencies = [
 name = "jcode-provider-metadata"
 version = "0.1.0"
 dependencies = [
+ "jcode-provider-core",
  "url",
 ]
 

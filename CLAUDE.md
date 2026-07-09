@@ -5,55 +5,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```powershell
-# Quick check (fastest feedback)
-cargo check
-
-# Build debug
-cargo build
-
-# Build release
-cargo build --release
-
-# Run all tests
-cargo test
-
-# Run a single unit test
-cargo test test_name -- --nocapture
-
-# Run a single integration test
-cargo test --test e2e test_name -- --exact --nocapture
-
-# Run tests for a specific crate
-cargo test -p jcode-core
-
-# Format check
-cargo fmt --all -- --check
-
-# Clippy (as CI does)
+cargo check                           # quick check (fastest)
+cargo build                           # debug build
+cargo build --release                 # release build
+cargo test                            # all tests
+cargo test <name> -- --nocapture      # single unit test
+cargo test --test e2e <name> -- --exact --nocapture  # single e2e test
+cargo test -p jcode-core              # specific crate
+cargo fmt --all -- --check            # format check
 cargo clippy --all-targets --all-features -- -D warnings
-
-# Run with specific profile
-.\scripts\dev_saitec_tui.ps1 -Profile selfdev
-
-# Build dev version
-.\scripts\dev_saitec_tui.ps1
-
-# Package for distribution
-cargo build --release
-.\scripts\package_saitec.ps1
-
-# Remote build (when local resources insufficient)
-scripts/remote_build.sh
-
-# Stop running dev instance
-.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild
+.\scripts\dev_saitec_tui.ps1 [-Profile selfdev]  # build dev/selfdev
+.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild  # stop dev instance
+cargo build --release; .\scripts\package_saitec.ps1  # package dist
+scripts/remote_build.sh               # remote build (low resources)
 ```
 
-E2E tests live in `tests/e2e/` and use a mock provider (`tests/e2e/mock_provider/`). They verify the full flow from user input to response without actual API calls. E2E modules: `ambient`, `binary_integration`, `burst_spawn`, `provider_behavior`, `safety`, `session_flow`, `transport`, `windows_lifecycle`.
-
-Unit tests are inlined in each source file via `#[cfg(test)] mod tests` or `#[cfg(test)] mod tests { ... }`. There are ~64 test module locations across the crate.
-
-Budget enforcement scripts in `scripts/` check code size, panic count, swallowed errors, test size, and warnings — these run as part of CI.
+E2E tests: `tests/e2e/` (mock provider, no API calls). Modules: `ambient`, `binary_integration`, `burst_spawn`, `provider_behavior`, `safety`, `session_flow`, `transport`, `windows_lifecycle`.
+Unit tests: inline `#[cfg(test)]` in each source (~64 locations).
+Budget scripts in `scripts/` (code size, panics, test size, warnings) — run in CI.
 
 ## Project Architecture
 
@@ -218,34 +187,18 @@ Config loaded from `~/.jcode/config.toml` (or `$JCODE_HOME/config.toml`), expose
 
 ## Login Flow Architecture
 
-Two-layer login system in `src/auth/`, `src/cli/login.rs`, `src/tui/login_picker.rs`:
-
-- **SAITEC platform login**: Email/phone + password → `POST /api/v1/auth/login` → get JWT → `POST /api/v1/api-keys` → creates a business API Key → stored as `SaitecSession` struct
-- **Base model login**: Multiple auth methods dispatched by `LoginProviderTarget`:
-  - OAuth + PKCE (Claude, OpenAI/Codex, Gemini, Antigravity) — generates verifier+SHA256 challenge, binds local callback server, exchanges code for tokens
-  - API key input (OpenAI, OpenRouter, Bedrock, Cursor) — secret prompt, saved to `.env` files
-  - Device code flow (GitHub Copilot) — `device_code` → poll → token
-  - Form-based (SAITEC) — email/phone + password
-  - OpenAI-compatible provider flow: API key → optionally model name → profile activation
-- TUI uses `PendingLogin` state machine enum to track in-progress login steps, with these variants:
-  - `StartupGuide { focused, is_reminder }` — Welcome guide overlay (see below)
-  - `SaitecForm` — SAITEC email/phone + password form
-  - `ClaudeAccount` / `OpenAiAccount` / `Antigravity` / `Gemini` — OAuth PKCE flows
-  - `ApiKeyProfile` — API key text entry
-  - `OpenAiCompatibleApiBase` — OpenAI-compatible base URL entry
-  - `OpenAiCompatibleModelName` — Optional model name prompt after API key save (when provider lacks `default_model`)
-  - `CursorApiKey` / `Copilot` — API key / device code flows
-- `AuthStatus` cached with 30s TTL (`check()`) and 5s TTL (`check_fast()`), invalidated after auth changes
-- `AuthStatus::has_any_base_model()` — checks if any real base-model provider (excluding SAITEC/jcode) is configured
+Two-layer login system (`src/auth/`, `src/cli/login.rs`, `src/tui/login_picker.rs`):
+- **SAITEC**: email/phone + password → JWT → API key → `SaitecSession`
+- **Base model**: OAuth+PKCE (Claude, OpenAI/Codex, Gemini, Antigravity), API key input (OpenAI, OpenRouter, Bedrock, Cursor), device code (Copilot), form (SAITEC), openai-compatible (key + model)
+- `PendingLogin` variants: `StartupGuide`, `SaitecForm`, `ClaudeAccount`/`OpenAiAccount`/`Antigravity`/`Gemini` (OAuth), `ApiKeyProfile`, `OpenAiCompatibleApiBase`/`OpenAiCompatibleModelName`, `CursorApiKey`/`Copilot`
+- `AuthStatus`: 30s TTL (`check()`), 5s TTL (`check_fast()`)
 
 ## Startup Guide System
 
-Introduced in commits b8c2701a / e147098d. A `PendingLogin::StartupGuide` overlay shown on the branded startup splash when credentials are missing:
-
-- **Setup mode** (`is_reminder: false`): Shown when no base model is configured. Blocking — user must configure at least one base model.
-- **Reminder mode** (`is_reminder: true`): Shown when base models are OK but SAITEC login is missing. Skippable via the "Skip SAITEC" button.
-
-Two action buttons navigable via Tab/Enter: **Log in to SAITEC Platform** and either **Configure AI Base Model** (setup) or **Skip SAITEC, Continue** (reminder). Wired into both `App::run()` and `App::run_remote()`. The `restore_startup_guide_if_needed()` method reopens the guide when the login picker is cancelled.
+`PendingLogin::StartupGuide` overlay on branded splash when credentials missing:
+- **Setup mode** (no base model): blocking, user must configure one
+- **Reminder mode** (SAITEC missing only): skippable via "Skip SAITEC" button
+- Restored via `restore_startup_guide_if_needed()` when picker cancelled
 
 ## OpenAI-Compatible Provider Env System
 
@@ -283,46 +236,55 @@ When switching between openai-compatible providers, all four vars are cleared fr
 
 ## Project Memory
 
-### SAITEC-Skills vendor sync procedure
+### SAITEC-Skills vendor sync
 
-`_vendor/SAITEC-Skills/` is a manually maintained vendor copy (NOT git submodule, NOT git subtree). It is tracked by git (~22 files) and is NOT excluded by `.gitignore`. `package_saitec.ps1` and `release.yml` both bundle it directly.
+`_vendor/SAITEC-Skills/` is a manually maintained git-tracked vendor copy (bundled by `package_saitec.ps1` & `release.yml`).
 
-#### Key facts (verified 2026-06-29)
+**Key facts**: SAITEC-TUI adds two helper modules upstream lacks: `auth_headers.py` (auth.json fallback) and `http_errors.py` (richer error body). Every `*_tools.py` imports both. `tests/` is vendor-only; upstream has `test_data/`.
 
-- The SAITEC-TUI team adds **two helper modules** to vendor that **upstream never has**:
-  - `mcp_server/api_tools/auth_headers.py` — `build_auth_headers()` / `resolve_api_key()`. Falls back to `~/.saitec_tui/auth.json` when `SAITEC_API_KEY` env is not set.
-  - `mcp_server/api_tools/http_errors.py` — `raise_for_status_with_body()` raises with response body attached, used in place of httpx's default `raise_for_status()`.
-- Every `*_tools.py` in vendor uses these helpers via `from api_tools.auth_headers import build_auth_headers` + `from api_tools.http_errors import raise_for_status_with_body`. **The selective sync MUST preserve these imports and call sites**, not blindly replace them with upstream's inlined `os.getenv("SAITEC_API_KEY")` and `resp.raise_for_status()` style.
-- `tests/` is vendor-only (upstream has no `tests/`).
-- Upstream has `test_data/` (data sets, not tests). Vendor does not.
-- Credentials are injected by Rust: `src/saitec/mcp.rs apply_runtime_env` writes `SAITEC_API_KEY` (constant value `"SAITEC_API_KEY"`, defined at `src/subscription_catalog.rs:3`) into the MCP subprocess env. So Python `os.getenv("SAITEC_API_KEY")` always works even without auth_headers.py. The auth_headers.py fallback to auth.json is **defense in depth**, not strictly required.
+**Sync**: clone upstream at `C:\Users\Administrator\Desktop\projects\SAITEC-Skills`. Per file: read upstream → read vendor → selectively copy. Translate `resp.raise_for_status()` → `raise_for_status_with_body(resp)`. Port: 8080. Verify: `python -m py_compile` on all .py files, `cargo check`, `diff -rq` for expected diffs only.
 
-#### Sync procedure (selective mode)
+**Anti-patterns**: DO NOT `cp -f` (loses helper imports). DO NOT delete `auth_headers.py`/`http_errors.py`. DO NOT trust first read — diff explicitly. DO NOT make `"""..."""` spanning edits.
 
-1. **Richard clones upstream** at `C:\Users\Administrator\Desktop\projects\SAITEC-Skills` (separate git repo). Check `git log --oneline` to see the upstream commit history.
-2. **Per file**: Read source first, Read vendor current state second, then compare and decide:
-   - For new tools (e.g., `read_file_content`, `get_tested_models`): copy from upstream, BUT translate `resp.raise_for_status()` → `raise_for_status_with_body(resp)` to keep vendor style.
-   - For docstring hardening (IMPORTANT blocks, Must be a JSON rules): copy from upstream verbatim — these don't conflict with the helpers.
-   - For `run_mcp.sh` CORE_API_BASE port: upstream is 8080, vendor was 8000. Always sync to 8080.
-   - For `skills/*.md`: full copy from upstream (SOPs change frequently).
-3. **Run `python -m py_compile <file>` after every change** to catch syntax errors immediately.
-4. **Verify after all changes**:
-   - `python -m py_compile` on all 10 .py files
-   - `grep -h "async def " mcp_server/api_tools/*.py | grep -v register_` — count should match upstream (currently 30 tools)
-   - `cargo check` — should pass with no new warnings
-   - `diff -rq <src> <vendor>` — only expected diffs (helper imports, helper call sites, download_file stricter error body check)
-5. **Commit**: `chore(vendor): selective sync of SAITEC-Skills to upstream <short-sha>`. Include: tools added, docstring changes, port fix, docs sync, preserved items, verification results.
+### OpenAI-compatible: config vs credentials env hygiene
 
-#### Anti-patterns (mistakes made in past sessions)
+**Config** (survive logout): `JCODE_OPENAI_COMPAT_API_BASE`, `JCODE_OPENAI_COMPAT_DEFAULT_MODEL`, `JCODE_OPENAI_COMPAT_API_KEY_NAME`, `JCODE_OPENAI_COMPAT_ENV_FILE`.
+**Credentials** (cleared on logout): the API key, ZAI/ZHIPU linked keys, `JCODE_OPENAI_COMPAT_LOCAL_ENABLED`.
+**Runtime** (process-env only): all `JCODE_OPENROUTER_*` vars, named-profile guards, 4 `JCODE_OPENAI_COMPAT_*` overrides.
 
-- **DO NOT** blindly `cp -f` upstream files into vendor — that loses the helper imports and breaks SAITEC-TUI's auth.json fallback.
-- **DO NOT** delete `auth_headers.py` / `http_errors.py` just because upstream doesn't have them. They are intentional SAITEC-TUI additions.
-- **DO NOT** rely on `grep -E` for verifying docstring presence — it can be misleading when output is sliced. Use `sed -n` for explicit line ranges, or read the actual docstring content.
-- **DO NOT** trust first read of file content. The `image_detect_tools.py` and `video_detect_tools.py` had vendor-leading content in some places (`upload_file` 6-type, `detect_image` method list) and vendor-trailing content in others (read_file_content missing). Always diff explicitly.
-- **DO NOT** make a single big Edit that combines `"""..."""` boundaries with content changes — repeated docstring opens from `"""` to `"""` cause "unterminated triple-quoted string literal" errors when the edit pattern overlaps. If an Edit fails with that error, `git checkout HEAD -- <file>` to revert and redo with a smaller `old_string` that does NOT include the closing `"""`.
+Env file: `AppData/Roaming/jcode/openai-compatible.env` (NOT `~/.jcode/` or `~/.saitec_tui/`). Its `.bak` is pre-write snapshot — compare mtimes when debugging config loss.
 
-#### Diff direction (which side is "new")
+**Anti-pattern**: never call `force_apply_openai_compatible_profile_env(None)` from logout/activation-rollback paths — it wipes the env file's config. Use `clear_openai_compatible_runtime_env_keep_config()` instead.
 
-Vendor is **historically lagging** upstream. Upstream `b178ab8` has more tools, more docstring detail, and the 8080 port fix. Vendor's only advances over upstream are the two helper modules and the stricter `download_file` error-body check.
 
-Last sync: commit `9f350494` (2026-06-29), upstream at `b178ab8`. 14 files, +486 / -52.
+### AuthTest deadlock from stale `auth-validation.json`
+
+**Symptom** (fixed `b18a4c17`): pressing `R` in login picker shows `validation failed (just now)` with no detail. Read `~/.saitec_tui/auth-validation.json` for actual error.
+
+**Root cause**: stale `success: false` row → `state_for_provider` returns `Expired` → probe short-circuits before smoke runs → new failure written, locking state in.
+
+**Fix** (`src/cli/auth_test/probes.rs`): for `OpenAiCompatible` targets, bypass stale `Expired` by checking `openai_compatible_profile_is_configured()` directly.
+
+### OpenAI-compatible: 200K / `anthropic/claude-sonnet-4` regression
+
+**Symptom** (fixed `e05304a1`): context bar shows 200K, requests fail with `400: ... passed anthropic/claude-sonnet-4` after restart/revalidate.
+
+**4 root causes** (all in `e05304a1`):
+
+1. **Hardcoded fallback** (`src/provider/mod.rs:732-735`): `unwrap_or("anthropic/claude-sonnet-4")` when `openrouter` is `None`. Fix: `OPENAI_COMPAT_MODEL_CONTEXT_LIMITS` table in `jcode-provider-core` covering DeepSeek, Kimi, GLM, Qwen.
+
+2. **Server bootstrap missing env vars** (`src/provider/startup.rs:87-99`): `has_openrouter_creds` was `false` at bootstrap. Fix: scan env files and `apply_openai_compatible_profile_env` before the lookup.
+
+3. **`auto_default_provider` priority** (`crates/jcode-provider-core/src/selection.rs`): `OpenRouter` was after Claude/OpenAI. Fix: added `prefer_openai_compatible` flag.
+
+4. **`JCODE_OPENROUTER_MODEL` cleared but not re-set** (`src/provider_catalog.rs:444-450`): `apply_openai_compatible_profile_env_impl` cleared it but never re-applied. Fix: re-apply from `resolved.default_model` after the clear.
+
+**Anti-patterns**: Do NOT add `JCODE_OPENROUTER_MODEL` to excluded vars (clear-then-set is correct). Do NOT call `MultiProvider::set_active_provider(Claude)` in revalidate paths. Do NOT call `force_apply_openai_compatible_profile_env(None)` from revalidate/restart/logout.
+
+### Config.toml named provider: `JCODE_OPENROUTER_MODEL` symmetric cleanup
+
+**Issue** (fixed after `e05304a1`): config-toml provider falls back to `anthropic/claude-sonnet-4` when `default_model` absent in `[providers.xxx]`.
+
+**Fix** (`src/provider_catalog.rs:531-540`): explicit `remove_var("JCODE_OPENROUTER_MODEL")` in `else` branch when no `default_model`. Tests: `named_provider_profile_env_*_model_*` in `provider_catalog_tests.rs`.
+
+**Note**: other native providers (Claude, OpenAI, Bedrock, Copilot, Cursor, Antigravity, Gemini) don't use the `apply_*_env` pattern and are unaffected.
