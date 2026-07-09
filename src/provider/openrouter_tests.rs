@@ -786,3 +786,94 @@ fn test_endpoint_detail_string() {
         detail
     );
 }
+
+/// Regression test for the "endpoint reverts to localhost:11434 / model reverts to
+/// anthropic/claude-sonnet-4 after restart" bug.
+///
+/// When the user configures the *generic* openai-compatible profile with a custom
+/// api_base (e.g. https://api.deepseek.com) plus an API key and default model saved
+/// in `openai-compatible.env`, `configured_api_base()` must return that custom
+/// api_base (resolved through the generic profile's env_override), NOT fall through
+/// to a named profile that only matches by coincidence (e.g. DEEPSEEK_PROFILE whose
+/// default api_base is also https://api.deepseek.com) or to the OpenRouter default.
+///
+/// This test uses `JCODE_HOME` for disk isolation because `dirs v5` on Windows
+/// resolves `config_dir()` via `SHGetKnownFolderPath`, which ignores the `APPDATA`
+/// env var that the other autodetect tests rely on.  `app_config_dir()` checks
+/// `JCODE_HOME` first, so this test isolates correctly on all platforms.
+#[test]
+fn generic_profile_custom_api_base_survives_autodetect() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    let temp = TempDir::new().expect("create temp dir");
+    // app_config_dir() = $JCODE_HOME/config/jcode — bypasses dirs::config_dir().
+    let _jcode_home = EnvVarGuard::set("JCODE_HOME", temp.path());
+    let _env = isolate_openrouter_autodetect_env();
+
+    // Simulate the env file written by the TUI login flow for a generic
+    // openai-compatible provider pointed at DeepSeek's direct endpoint.
+    let config_dir = temp.path().join("config").join("jcode");
+    std::fs::create_dir_all(&config_dir).expect("create test config dir");
+    std::fs::write(
+        config_dir.join("openai-compatible.env"),
+        "JCODE_OPENAI_COMPAT_API_BASE=https://api.deepseek.com\n\
+         OPENAI_COMPAT_API_KEY=test-generic-key\n\
+         JCODE_OPENAI_COMPAT_DEFAULT_MODEL=deepseek-v4-flash\n",
+    )
+    .expect("write generic openai-compatible env file");
+
+    // Must resolve to the generic profile's custom api_base, not DEEPSEEK_PROFILE's
+    // identical default, and not the OpenRouter default.
+    assert_eq!(configured_api_base(), "https://api.deepseek.com");
+    assert_eq!(configured_api_key_name(), "OPENAI_COMPAT_API_KEY");
+    assert_eq!(configured_env_file_name(), "openai-compatible.env");
+    assert!(OpenRouterProvider::has_credentials());
+}
+
+/// Regression test for the restart endpoint-reversion bug's actual trigger.
+///
+/// The on-disk leftover `ollama.env` containing `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1`
+/// (from a prior Ollama probe) makes `openai_compatible_profile_is_configured(OLLAMA_PROFILE)`
+/// return true.  In `MultiProvider::new_with_auth_status`, the bootstrap scan used
+/// `find()` over `OPENAI_COMPAT_PROFILES`, and OLLAMA_PROFILE (index 27) sorts before
+/// OPENAI_COMPAT_PROFILE (index 29) — so the stale Ollama marker won over the user's
+/// real generic DeepSeek config, setting JCODE_OPENROUTER_API_BASE=http://localhost:11434/v1.
+///
+/// This test reproduces that on-disk state (both `ollama.env` with the local-enabled
+/// marker AND `openai-compatible.env` with the real DeepSeek config) and asserts the
+/// generic profile wins, so the endpoint stays on the user's custom api_base.
+#[test]
+fn generic_profile_wins_over_stale_ollama_local_enabled_marker() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    let temp = TempDir::new().expect("create temp dir");
+    let _jcode_home = EnvVarGuard::set("JCODE_HOME", temp.path());
+    let _env = isolate_openrouter_autodetect_env();
+
+    let config_dir = temp.path().join("config").join("jcode");
+    std::fs::create_dir_all(&config_dir).expect("create test config dir");
+
+    // Stale Ollama marker — makes OLLAMA_PROFILE appear configured even though the
+    // user never actually uses Ollama.
+    std::fs::write(
+        config_dir.join("ollama.env"),
+        format!(
+            "{}=1\n",
+            crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV
+        ),
+    )
+    .expect("write stale ollama env file");
+
+    // User's real generic openai-compatible config pointed at DeepSeek.
+    std::fs::write(
+        config_dir.join("openai-compatible.env"),
+        "JCODE_OPENAI_COMPAT_API_BASE=https://api.deepseek.com\n\
+         OPENAI_COMPAT_API_KEY=test-generic-key\n\
+         JCODE_OPENAI_COMPAT_DEFAULT_MODEL=deepseek-v4-flash\n",
+    )
+    .expect("write generic openai-compatible env file");
+
+    // Must resolve to the generic profile's custom api_base (DeepSeek), NOT the
+    // stale Ollama marker's http://localhost:11434/v1.
+    assert_eq!(configured_api_base(), "https://api.deepseek.com");
+    assert_eq!(configured_api_key_name(), "OPENAI_COMPAT_API_KEY");
+    assert_eq!(configured_env_file_name(), "openai-compatible.env");
+}

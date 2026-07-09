@@ -93,16 +93,47 @@ impl MultiProvider {
         // with `MultiProvider.openrouter=None` — which would make
         // `MultiProvider::model()` fall back to a hardcoded
         // "anthropic/claude-sonnet-4" and break deepseek requests with HTTP 400.
-        let configured_compat_profile: Option<crate::provider_catalog::OpenAiCompatibleProfile> =
-            crate::provider_catalog::openai_compatible_profiles()
+        //
+        // Prefer the generic OPENAI_COMPAT_PROFILE over named profiles when both are
+        // configured: the generic profile holds the user's explicit custom endpoint
+        // + model (e.g. a DeepSeek direct endpoint saved via /login base-models),
+        // while a named profile may report `is_configured` purely from a stale
+        // `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1` left in its env file (e.g. an old
+        // Ollama probe).  Without this preference, `find()` returns the first
+        // configured profile in OPENAI_COMPAT_PROFILES array order — OLLAMA_PROFILE
+        // (index 27) sorts before OPENAI_COMPAT_PROFILE (index 29) — so the stale
+        // Ollama marker overrode the user's real DeepSeek config, producing
+        // endpoint=http://localhost:11434/v1 and model=anthropic/claude-sonnet-4
+        // after restart.
+        let configured_compat_profile: Option<crate::provider_catalog::OpenAiCompatibleProfile> = {
+            let profiles = crate::provider_catalog::openai_compatible_profiles();
+            if profiles
                 .iter()
                 .copied()
-                .find(|p| crate::provider_catalog::openai_compatible_profile_is_configured(*p));
+                .any(|p| {
+                    p.id == crate::provider_catalog::OPENAI_COMPAT_PROFILE.id
+                        && crate::provider_catalog::openai_compatible_profile_is_configured(p)
+                }) {
+                Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE)
+            } else {
+                profiles.iter().copied().find(|p| {
+                    crate::provider_catalog::openai_compatible_profile_is_configured(*p)
+                })
+            }
+        };
         if let Some(profile) = configured_compat_profile {
             crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
         }
         let active_compatible_profile =
             crate::provider_catalog::active_openai_compatible_profile_id();
+        crate::logging::info(&format!(
+            "[bootstrap] openai-compatible: configured={:?}, active_id={:?}, explicit_runtime={}, sub_runtime={}",
+            configured_compat_profile.map(|p| p.id),
+            active_compatible_profile,
+            ["JCODE_OPENROUTER_API_BASE","JCODE_OPENROUTER_API_KEY_NAME","JCODE_OPENROUTER_ENV_FILE","JCODE_OPENROUTER_CACHE_NAMESPACE"]
+                .iter().any(|key| std::env::var_os(key).is_some()),
+            subscription_runtime,
+        ));
         let generic_openrouter_key_present = std::env::var_os("OPENROUTER_API_KEY").is_some();
         let explicit_compatible_runtime_env = [
             "JCODE_OPENROUTER_API_BASE",
@@ -121,6 +152,13 @@ impl MultiProvider {
             && (!generic_openrouter_key_present || explicit_compatible_runtime_env);
         let has_openrouter_creds =
             openrouter_runtime_allowed && openrouter::OpenRouterProvider::has_credentials();
+        crate::logging::info(&format!(
+            "[bootstrap] openrouter: runtime_allowed={}, has_creds={}, allowed_profile={:?}, JCODE_OPENROUTER_API_BASE={:?}",
+            openrouter_runtime_allowed,
+            has_openrouter_creds,
+            active_compatible_profile,
+            std::env::var("JCODE_OPENROUTER_API_BASE").ok(),
+        ));
 
         let use_claude_cli = std::env::var("JCODE_USE_CLAUDE_CLI")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))

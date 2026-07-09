@@ -100,7 +100,39 @@ fn autodetected_openai_compatible_profile()
 
     let compat = resolve_openai_compatible_profile(OPENAI_COMPAT_PROFILE);
     if load_api_key_from_env_or_config(&compat.api_key_env, &compat.env_file).is_some() {
+        // User has configured the generic openai-compatible profile with a custom
+        // endpoint and/or model. Return it regardless of whether it has a non-default
+        // api_base, so `configured_api_base()` / `configured_api_key_name()` etc. use
+        // the generic profile's resolved values (custom api_base from env_override)
+        // rather than falling through to a named profile that only matches by coincidence
+        // (e.g. a DeepSeek endpoint matching DEEPSEEK_PROFILE.api_base).
         return Some(compat);
+    }
+
+    // If the generic profile is not fully configured (no API key found), check
+    // whether the env_override values indicate a custom setup in progress.  This
+    // catches the case where the API key env var name was customized from the
+    // default OPENAI_COMPAT_API_KEY to something else, making the key check above
+    // miss it, but JCODE_OPENAI_COMPAT_API_BASE is still set in the env file.
+    let env_file = crate::provider_catalog::OPENAI_COMPAT_PROFILE.env_file;
+    let api_base = crate::provider_catalog::load_env_value_from_env_or_config(
+        "JCODE_OPENAI_COMPAT_API_BASE",
+        env_file,
+    );
+    let default_model = crate::provider_catalog::load_env_value_from_env_or_config(
+        "JCODE_OPENAI_COMPAT_DEFAULT_MODEL",
+        env_file,
+    );
+    if api_base.is_some() || default_model.is_some() {
+        let resolved = resolve_openai_compatible_profile(OPENAI_COMPAT_PROFILE);
+        // Only return the auto-detected generic profile when it is actually configured
+        // (API key present or no key required for local endpoint), to avoid returning
+        // a half-configured profile that would fail at request time.
+        if crate::provider_catalog::openai_compatible_profile_is_configured(
+            crate::provider_catalog::OPENAI_COMPAT_PROFILE,
+        ) {
+            return Some(resolved);
+        }
     }
 
     let mut matches = openai_compatible_profiles()

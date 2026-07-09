@@ -728,8 +728,23 @@ async fn detect_bootstrap_credentials() -> BootstrapCredentialState {
     let has_copilot = auth::copilot::has_copilot_credentials();
     let has_api_key = provider::anthropic::has_direct_api_key();
 
+    // OpenRouterProvider::has_credentials() checks the JCODE_OPENROUTER_* process
+    // env vars, which are only set after a profile has been activated.  At server
+    // bootstrap time those vars are not yet populated, so we must also scan the env
+    // files on disk to detect an already-configured openai-compatible profile
+    // before deciding whether to spawn --provider auto or --provider jcode.
+    let has_disk_openai_compat = provider_catalog::openai_compatible_profiles()
+        .iter()
+        .copied()
+        .any(|p| provider_catalog::openai_compatible_profile_is_configured(p));
+
     BootstrapCredentialState {
-        has_any: has_claude || has_openai || has_openrouter || has_copilot || has_api_key,
+        has_any: has_claude
+            || has_openai
+            || has_openrouter
+            || has_copilot
+            || has_api_key
+            || has_disk_openai_compat,
     }
 }
 

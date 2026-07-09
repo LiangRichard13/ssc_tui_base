@@ -855,3 +855,64 @@ fn test_context_limit_dynamic_cache() {
     );
     assert_eq!(context_limit_for_model("test-model-xyz"), Some(64_000));
 }
+
+/// Regression test for the "endpoint reverts to localhost:11434 / model reverts to
+/// anthropic/claude-sonnet-4 after restart" bug.
+///
+/// Trigger: a stale `ollama.env` containing `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1`
+/// (left behind by a prior Ollama probe) makes
+/// `openai_compatible_profile_is_configured(OLLAMA_PROFILE)` return true.  The
+/// bootstrap scan in `MultiProvider::new_with_auth_status` used `find()` over
+/// `OPENAI_COMPAT_PROFILES`, and OLLAMA_PROFILE (index 27) sorts before
+/// OPENAI_COMPAT_PROFILE (index 29) — so the stale Ollama marker won over the
+/// user's real generic DeepSeek config, setting JCODE_OPENROUTER_API_BASE to
+/// http://localhost:11434/v1 and leaving the model as the hardcoded
+/// "anthropic/claude-sonnet-4" fallback.
+///
+/// Fix: prefer OPENAI_COMPAT_PROFILE when it is configured, so the user's explicit
+/// custom endpoint + model wins over a named profile that only appears configured
+/// because of a stale local-enabled marker.
+#[test]
+fn bootstrap_prefers_generic_openai_compatible_over_stale_ollama_marker() {
+    with_clean_provider_test_env(|| {
+        // Write the on-disk state that reproduces the bug: a stale Ollama marker
+        // alongside the user's real generic openai-compatible DeepSeek config.
+        let config_dir = crate::storage::app_config_dir().expect("app config dir");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+
+        std::fs::write(
+            config_dir.join("ollama.env"),
+            format!(
+                "{}=1\n",
+                crate::provider_catalog::OPENAI_COMPAT_LOCAL_ENABLED_ENV
+            ),
+        )
+        .expect("write stale ollama env file");
+
+        std::fs::write(
+            config_dir.join("openai-compatible.env"),
+            "JCODE_OPENAI_COMPAT_API_BASE=https://api.deepseek.com\n\
+             OPENAI_COMPAT_API_KEY=test-generic-key\n\
+             JCODE_OPENAI_COMPAT_DEFAULT_MODEL=deepseek-v4-flash\n",
+        )
+        .expect("write generic openai-compatible env file");
+
+        let provider = MultiProvider::new_fast();
+
+        // The generic DeepSeek config must win — the OpenRouter sub-provider must
+        // be initialized (not None, which would fall back to claude-sonnet-4) and
+        // the active model must be the user's configured DeepSeek model, not the
+        // hardcoded "anthropic/claude-sonnet-4" fallback that appears when the
+        // stale Ollama marker wins (Ollama's default_model is None).
+        let openrouter = provider.openrouter_provider();
+        assert!(
+            openrouter.is_some(),
+            "OpenRouter sub-provider must initialize from the generic deepseek config, not be None"
+        );
+        assert_ne!(
+            provider.model(),
+            "anthropic/claude-sonnet-4",
+            "model must not fall back to the hardcoded default — the generic DeepSeek config should win over the stale Ollama marker"
+        );
+    });
+}
