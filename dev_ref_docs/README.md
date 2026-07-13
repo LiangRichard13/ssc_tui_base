@@ -31,6 +31,12 @@
 | 14 | [14-telemetry.md](14-telemetry.md) | 匿名遥测采集、Cloudflare Worker + D1、opt-out |
 | 15 | [15-update.md](15-update.md) | 自动更新、stable/main 双 channel、SHA256 校验 |
 | 16 | [16-overnight.md](16-overnight.md) | 无人值守运行、安全系统、通知分发、ambient 高级变体 |
+| 17 | [17-desktop-app.md](17-desktop-app.md) | Desktop 原生 GPU 客户端、wgpu+winit 渲染、Niri 风格多 session 空间化工作台 |
+| 18 | [18-mobile-client.md](18-mobile-client.md) | iOS 移动客户端、Mobile Agent Simulator、Rust 共享核心、Tailscale+WebSocket 接入 |
+| 19 | [19-cross-platform.md](19-cross-platform.md) | 跨平台策略（TUI/Desktop/Mobile）、代码共享划分、各客户端对比 |
+| 20 | [20-architecture-rfcs.md](20-architecture-rfcs.md) | 模块化架构 RFC、Client-Core/Presentation 拆分、多会话客户端、Server/Service 拆分 |
+| 21 | [21-quality-audit.md](21-quality-audit.md) | 代码质量计划、审计、待办、重构路线图、依赖安全 |
+| 22 | [22-browser-provider.md](22-browser-provider.md) | Browser Provider 协议设计与 agent 交互 |
 
 ## 阅读约定补充
 
@@ -43,7 +49,13 @@
 - **想理解持久化与崩溃恢复**：08 (Storage/Session) + 04 (Server durable_state / reload_recovery)
 - **想理解远程客户端（iOS/Web）**：10 (Gateway/Transport) + 11 (Protocol) + 04 (Server accept loop)
 - **想理解多 agent 协作**：04 (swarm*) + 02 (subagent Registry clone) + 11 (SwarmEvent)
+- **想理解架构规划与方向**：20 (架构 RFC、crate 拆分、Client-Core/Presentation 拆分方案) + 12 (workspace 构建)
+- **想理解代码质量改进进展**：21 (质量审计、计划、待办、依赖安全) + 12 (budget 脚本与 CI guardrails)
+- **想理解浏览器自动化集成**：22 (Browser Provider 协议与 provider 设计) + 02 (agent browser tool) + 03 (browser provider 实现)
 - **想理解无人值守/夜间运行**：16 (overnight/safety/notifications) + 04 (ambient 系统) + 13 (SafetyConfig 通知渠道)
+- **想理解 Desktop 原生客户端**：17 (Desktop 架构全景) + 11 (共享 NDJSON protocol) + 04 (Server 连接)
+- **想理解 iOS 移动客户端**：18 (Mobile 架构) + 10 (Gateway/Transport WebSocket 接入) + 11 (Protocol) + 04 (Server accept loop)
+- **想理解各客户端关系**：19 (跨平台策略/共享层划分) + 05 (TUI 特性参考) + 17 (Desktop 设计) + 18 (Mobile 设计)
 
 ## 历史修复记录归档
 

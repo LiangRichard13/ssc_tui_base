@@ -22,6 +22,47 @@ Provider 子系统是 SAITEC-TUI 的多后端 LLM 调用抽象层：通过 `Mult
 | **AWS Bedrock** | IAM / SigV4 / `AWS_BEARER_TOKEN_BEDROCK` | 原生 Converse/ConverseStream，支持 inference profile |
 | **OpenRouter** | API key（`OPENROUTER_API_KEY`） | **同时承载全部 30 个 OpenAI-compatible profile 的运行时** |
 
+## AWS Bedrock Provider 详解
+
+> **来源**：原生 jcode 设计文档 `docs/AWS_BEDROCK_PROVIDER.md`。SAITEC-TUI 继承此 provider，以下内容适用于本项目。
+
+### 认证方式
+
+支持标准 AWS 凭据机制和专属 API key 两种方式：
+
+1. **API key**：`jcode login --provider bedrock` 保存 `AWS_BEARER_TOKEN_BEDROCK` + `JCODE_BEDROCK_REGION` 到 `~/.config/jcode/bedrock.env`。
+2. **IAM/SSO profile**：通过 `AWS_PROFILE` + `AWS_REGION` 配置，jcode 特定覆盖为 `JCODE_BEDROCK_PROFILE` + `JCODE_BEDROCK_REGION`。使用 SSO 时先执行 `aws sso login --profile <profile>`。
+3. **实例/容器元数据**：无本地 profile 时设 `JCODE_BEDROCK_ENABLE=1` + `AWS_REGION` 启用。
+
+### IAM 权限
+
+运行时最少需要 `bedrock:InvokeModel` 和 `bedrock:InvokeModelWithResponseStream`。模型发现额外需 `bedrock:ListFoundationModels` 和 `bedrock:ListInferenceProfiles`。STS 验证（`JCODE_BEDROCK_VALIDATE_STS=1`）需 `sts:GetCallerIdentity`。
+
+### 模型发现
+
+使用静态模型列表即刻可用；后台 catalog refresh 时调 `ListFoundationModels` + `ListInferenceProfiles` 并缓存结果。
+
+### 可选请求参数
+
+```
+JCODE_BEDROCK_MAX_TOKENS=4096  JCODE_BEDROCK_TEMPERATURE=0.2
+JCODE_BEDROCK_TOP_P=0.9       JCODE_BEDROCK_STOP_SEQUENCES='</done>,STOP'
+```
+
+### 使用与故障排查
+
+```bash
+# 直接指定 provider 和 model
+jcode --provider bedrock --model anthropic.claude-3-5-sonnet-20241022-v2:0
+# 使用 inference profile ID/ARN
+jcode --model bedrock:us.anthropic.claude-3-5-sonnet-20241022-v2:0
+```
+
+- `AccessDenied`：授予 Bedrock invoke/list 权限并在 AWS Console 启用模型访问。
+- `model not found`：确认 model ID/inference profile 和 region 支持。
+- SSO token 错误：执行 `aws sso login --profile <profile>`。
+- 缺少 region：设 `AWS_REGION` 或 `JCODE_BEDROCK_REGION`。
+
 **30 个 OpenAI-compatible profile**（定义在 `crates/jcode-provider-metadata/src/lib.rs` 的 `OPENAI_COMPAT_PROFILES`）：OpenCode Zen/Go、Z.AI、Kimi Code、Chutes、Cerebras、Alibaba Coding Plan、302.AI、Baseten、Cortecs、DeepSeek、Comtegra、FPT、Firmware、Hugging Face、Moonshot、Nebius、Scaleway、STACKIT、Groq、Mistral、Perplexity、Together、Deep Infra、Fireworks、MiniMax、xAI、LM Studio、Ollama、通用 OpenAI-compatible 等。本地端点（Ollama/LM Studio）`requires_api_key: false`。
 
 另有 **Azure OpenAI** / **Google(Gmail)** 作为 `LoginProviderTarget` 存在但不在 `ActiveProvider` enum 中。
@@ -143,6 +184,99 @@ src/provider/multi_provider.rs    facade 层：MultiProvider 组装、认证探�
 ```
 
 `crates/` 层只定义类型和纯函数（无 IO），`src/provider/` 实现 IO 密集的 `Provider` trait。`jcode-provider-core` 被所有其他 crate 和 `src/` 共同依赖；`jcode-provider-metadata` 被 `src/provider_catalog.rs` re-export。
+
+## Provider/Session/Shared-Contract 边界审计
+
+> **来源**：原生 jcode 设计审计 `docs/PROVIDER_SESSION_SHARED_CONTRACT_AUDIT.md`（2026-04-16）。以下分析和推荐来源于原生 jcode，SAITEC-TUI 作为二次开发，部分决策路径可能不同。
+
+### 执行摘要
+
+当前 workspace 中 Provider 和 Session 边界的最佳下一步改进方向：**不是**完整提取 `Provider` trait 或 `session.rs`。最高杠杆的动作是（按优先级排序）：
+
+1. 新增 `jcode-shared-contracts` crate（纯 serde 的 protocol/session 重叠类型）
+2. 然后新增 `jcode-session-contracts`（session 元数据/回放/视图 struct）
+3. 如需进一步 provider 侧改进，提取纯 provider identity/selection 层
+
+### 禁止提取的告诫
+
+以下提取看似诱人，但现实中会把已有的高 churn 耦合转为 workspace crate 间的 churn，**不建议现在做**：
+
+| 不应做的事情 | 根本障碍 |
+|---|---|
+| 提取 `Provider` / `EventStream` 到共享 crate | trait 仍深度耦合 `message`、auth、runtime failover、logging、bus |
+| 搬移整个 `provider_catalog.rs` | 混合 catalog/profile 值 + env 修改 + auth 探测 + 配置文件查找 + logging |
+| 搬移整个 `protocol.rs` | `Request` / `ServerEvent` 依赖 `message` / `provider` / `session` / `side_panel` / `bus` |
+| 搬移整个 `session.rs` | 混用 contract struct + runtime state + rendering + journaling + persistence |
+
+### 推荐提取顺序
+
+**Phase 1 — `jcode-shared-contracts`**（纯 serde，零额外依赖）：
+- `PlanItem`（来自 `src/plan.rs`）
+- 小 shared struct/enum：`TranscriptMode`、`CommDeliveryMode`、`FeatureToggle`、`SessionActivitySnapshot`
+- Swarm 相关：`SwarmMemberStatus`、`AgentInfo`、`ContextEntry`、`SwarmChannelInfo`、`AwaitedMemberStatus`、`NotificationType`
+
+**Phase 2 — `jcode-session-contracts`**（仅在 Phase 1 之后）：
+- `SessionStatus`、`SessionImproveMode`、`StoredDisplayRole`、`StoredTokenUsage`
+- `StoredCompactionState`、`StoredMemoryInjection`、`RenderedImageSource`、`RenderedImage`
+- `StoredReplayEvent` / `StoredReplayEventKind`（等其 swarm/plan payload 不再指向 `protocol.rs`）
+
+**Phase 3 — provider identity/selection**（可选）：
+- provider identity enum（`ActiveProvider`）
+- pure fallback ordering helpers
+- **不包含**：`Provider` trait、`EventStream`、account failover、auth state、runtime availability、logging/bus 副作用
+
+### 对 SAITEC-TUI 的参考意义
+
+如果遇到类似耦合问题可参考上述提取路径。若做了代码裁剪或合并，需重新评估耦合度。「不要提取」的告诫同样重要——未遇编译性能瓶颈时，过早提取 crate 可能引入不必要的依赖管理复杂度。
+
+---
+
+## Browser Provider 设计
+
+> **设计文档来源**：`docs/BROWSER_PROVIDER_PROTOCOL.md`
+> 完整协议规范见 [22-browser-provider.md](22-browser-provider.md)
+
+### Provider 特性概览
+
+Browser Provider 与 8 个内置 LLM provider（Claude/OpenAI/Copilot 等）不同，它不是 LLM provider，而是**浏览器自动化后端**。jcode 的 `browser` tool 通过这个 provider 进行页面导航、快照、点击和截屏。
+
+### 支持的 Browser Provider 清单
+
+| Provider 类型 | 后端 | 认证方式 | 传输协议 |
+|---|---|---|---|
+| **Firefox Agent Bridge** | Firefox 浏览器 | Native host manifest | stdio JSON-RPC |
+| **Chrome Agent Bridge** | Chrome/Chromium | DevTools Protocol | WebSocket/CDP |
+| **WebDriver / BiDi** | 通用 WebDriver | 标准 WebDriver 协议 | HTTP |
+| **Safari** | Safari 浏览器 | Safari WebDriver | HTTP |
+
+### 实现方式
+
+提供者可通过以下方式集成到 provider 子系统：
+- **直接 Rust trait**：在 `src/provider/` 中实现 `Provider` trait（对应 `src/tool/browser.rs` 调用）
+- **进程外 adapter**：通过 stdio JSON-RPC 或本地 socket 通信
+- **包装的远程 API**：通过 HTTP 转发
+
+### 与 `src/tool/browser.rs` 的关系
+
+实际 `src/tool/browser.rs` (~1144 LOC) 实现了 `browser` tool 的核心逻辑（页面操作、对话管理）。Browser Provider Protocol 定义了 tool 调用下层 browser adapter 的标准接口。Agent 在 `run_turn()` 中调用 browser tool，后者通过 protocol 与具体 adapter 通信。
+
+### 搜索能力（Search）
+
+jcode 中的 **web search** 功能（`src/tool/search.rs` 或类似实现）也使用 browser provider 的页面导航和快照能力来：
+- 打开搜索页面
+- 提取搜索结果
+- 导航到结果链接
+- 截取页面快照供模型推理
+
+### 与 MultiProvider 的关系
+
+Browser Provider 当前**不在** `ActiveProvider` enum（8 个 LLM provider）中，而是通过 `src/tool/browser.rs` 直接管理 browser adapter 连接。未来可考虑将其纳入 provider 子系统，使 failover、认证刷新等基础设施可复用。
+
+### 协议关键设计
+
+协议定义了一个传输中立的语义层，核心操作集（`page.open`、`page.snapshot`、`page.click`、`page.type`、`page.wait`、`page.screenshot`）是所有认证 provider 必须实现的。provider 通过 `provider.describe` 上报能力（core methods、optional methods、features、custom methods）。
+
+详见 [22-browser-provider.md](22-browser-provider.md) 的传输信封、错误模型、能力协商和认证分级。
 
 ## 陷阱与历史修复
 

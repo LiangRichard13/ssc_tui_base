@@ -7,6 +7,41 @@
 
 Server 子系统是一个长驻 Unix daemon（或 Windows named-pipe 等效物），通过一对 socket（main + debug）和可选 WebSocket gateway 维护多个并发 AI session 及其 Agent 实例，协调 swarm 多 agent 编排、文件活动冲突检测、热重载 exec 切换、ambient 后台调度循环，并向所有连接客户端广播 NDJSON 编码的事件流。
 
+## 原生 jcode Server 的命名设计
+
+> **设计文档来源**：`docs/SERVER_ARCHITECTURE.md`（原生 jcode 设计，SAITEC-TUI 可能未同步）
+
+原生 jcode 的 server-session 命名使用双单词组合：
+
+```
+SERVER = Adjective/Verb modifier          SESSIONS = Animal nouns
+────────────────────────────              ────────────────────────
+🔥 blazing   ❄️ frozen   ⚡ swift          🦊 fox    🐻 bear   🦉 owl
+🌀 rising    🍂 falling  🌊 rushing        🌙 moon   ⭐ star   🔥 fire
+```
+
+- Server 启动时随机取一个形容词/动词（如"blazing"），每个 session 取一个动物名词（如"fox"），组合为 `"🔥 blazing 🦊 fox"` 显示在 UI。
+- Server name 跨 reload 持久化（通过 `~/.jcode/servers.json` registry）。
+- 当 server exec 到新 binary（`/reload`），新进程用新名字注册，旧 entry 自动清理。
+- **SAITEC-TUI 差异**：SAITEC-TUI 可能未实现此命名系统，而是使用简单的 session ID 或用户自定义名。
+
+### 原生 jcode 的 Client Reconnection
+
+原生 jcode 客户端有内建 reconnect loop（SAITEC-TUI 通过 `RemoteConnection` 实现类似机制）：
+1. 断连时显示 "Connection lost - reconnecting..."
+2. 指数退避重试 1s → 2s → 4s → ... → 30s 上限
+3. 重连后 resume 同一 session（状态在磁盘持久化）
+4. 若 server reload 后 client binary 版本也更新了，client 可重新 exec 自身
+
+### 原生 jcode Self-Dev 模式
+
+在 jcode 仓库内运行时自动触发：
+1. Auto-detect 仓库并启用 self-dev 模式
+2. 连接到正常共享 jcode server
+3. 标记该 session 为 canary/self-dev（通过 subscribe metadata）
+4. 仅为该 session 启用 selfdev prompt/tooling
+5. `/reload` 热重载共享 server，所有 client 重新连接
+
 ## 关键文件清单
 
 **A. 核心运行时 / 入口**
@@ -132,6 +167,71 @@ Server 子系统是一个长驻 Unix daemon（或 Windows named-pipe 等效物�
 - **文件活动冲突**：`monitor_bus()` 监听全局 `Bus::FileTouch`，维护正向（path→accesses）和反向（session→paths）索引；同 swarm 不同成员改同一文件时双向发 `FileConflict` 通知 + soft interrupt。
 - **消息传递**：`comm_message` 支持 direct（to_session）/ channel（broadcast to subscribers）；`wake` 参数可在 idle session 触发 agent 处理。
 - **Completion report**：`comm_report` 记录结构化完成报告（含 validation/follow_up），自动通知 coordinator。
+
+### 原生 jcode Swarm 设计参考
+
+> **设计文档来源**：`docs/SWARM_ARCHITECTURE.md`（原生 jcode 设计文档，SAITEC-TUI 实现可能不完全同步）
+
+**Agent 生命周期状态**（原生设计九状态）：
+
+```
+spawned → ready → running → blocked → completed → [wait for new assignment]
+                                              → failed → [coordinator 决策]
+                                              → stopped → [coordinator shut down]
+                                              → crashed → [unexpected exit]
+```
+
+- **blocked**：因依赖/冲突/信息不足无法继续。
+- **completed**：assigned scope 完成，等待新任务。
+- **failed**：不可恢复错误，等待 coordinator 决策。
+- **stopped**：coordinator 主动 shut down。
+- 每个状态变更都发出 lifecycle 事件驱动 UI 更新。
+
+**Completion Report Policy**（原生设计）：
+- 由 coordinator 创建的 agent（`report_back_to_session_id`）必须每次 prompted work turn 结束时返回有意义的 final assistant response。
+- Server 自动把该 final response 转发给 coordinator 作为 completion report。
+- Report 应包含：outcome/status、changes/findings、validation performed、blockers/follow-ups。
+- 不应是简单 `done`、lifecycle 状态变更或 tool transcript。
+- 若 worker 在产出 final response 前失败，coordinator 仍通过 lifecycle notification 收到失败信息。
+- 不需要 report 的场景：未带 prompt 的 idle spawn、无 report-back 的 user-created peer、work 进行中的普通 status broadcast、idle worker 的清理/stop。
+
+**Plan 分发与更新**（原生设计）：
+- Swarm plan 是 server 级对象（按 `swarm_id` 范围），而非 session todo list。
+- Session todos 保持私有，不作为 swarm plan 存储。
+- Plan v1 由 coordinator 创建/拥有。
+- Plan 更新由 agent 提议，coordinator 审批后广播给 plan participants（非全部 swarm 成员）。
+- 参与 plan 需显式声明（coordinator 分配/spawn 策略或 resync attach）。
+- Plan **不**存储在 repo 文件中。
+- Plan 更新流：Agent → propose update → Coordinator → approve → Plan → Participants → (Coordinator 也可以直接更新 Plan)。
+
+**通信拓扑**（原生设计）：
+- **DM**（Direct Message）：agent-to-agent 一对一。
+- **Channel**：topic-based group chat，subscribe/unsubscribe 模式。
+- **Swarm broadcast**：全 swarm 广播。
+- **Shared context keys**：set/read/append 共享内存。
+- 所有通信作为 notification 投递（soft interrupt 排队），在 running agent 的安全点注入，不打断当前 tool 执行。
+- 三种读取操作分离：
+  - **Status snapshot**：lock-free 成员元数据 + 当前 processing/tool snapshot（busy 时也可用）。
+  - **Summary read**：短活动 feed（tool calls + intent + 结果）。
+  - **Full context read**：explicit 重读——整个 agent context，需谨慎使用避免 context bloat。
+
+**Worktree 分组与集成**：
+- Worktree 由 Coordinator 判断是否需要，将相关 agents 分组到同一 worktree。
+- 每 worktree 有一个 Worktree Manager，负责 scope 内集成。
+- 集成完成后 Worktree Manager 合并到 Integration Branch → Main Branch。
+- 每 worktree 分配逻辑 `swarm_id`，通信/plan 更新/UI 跨所有 worktree 可见。
+
+**冲突处理（无锁乐观）**：
+- 默认乐观无锁。
+- 冲突触发 agents 之间 DM 或 channel 通信协商，不通过 coordinator。
+
+**UI Widgets**（原生设计）：
+- **Swarm info widget**：graph 视图显示 agents、worktree managers、coordinator、channels；边表示通信路径（DM/channel/broadcast）；节点显示 status + current task/intent。
+- **Plan info widget**：task DAG 图，节点显示 owner/scope/status（queued/running/running_stale/done/blocked/failed）；checkpoint 作为 badge 或 subnode；coordinator 可查看每 task 持久化进度（assignment metadata、heartbeat age、last checkpoint summary）。
+
+**File Touch 与 Intent**：
+- File touch notification 用于冲突检测。
+- 可选的 `intent` 字段在 tool calls 上，提供 tool 意图的简短摘要，用于构建 summary activity feed。
 
 **Hot-reload**：
 1. self-dev session 改代码后调 `send_reload_signal()`。
