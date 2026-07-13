@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **本文档仅作目录与索引。** 架构细节、子系统剖析、陷阱与历史修复记录都已迁移到 [`doc_ref/`](doc_ref/README.md) 下的分模块文档。需要细节时按下方索引跳转。
+
 ## Build & Test Commands
 
 ```powershell
@@ -20,302 +22,60 @@ cargo build --release; .\scripts\package_saitec.ps1  # package dist
 scripts/remote_build.sh               # remote build (low resources)
 ```
 
-E2E tests: `tests/e2e/` (mock provider, no API calls). Modules: `ambient`, `binary_integration`, `burst_spawn`, `provider_behavior`, `safety`, `session_flow`, `transport`, `windows_lifecycle`.
-Unit tests: inline `#[cfg(test)]` in each source (~64 locations).
-Budget scripts in `scripts/` (code size, panics, test size, warnings) — run in CI.
+E2E tests: `tests/e2e/`（mock provider，无 API 调用）。Modules: `ambient`, `binary_integration`, `burst_spawn`, `provider_behavior`, `safety`, `session_flow`, `transport`, `windows_lifecycle`。
+Unit tests: 各 source 内 inline `#[cfg(test)]`（~64 处）。
+Budget scripts in `scripts/`（code size, panics, test size, warnings）— CI 中运行。详见 [doc_ref/12](doc_ref/12-workspace-build-ci.md)。
 
-## Project Architecture
+## 项目鸟瞰
 
-**jcode** is a Rust workspace monorepo (edition 2024). The main binary is defined in `src/main.rs`, the library in `src/lib.rs`. Execution flow: `main.rs` → `lib.rs::run()` → `cli::startup::run()`.
+**jcode** 是一个 **51-crate Rust workspace（edition 2024）** 的多模型 AI 编程 agent monorepo。入口执行流：`main.rs → lib.rs::run() → cli::startup::run() → dispatch`（Windows 上需 8MB 栈线程防 clap 爆栈）。
 
-### Key Source Modules (`src/`)
+一个用户请求的流转：**[01 CLI](doc_ref/01-cli.md)** 解析 → **[04 Server](doc_ref/04-server.md)** 分发 → **[02 Agent](doc_ref/02-agent-runtime.md)** turn 循环 → **[03 Provider](doc_ref/03-provider.md)** 调 LLM → **[11 Bus/Protocol](doc_ref/11-bus-message-protocol.md)** 事件回流 → **[05 TUI](doc_ref/05-tui.md)** 渲染；持久化走 **[08 Storage](doc_ref/08-storage-session.md)**。
 
-| Module | Purpose |
-|---|---|
-| `cli/` | CLI argument parsing, command dispatch, TUI launch, login flows |
-| `tui/` | Terminal UI — ratatui-based widgets, rendering, keybindings, sessions, pinned items |
-| `session/` | Session lifecycle, persistence, crash recovery, memory profiles |
-| `provider/` | LLM provider implementations (OpenAI, Claude, Gemini, Bedrock, OpenRouter, Copilot, Cursor) |
-| `auth/` | Authentication — OAuth flows (PKCE), account store, provider-specific login (Claude, Codex, Gemini, Copilot, Cursor, etc.), AuthStatus cache with 30s TTL |
-| `config/` | Configuration file management, env overrides, display |
-| `server/` | Server/subprocess orchestration, multi-process architecture |
-| `agent/` | Agent runtime — tool execution, conversation loop |
-| `memory/` | Conversation memory, memory agent, memory graph, log |
-| `tool/` | Tool definitions and execution |
-| `mcp/` | MCP (Model Context Protocol) server integration |
-| `saitec/` | SAITEC platform-specific integration |
-| `replay/` | Session replay functionality |
-| `telemetry/` | Telemetry collection and reporting |
-| `update/` | Auto-update mechanism |
-| `transport/` | Transport layer for IPC |
-| `gateway.rs` | WebSocket gateway for remote clients (iOS app, web) |
-| `sidecar.rs` | Lightweight sidecar client for fast/cheap model calls (memory relevance verification) |
-| `bus.rs` | Event broadcast system — tool events, background tasks, subagent status, swarm events |
-| `storage.rs` | JSON persistence with automatic backup/corruption recovery |
-| `message.rs` | Message types, secret redaction, background task notification parsing |
-| `protocol.rs` | Re-exports from `jcode-protocol` crate — `ServerEvent`, `HistoryMessage`, etc. |
+## doc_ref 索引（按子系统）
 
-### Workspace Crates (`crates/`)
+| # | 文档 | 子系统 |
+|---|---|---|
+| 00 | [总览与入口](doc_ref/00-overview-and-entry.md) | 入口执行流、workspace 全景、跨子系统鸟瞰 |
+| 01 | [CLI](doc_ref/01-cli.md) | clap 参数解析、子命令分发、`detect_bootstrap_credentials`、`auth_test` 验证框架 |
+| 02 | [Agent Runtime](doc_ref/02-agent-runtime.md) | `run_turn` 循环、split system prompt、CompactionManager、tool/skill Registry |
+| 03 | [Provider](doc_ref/03-provider.md) | 8 内置 + 30 OpenAI-compatible profile、`MultiProvider` facade、`JCODE_OPENROUTER_*` env、failover |
+| 04 | [Server](doc_ref/04-server.md) | 多进程运行时、三 accept loop、swarm 协调、headless、hot-reload exec、ambient |
+| 05 | [TUI](doc_ref/05-tui.md) | ratatui 0.30、`RemoteConnection` NDJSON、渲染管线、`App` God-object |
+| 06 | [Auth / Login](doc_ref/06-auth-login.md) | 两层 login 架构、`PendingLogin` 13 variant、AuthStatus 30s/5s 缓存、StartupGuide |
+| 07 | [Memory](doc_ref/07-memory.md) | 跨会话记忆、MemoryGraph、Sidecar、embedding、GRAPH_VERSION=2 |
+| 08 | [Storage / Session](doc_ref/08-storage-session.md) | JSON 持久化、snapshot+journal、`.bak` 恢复、PID 崩溃检测、restart_snapshot |
+| 09 | [MCP / SAITEC](doc_ref/09-mcp-saitec.md) | JSON-RPC、`SharedMcpPool`、SAITEC-Skills HTTP、凭据三件套、lifecycle sync |
+| 10 | [Gateway / Transport](doc_ref/10-gateway-transport.md) | WebSocket Gateway（TCP:7643）、Unix socket / Windows Named Pipe 抽象 |
+| 11 | [Bus / Message / Protocol](doc_ref/11-bus-message-protocol.md) | `Bus` broadcast(256) ~25 事件、`ServerEvent` ~40 variant、NDJSON wire 格式 |
+| 12 | [Workspace / Build / CI](doc_ref/12-workspace-build-ci.md) | 51-crate 分组、feature flags、build profiles、build.rs、CI 5 job、budget 脚本 |
 
-50+ crates organized by domain: `jcode-core`, `jcode-provider-*`, `jcode-tui-*`, `jcode-auth-types`, `jcode-memory-types`, `jcode-protocol`, `jcode-storage`, `jcode-agent-runtime`, `jcode-swarm-core`, `jcode-mobile-core`, `jcode-desktop`, etc.
+入口导航：[doc_ref/README.md](doc_ref/README.md) 含按关注点的跨文档线索（用户请求流转、凭据与登录、持久化与恢复、远程客户端、多 agent 协作）。
 
-### Feature Flags
+## 按关注点速查
 
-- `default = ["pdf"]` — PDF parsing support (heavy deps)
-- `embeddings` — Local ONNX/tokenizer embedding inference (very heavy, 163+ crates)
-- `jemalloc` / `jemalloc-prof` — Alternative allocator
-- `dev-bins` — Development-only binaries (benchmarks, probes)
-
-### Build Profiles
-
-| Profile | Use | LTO | Codegen Units |
-|---|---|---|---|
-| `dev` | Default debug | none | default |
-| `release` | Local release builds | none | 256 |
-| `selfdev` | Self-development builds (inherits release, opt-level=0) | none | 256 |
-| `release-lto` | Distribution builds | thin | 16 |
-
-### Build System
-
-`build.rs` auto-generates version strings from git (hash, date, tag, changelog). Counter-based patch bumping logic for dev builds.
-
-### CI Pipeline (GitHub Actions)
-
-- **quality**: `cargo fmt --check`, `cargo check --all-targets --all-features`, `clippy -D warnings`, budget enforcement scripts
-- **build & test**: Ubuntu + macOS — release build, library/binary tests, provider matrix tests, e2e tests
-- **windows-build-test**: Windows x64 — release build, targeted validation tests, e2e smoke tests, installer verification
-- **mobile-simulator**: Mobile core + simulator tests on Linux
-- **windows-cross-check**: Cross-compilation checks via cargo-xwin on Linux
-
-## Agent Runtime Architecture
-
-The Agent (`src/agent.rs`) is the core conversation driver. It owns a `Provider`, a `Registry` (tools + skills), and a `Session`. Key sub-modules:
-
-| Sub-module | Purpose |
-|---|---|
-| `compaction` | Message compaction for long conversations |
-| `environment` | Environment setup for agent runs |
-| `interrupts` | Soft/hard interrupt handling (Ctrl+C, tool interrupts) |
-| `messages` | Message construction and transformation |
-| `prompting` | System prompt construction and injection |
-| `provider` | Provider-specific adaptation layer |
-| `response_recovery` | Recovery from failed/skipped responses |
-| `status` | Agent status reporting over the bus |
-| `streaming` | Streaming response handling with keepalive |
-| `tools` | Tool call dispatch, tool output processing |
-| `turn_execution` | Single-turn execution logic |
-| `turn_loops` | Multi-turn conversation loops |
-| `turn_streaming_broadcast` / `turn_streaming_mpsc` | Streaming variants for different client types |
-
-The Agent processes messages in a loop: construct system prompt → call provider → handle streaming response → execute tool calls → continue. Uses `Registry` (cloned per subagent with fresh `CompactionManager`) for tool dispatch. Native tools (`selfdev`, `communicate`) get special handling.
-
-## Server & Multi-Process Architecture
-
-The `server` module (`src/server.rs`) is a multi-session, multi-client runtime with 30+ sub-modules:
-
-| Sub-module | Purpose |
-|---|---|
-| `runtime` | Core `ServerRuntime` — manages sessions, headless mode, lifecycle |
-| `headless` | Headless session creation (no TUI) |
-| `client_*` (7 files) | Client lifecycle, communication, state management |
-| `comm_*` (4 files) | Communication with sessions (control, plan, sync, session) |
-| `swarm*` (4 files) | Swarm/multi-agent coordination |
-| `debug*` (6 files) | Debug commands, events, state inspection, swarm read/write |
-| `socket` | Unix socket transport for client-server IPC |
-| `lifecycle` | Server startup/shutdown lifecycle |
-| `durable_state` | Persistent server state across restarts |
-| `background_tasks` | Background task completion/progress dispatch |
-| `provider_control` | Provider-level control commands |
-| `reload*` (3 files) | Server reload / hot-reload mechanisms |
-| `await_members_state` | Wait for all swarm members to reach a state |
-
-Clients connect via Unix sockets (or WebSocket through the `gateway` module). The server relays NDJSON protocol messages. Headless mode (`jcode --headless`) spawns a server without TUI.
-
-## Event Bus System (`src/bus.rs`)
-
-The `Bus` is a `tokio::sync::broadcast`-based event system that connects components:
-
-| Event Type | Purpose |
-|---|---|
-| `ToolEvent` | Tool execution status (running/completed/error) per session |
-| `ToolSummary` | Tool state summary (for TUI rendering) |
-| `SubagentStatus` | Subagent API call status for progress display |
-| `BackgroundTaskProgressEvent` | Background task progress updates |
-| `BackgroundTaskCompleted` | Background task completion notification |
-| `TodoEvent` | Todo list state per session |
-| `SidePanelSnapshot` | Side panel state for TUI |
-| `SwarmEvent` / `SwarmUpdate` | Swarm coordination events |
-| `BusEvent` | High-level events (session status, agent status, plan status) |
-
-The bus is used for TUI rendering, progress display, swarm coordination, and cross-component communication. Usage pattern: `bus.send(...)` to publish, `bus.subscribe()` to get a `broadcast::Receiver`.
-
-## Memory System (`src/memory.rs`)
-
-Persistent cross-session memory organized by scope:
-- **Project** (per working directory via `memory_graph.rs`)
-- **Global** (user-level preferences)
-
-Key components:
-- `MemoryGraph` — graph-based memory storage with versioned schema (`GRAPH_VERSION`)
-- `MemoryAgent` — autonomous memory extraction/management agent
-- `MemoryLog` / `RuntimeMemoryLog` — activity logs for memory operations
-- `Sidecar` — lightweight model client for relevance verification and extraction (avoids full Agent SDK overhead). Automatically selects OpenAI (Codex/chatgpt) or Claude backend based on available credentials.
-- `MemoryPrompt` — prompt construction for memory-aware interactions
-
-Memory flows: extract from conversation → sidecar verifies relevance → store in MemoryGraph → inject into future sessions via relevance search.
-
-## Storage & Crash Recovery (`src/storage.rs`, re-exports `jcode_storage`)
-
-JSON persistence with automatic corruption recovery:
-- `read_json<T>` — reads JSON with fallback to backup file on corruption
-- `write_json` / `write_json_atomic` — atomic writes with backup file
-- Backup files stored alongside primary files
-- Recovery events logged via `StorageRecoveryEvent` callback
-
-Session persistence (`src/session/persistence.rs`, `session/journal.rs`):
-- Journal-based session storage (`SessionJournalMeta`, `SessionPersistState`, `PersistVectorMode`)
-- Crash detection: `detect_crashed_sessions()`, `recover_crashed_sessions()`
-- Active PID tracking: `register_active_pid()` / `unregister_active_pid()` in `src/session/active_pids.rs`
-
-## WebSocket Gateway (`src/gateway.rs`)
-
-TCP WebSocket gateway (port 7643 by default) connecting remote clients (iOS app, web) to the session server. Architecture: `TCP :7643 → WebSocket upgrade → UnixStream::pair() → handle_client()`. Each remote client gets a virtual Unix socket pair — one end to the server's existing client handler, the other bridged to WebSocket frames. Supports bearer token and query parameter auth.
-
-## Configuration System (`src/config.rs`)
-
-Config loaded from `~/.jcode/config.toml` (or `$JCODE_HOME/config.toml`), exposed via `config::config()` returning `&'static Config` through a `OnceLock` singleton. Environment variables override file settings. Key config types: `DisplayConfig`, `ProviderConfig`, `AuthConfig`, `FeatureConfig`, `SafetyConfig`, `CompactionConfig`, `KeybindingsConfig`, `NamedProviderConfig`.
-
-## Login Flow Architecture
-
-Two-layer login system (`src/auth/`, `src/cli/login.rs`, `src/tui/login_picker.rs`):
-- **SAITEC**: email/phone + password → JWT → API key → `SaitecSession`
-- **Base model**: OAuth+PKCE (Claude, OpenAI/Codex, Gemini, Antigravity), API key input (OpenAI, OpenRouter, Bedrock, Cursor), device code (Copilot), form (SAITEC), openai-compatible (key + model)
-- `PendingLogin` variants: `StartupGuide`, `SaitecForm`, `ClaudeAccount`/`OpenAiAccount`/`Antigravity`/`Gemini` (OAuth), `ApiKeyProfile`, `OpenAiCompatibleApiBase`/`OpenAiCompatibleModelName`, `CursorApiKey`/`Copilot`
-- `AuthStatus`: 30s TTL (`check()`), 5s TTL (`check_fast()`)
-
-## Startup Guide System
-
-`PendingLogin::StartupGuide` overlay on branded splash when credentials missing:
-- **Setup mode** (no base model): blocking, user must configure one
-- **Reminder mode** (SAITEC missing only): skippable via "Skip SAITEC" button
-- Restored via `restore_startup_guide_if_needed()` when picker cancelled
-
-## OpenAI-Compatible Provider Env System
-
-OpenAI-compatible providers (generic endpoints, Kimi, etc.) use a set of `JCODE_OPENAI_COMPAT_*` env vars at `src/provider_catalog.rs`:
-
-- `JCODE_OPENAI_COMPAT_API_BASE` — base URL
-- `JCODE_OPENAI_COMPAT_API_KEY_NAME` / `JCODE_OPENAI_COMPAT_ENV_FILE` — credential references
-- `JCODE_OPENAI_COMPAT_DEFAULT_MODEL` — default model name (set via the model name prompt or profile)
-
-When switching between openai-compatible providers, all four vars are cleared from both the **process environment** and the **env file** (`~/.jcode/openai_compat.env`) to prevent stale values from leaking. This uses `force_apply_openai_compatible_profile_env(None)` which bypasses the `JCODE_PROVIDER_PROFILE_ACTIVE` named-profile lock guard. Clearance happens at three layers: profile apply, env file rewrite, and pre-login cleanup.
-
-## SAITEC Credential Storage
-
-- **`~/.saitec_tui/auth.json`** — main session file (`SaitecSession` struct with `api_key`, `auth_token`, `user_id`, `email`, `display_name`, `api_key_id`, etc.)
-- **`~/.saitec_tui/saitec.env`** — env bridge file, stores `SAITEC_API_KEY=<key>` for runtime credential injection
-- **`~/.saitec_tui/mcp.json`** — MCP server config (HTTP transport: `{type: "http", url, headers}`; no API key persisted on disk, only in-memory via `apply_runtime_env()`)
-- API key flows to MCP via `runtime_api_key()` (`src/saitec/mcp.rs:113`): reads `configured_api_key()` (from `saitec.env`) first, falls back to `load_session()` (from `auth.json`). Applied as `X-API-Key` header in `apply_runtime_env()`.
-- `clear_session()` on logout: deletes `auth.json`, clears `SAITEC_API_KEY` from `saitec.env`, removes process env var
-
-## SAITEC Platform Integration
-
-- SAITEC-Skills MCP service (public HTTP at `DEFAULT_SAITEC_MCP_URL`, defined in `src/saitec/auth.rs`, overridable via `SAITEC_MCP_URL` env var) handles detection/evaluation task dispatch. Authentication is via the `X-API-Key` header injected at every config load by `apply_runtime_env()`.
-- Task flow: upload file → get `storage_uri` → create task → poll → download results
-- Default API endpoints: `http://101.133.153.37:8080` (overridable via `CORE_API_BASE`, `SAITEC_AUTH_BASE`, `SAITEC_API_BASE` env vars)
-- **MCP Lifecycle Sync** (`src/saitec/mcp.rs`): SAITEC-Skills MCP server is automatically reconnected on SAITEC login (`reconnect_saitec_mcp()`) and disconnected on SAITEC logout (`disconnect_saitec_mcp()`). This ensures the HTTP transport always has the current API key without manual restart.
-  - `reconnect_saitec_mcp()` — disconnects existing server, loads fresh `McpConfig` (triggers `apply_runtime_env` with current credentials), reconnects via `SharedMcpPool`
-  - `disconnect_saitec_mcp()` — disconnects server from shared pool, logs the action
+- **想理解一个用户请求怎么流转**：01 → 04 → 02 → 03 → 11 → 05
+- **想理解凭据与登录**：06 + 09（SAITEC 凭据三件套）+ 03（Provider 凭据探测）
+- **想理解持久化与崩溃恢复**：08 + 04（durable_state / reload_recovery）
+- **想理解远程客户端（iOS/Web）**：10 + 11 + 04（accept loop）
+- **想理解多 agent 协作**：04（swarm*）+ 02（subagent Registry clone）+ 11（SwarmEvent）
 
 ## Target Platforms
 
-- Windows x64 (primary), Windows ARM64
-- Linux x86_64, macOS aarch64
-- Mobile simulator (iOS via `jcode-mobile-core` + `jcode-mobile-sim`)
+- Windows x64（primary）、Windows ARM64
+- Linux x86_64、macOS aarch64
+- Mobile simulator（iOS via `jcode-mobile-core` + `jcode-mobile-sim`）
 
 ## Project Memory
 
-### SAITEC-Skills HTTP transport (no local vendor)
+接手项目后的 bug 修复记录与架构发现已迁移到 [`doc_ref/`](doc_ref/README.md) 各文档的「陷阱与历史修复」小节。汇总索引见 [doc_ref/12-workspace-build-ci.md](doc_ref/12-workspace-build-ci.md#历史修复记录汇总索引)。
 
-`_vendor/SAITEC-Skills/` is no longer vendored. The SAITEC-Skills MCP server runs as a public HTTP service at `DEFAULT_SAITEC_MCP_URL` (`src/saitec/auth.rs`, overridable via `SAITEC_MCP_URL` env var), authenticated via the `X-API-Key` header. The `McpTransport::Http` transport is selected by `{type: "http", url, headers}` in `~/.saitec_tui/mcp.json`.
-
-**Updating MCP tools**: changes happen in-place on the public HTTP server. No sync step required.
-**Security**: the endpoint is gated by per-user SAITEC API keys. Anti-distillation controls (rate limits, output validation) live on the server.
-**Transport**: `MessageTransport` trait with two impls (`StdioMessageTransport` + `HttpMessageTransport`). Dispatched by `transport_for()` in `src/mcp/transport.rs`. The public surface (`McpHandle::request`, `call_tool`, `refresh_tools`) remains unchanged for callers.
-
-### OpenAI-compatible: config vs credentials env hygiene
-
-**Config** (survive logout): `JCODE_OPENAI_COMPAT_API_BASE`, `JCODE_OPENAI_COMPAT_DEFAULT_MODEL`, `JCODE_OPENAI_COMPAT_API_KEY_NAME`, `JCODE_OPENAI_COMPAT_ENV_FILE`.
-**Credentials** (cleared on logout): the API key, ZAI/ZHIPU linked keys, `JCODE_OPENAI_COMPAT_LOCAL_ENABLED`.
-**Runtime** (process-env only): all `JCODE_OPENROUTER_*` vars, named-profile guards, 4 `JCODE_OPENAI_COMPAT_*` overrides.
-
-Env file: `AppData/Roaming/jcode/openai-compatible.env` (NOT `~/.jcode/` or `~/.saitec_tui/`). Its `.bak` is pre-write snapshot — compare mtimes when debugging config loss.
-
-**Anti-pattern**: never call `force_apply_openai_compatible_profile_env(None)` from logout/activation-rollback paths — it wipes the env file's config. Use `clear_openai_compatible_runtime_env_keep_config()` instead.
-
-
-### AuthTest deadlock from stale `auth-validation.json`
-
-**Symptom** (fixed `b18a4c17`): pressing `R` in login picker shows `validation failed (just now)` with no detail. Read `~/.saitec_tui/auth-validation.json` for actual error.
-
-**Root cause**: stale `success: false` row → `state_for_provider` returns `Expired` → probe short-circuits before smoke runs → new failure written, locking state in.
-
-**Fix** (`src/cli/auth_test/probes.rs`): for `OpenAiCompatible` targets, bypass stale `Expired` by checking `openai_compatible_profile_is_configured()` directly.
-
-### MCP `notifications/initialized`: JSON-RPC notification must not have an `id` field
-
-**Issue**: `McpClient::initialize()` sent `{"jsonrpc":"2.0","id":0,"method":"notifications/initialized"}` — the `id:0` field violates JSON-RPC 2.0 (notifications must have no `id`). This was rejected by strict Pydantic validation in the SAITEC-Skills Python MCP server (FastMCP), causing `PingRequest.method: Input should be 'ping', input_value='notifications/initialized'` warnings.
-
-**Fix** (`src/mcp/client.rs:296-301`): build the notification payload with `serde_json::json!` and omit the `id` field entirely.
-
-**Root cause chain** (3 bugs, fixed in one PR):
-1. notifications/initialized with id:0 → Python MCP rejects → tools list may be incomplete
-2. `RemoteConnection::next_event` (src/tui/backend.rs:808-819) immediately disconnects on ANY JSON parse failure → reconnect storm
-3. Wire NDJSON corruption from large MCP tool results on Windows named pipes → triggers bug 2
-
-**Fixes applied** (`fix/mcp-notification-id`):
-- Fix 1: notifications/initialized without `id` field (src/mcp/client.rs)
-- Fix 2: skip bad NDJSON lines up to 10 consecutive errors instead of immediate disconnect (src/tui/backend.rs)
-- Fix 3: debug_assert! in encode_event to catch internal newlines (crates/jcode-protocol/src/lib.rs:1968)
-- Fix 4: `#[serde(other)] Unknown` variant on ServerEvent for forward compat (crates/jcode-protocol/src/lib.rs:1195)
-
-**Key takeaway**: the "Unknown tool" errors after reconnect were NOT from MCP — `register_mcp_tools` in `handle_subscribe` reacquires pool handles every time. They were from the AI model calling tools without the `mcp__` prefix after the disconnect interrupted its execution context.
-
-### OpenAI-compatible: 200K / `anthropic/claude-sonnet-4` regression
-
-**Symptom** (fixed `e05304a1`): context bar shows 200K, requests fail with `400: ... passed anthropic/claude-sonnet-4` after restart/revalidate.
-
-**4 root causes** (all in `e05304a1`):
-
-1. **Hardcoded fallback** (`src/provider/mod.rs:732-735`): `unwrap_or("anthropic/claude-sonnet-4")` when `openrouter` is `None`. Fix: `OPENAI_COMPAT_MODEL_CONTEXT_LIMITS` table in `jcode-provider-core` covering DeepSeek, Kimi, GLM, Qwen.
-
-2. **Server bootstrap missing env vars** (`src/provider/startup.rs:87-99`): `has_openrouter_creds` was `false` at bootstrap. Fix: scan env files and `apply_openai_compatible_profile_env` before the lookup.
-
-3. **`auto_default_provider` priority** (`crates/jcode-provider-core/src/selection.rs`): `OpenRouter` was after Claude/OpenAI. Fix: added `prefer_openai_compatible` flag.
-
-4. **`JCODE_OPENROUTER_MODEL` cleared but not re-set** (`src/provider_catalog.rs:444-450`): `apply_openai_compatible_profile_env_impl` cleared it but never re-applied. Fix: re-apply from `resolved.default_model` after the clear.
-
-**Anti-patterns**: Do NOT add `JCODE_OPENROUTER_MODEL` to excluded vars (clear-then-set is correct). Do NOT call `MultiProvider::set_active_provider(Claude)` in revalidate paths. Do NOT call `force_apply_openai_compatible_profile_env(None)` from revalidate/restart/logout.
-
-### Config.toml named provider: `JCODE_OPENROUTER_MODEL` symmetric cleanup
-
-**Issue** (fixed after `e05304a1`): config-toml provider falls back to `anthropic/claude-sonnet-4` when `default_model` absent in `[providers.xxx]`.
-
-**Fix** (`src/provider_catalog.rs:531-540`): explicit `remove_var("JCODE_OPENROUTER_MODEL")` in `else` branch when no `default_model`. Tests: `named_provider_profile_env_*_model_*` in `provider_catalog_tests.rs`.
-
-**Note**: other native providers (Claude, OpenAI, Bedrock, Copilot, Cursor, Antigravity, Gemini) don't use the `apply_*_env` pattern and are unaffected.
-
-### Restart endpoint reversion to localhost:11434 from stale Ollama marker
-
-**Symptom** (fixed `dba79fc3`): generic openai-compatible profile configured with DeepSeek endpoint works during session but reverts to `http://localhost:11434/v1` / model `anthropic/claude-sonnet-4` after restart.
-
-**Root cause**: a stale `ollama.env` containing `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1` (left by a prior Ollama probe) makes `openai_compatible_profile_is_configured(OLLAMA_PROFILE)` return true. In `MultiProvider::new_with_auth_status` (`src/provider/startup.rs:96-100`), `find()` traverses `OPENAI_COMPAT_PROFILES` in array order — `OLLAMA_PROFILE` (index 27) sorts before `OPENAI_COMPAT_PROFILE` (index 29) — so the stale marker wins over the user's real generic DeepSeek config.
-
-**3‑layer fix** (all in `dba79fc3`):
-1. **`src/provider/startup.rs`**: bootstrap scan checks `OPENAI_COMPAT_PROFILE` first before falling through to named profiles, so the user's explicit custom endpoint wins over a stale local-enabled marker.
-2. **`src/provider/openrouter.rs`**: `autodetected_openai_compatible_profile()` adds an env_override-based bypass for the generic profile when the key check misses due to a customized key env var name.
-3. **`src/cli/dispatch.rs`**: `detect_bootstrap_credentials()` scans env files on disk too, avoiding a false "no credentials" state at server bootstrap time.
-
-**Diagnostic**: check `$APPDATA/jcode/` for `ollama.env` with `JCODE_OPENAI_COMPAT_LOCAL_ENABLED=1` — delete it if not using Ollama. Compare `openai-compatible.env` mtime vs the `ollama.env` timestamp to see which was written more recently.
-
-**Tools**: `git show dba79fc3` for the full change. Regression tests (JCODE_HOME-isolated) in `src/provider/openrouter_tests.rs` and `src/provider/tests/model_resolution.rs`.
+| 修复 | 涉及 commit | 归档位置 |
+|---|---|---|
+| SAITEC-Skills HTTP transport（no local vendor） | — | [09](doc_ref/09-mcp-saitec.md) |
+| OpenAI-compatible: config vs credentials env hygiene | — | [03](doc_ref/03-provider.md) |
+| AuthTest deadlock from stale `auth-validation.json` | `b18a4c17` | [01](doc_ref/01-cli.md) + [06](doc_ref/06-auth-login.md) |
+| MCP `notifications/initialized` 无 `id` + NDJSON reconnect storm + Unknown tool 链 | `fix/mcp-notification-id` | [09](doc_ref/09-mcp-saitec.md) + [05](doc_ref/05-tui.md) + [11](doc_ref/11-bus-message-protocol.md) |
+| OpenAI-compatible 200K / `anthropic/claude-sonnet-4` regression | `e05304a1` | [03](doc_ref/03-provider.md) |
+| Config.toml named provider `JCODE_OPENROUTER_MODEL` symmetric cleanup | after `e05304a1` | [03](doc_ref/03-provider.md) |
+| Restart endpoint reversion to localhost:11434 from stale Ollama marker | `dba79fc3` | [03](doc_ref/03-provider.md) |
