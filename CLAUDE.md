@@ -49,8 +49,14 @@ Budget scripts in `scripts/`（code size, panics, test size, warnings）— CI �
 | 10 | [Gateway / Transport](doc_ref/10-gateway-transport.md) | WebSocket Gateway（TCP:7643）、Unix socket / Windows Named Pipe 抽象 |
 | 11 | [Bus / Message / Protocol](doc_ref/11-bus-message-protocol.md) | `Bus` broadcast(256) ~25 事件、`ServerEvent` ~40 variant、NDJSON wire 格式 |
 | 12 | [Workspace / Build / CI](doc_ref/12-workspace-build-ci.md) | 51-crate 分组、feature flags、build profiles、build.rs、CI 5 job、budget 脚本 |
+| 13 | [Configuration](doc_ref/13-config.md) | `config.toml` 加载、`OnceLock` 单例、80+ `JCODE_*` env override、`jcode-config-types` |
+| 14 | [Telemetry](doc_ref/14-telemetry.md) | 匿名遥测采集、Cloudflare Worker + D1、opt-out、`TELEMETRY.md` |
+| 15 | [Update](doc_ref/15-update.md) | 自动更新、stable(GitHub Release)/main(源码编译)双 channel、SHA256、`jcode-update-core` |
+| 16 | [Overnight](doc_ref/16-overnight.md) | 无人值守长时运行、安全系统（SafetySystem）、通知分发、ambient 高级变体 |
 
-入口导航：[doc_ref/README.md](doc_ref/README.md) 含按关注点的跨文档线索（用户请求流转、凭据与登录、持久化与恢复、远程客户端、多 agent 协作）。
+> 各现有文档末尾的「关联模块」小节以小表格列出归入该文档的辅助模块（goal/catchup/import/usage/side_panel/perf 等），保证可发现性，后续轮次深化。
+
+入口导航：[doc_ref/README.md](doc_ref/README.md) 含按关注点的跨文档线索（用户请求流转、凭据与登录、持久化与恢复、远程客户端、多 agent 协作、无人值守运行）。
 
 ## 按关注点速查
 

@@ -105,9 +105,24 @@ repair_missing_tool_outputs()
 - **Split prompt 缓存优化**：system prompt 分 static（可被 provider 缓存）和 dynamic（每轮变化）两段，经 `complete_split()` 分别传递。
 - **keepalive**：streaming 模式每 30s 发 pong keepalive 防客户端超时（测试模式 50ms）。
 
-## 回指
+## 关联模块
 
-- Provider 调用细节（`complete_split`、failover）：[03-provider.md](03-provider.md)
+下列辅助模块就近归入 Agent runtime 文档（小表格优先可发现性，后续轮次深化）：
+
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/prompt.rs` + `src/prompt/` | 系统提示词组装、`DEFAULT_SYSTEM_PROMPT`(编译时嵌入 `system_prompt.md`)、selfdev 模式提示、SAITEC MCP 安全提示、`SplitSystemPrompt`(static+dynamic 分离)、`ContextInfo`(token 估算) | ~925 行 |
+| `src/background.rs` + `src/background/` | 后台任务执行管理器——tool 在后台运行，完成后通知 agent；文件存储崩溃恢复 + event channel 实时通知；`BusEvent::BackgroundTaskCompleted`/`Progress` | ~1676 行 |
+| `src/usage.rs` + `src/usage/` | Anthropic OAuth / OpenAI ChatGPT 订阅用量拉取、缓存、多账户管理（TUI info widget / `/usage` 数据源） | ~3136 行 |
+| `src/todo.rs` | 会话级 Todo 列表持久化到 `~/.jcode/todos/{session_id}.json`；`BusEvent::TodoUpdated` | 23 行 |
+| `src/soft_interrupt_store.rs` | 软中断消息持久化到 `~/.jcode/pending-soft-interrupts/`（User/System/BackgroundTask 三源）；支撑 `src/agent/interrupts.rs` | 121 行 |
+| `src/cache_tracker.rs` | 客户端侧 prompt 缓存违规追踪——provider 不报 cache token 时自追踪 message prefix hash 检测缓存被破坏 | 397 行 |
+
+**Note**：`src/prompt.rs` 与 `src/agent/prompting.rs` 不同——前者管理 prompt 组装和大小追踪，后者管理 agent 运行时 prompt 注入逻辑。
+
+**死代码**：`src/usage_display.rs`(175 行) 和 `src/usage_openai.rs`(358 行) 是重构进 `src/usage/` 目录后的遗留孤立文件，`use super::` 但未在 `lib.rs`/`usage.rs` 声明为模块，不参与编译——可安全删除。
+
+## 回指
 - Agent 事件如何回流 TUI：[11-bus-message-protocol.md](11-bus-message-protocol.md) + [05-tui.md](05-tui.md)
 - Server 如何驱动 Agent（`handle_client` → `process_message_streaming_mpsc`）：[04-server.md](04-server.md)
 - CompactionManager 底层（200K budget / 80% 触发 / 95% critical）：[12-workspace-build-ci.md](12-workspace-build-ci.md)（`jcode-compaction-core`）

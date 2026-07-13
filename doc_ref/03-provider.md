@@ -200,8 +200,13 @@ Env file：`AppData/Roaming/jcode/openai-compatible.env`（NOT `~/.jcode/` 或 `
 - **Claude dual-provider**：`ClaudeProvider`（deprecated CLI）与 `AnthropicProvider`（直接 API）并存，由 `use_claude_cli` env var 选择；大量 match arm 需 `if let Some(anthropic) ... else if let Some(claude) ...` 双重检查。
 - **磁盘缓存无锁**：`jcode-provider-openrouter` 的 `DISK_CACHE_MEMO` / `ENDPOINTS_DISK_CACHE_MEMO` 用 `LazyLock<Mutex<HashMap>>` 但无文件锁，多进程（CLI + TUI 同时运行）可能读过期或写冲突。
 
-## 回指
+## 关联模块
 
-- 凭据探测与登录：[06-auth-login.md](06-auth-login.md)
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/network_retry.rs` | 网络中断检测（连接重置、DNS 失败、超时）并生成等待策略；provider 流式传输中断时自动重连 | 169 行 |
+| `src/copilot_usage.rs` | 本地 Copilot 用量追踪（requests/tokens/premium 按天/月/全量），持久化 `~/.jcode/copilot_usage.json` | — |
+
+## 回指
 - Agent 如何调用 provider：[02-agent-runtime.md](02-agent-runtime.md)
 - Server bootstrap 凭据检测：[01-cli.md](01-cli.md)（`detect_bootstrap_credentials`）

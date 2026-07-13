@@ -203,6 +203,19 @@ jobs = 6
 - 全部子系统依赖此层的 crate（`jcode-core`/`jcode-protocol`/`jcode-storage`/各 `jcode-*-types` 等）。
 - build.rs 为编译时注入版本/changelog；budget 脚本为 CI 守护质量。
 
+## 关联模块（项目级基础设施与开发工具）
+
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/logging.rs` | 结构化日志框架——写 `~/.jcode/logs/`、自动轮转、线程本地上下文（server/session/provider/model） | 319 行 |
+| `src/process_memory.rs` | 进程内存快照——RSS、虚拟内存、OS 层（PSS/swap）、allocator 统计（jemalloc + 系统）；历史采样 + profiling 开关 | 593 行 |
+| `src/startup_profile.rs` | 启动阶段耗时 mark 记录，生成冷启动时间报告 | 84 行 |
+| `src/bin/harness.rs` | 确定性 tool 烟雾测试 harness，不调 LLM | 216 行 |
+| `src/bin/tui_bench.rs` | TUI 渲染性能基准（含侧边面板子模块 `tui_bench/`）；需 `dev-bins` feature | 1655 行 |
+| `src/bin/session_memory_bench.rs` | 会话内存归属与进程内存 benchmark；需 `dev-bins` | 250 行 |
+| `src/bin/mermaid_side_panel_probe.rs` | 调试探查：mermaid 图在侧边面板渲染结果；需 `dev-bins` | 64 行 |
+| `src/bin/test_api.rs` | **死代码**——测试废弃的 Claude CLI provider；需 `dev-bins` | 37 行 |
+
 ## 陷阱与设计约束
 
 - **Oversized 文件债务严重**：code_size_budget 显示 49 个生产文件超 1200 行，最大 `src/server/client_lifecycle.rs`（2626 行）、`crates/jcode-desktop/src/single_session.rs`（2517 行）、`src/tui/ui.rs`（2618 行）。ratchet 机制阻止恶化但债务规模大。

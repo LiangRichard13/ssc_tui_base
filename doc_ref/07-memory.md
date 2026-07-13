@@ -128,8 +128,12 @@ OpenAI 用 Responses API（`/v1/responses`），ChatGPT OAuth 模式走 SSE stre
 - **confidence decay half-life 按 category 硬编码**：`MemoryEntry::effective_confidence()` 中 Correction 半衰期 365 天、Fact 30 天等，无配置化通道。
 - **cross-scope link 不支持**：`MemoryManager::link_memories()` 注释「Cross-store links not supported for now」——project 和 global graph 中同义记忆无法建 RelatesTo 边。
 
-## 回指
+## 关联模块
 
-- Agent 如何注入 memory prompt（作为 user message）：[02-agent-runtime.md](02-agent-runtime.md)
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/goal.rs` + `src/goal_tests.rs` | 持久化用户目标（Goal）CRUD、里程碑跟踪、进度百分比；Goal 与 MemoryGraph 集成——goal 自动 mirror 为 memory graph entry | ~804 行 |
+
+## 回指
 - memory 相关 bus/protocol 事件：[11-bus-message-protocol.md](11-bus-message-protocol.md)
 - `jcode-embedding` 重量级依赖（163+ crate）：[12-workspace-build-ci.md](12-workspace-build-ci.md)

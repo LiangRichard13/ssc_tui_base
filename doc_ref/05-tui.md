@@ -119,9 +119,16 @@ TUI 子系统是 jcode 的终端用户界面层：通过 ratatui + crossterm 实
 
 涉及 backend.rs 的部分（**Fix 2**）：`RemoteConnection::next_event`（`src/tui/backend.rs:808-819`）原对 ANY JSON parse 失败立即断连 → reconnect storm。Fix：跳过坏 NDJSON 行直到连续 10 次错误才断开。完整根因链见 [09-mcp-saitec.md](09-mcp-saitec.md)。
 
-## 回指
+## 关联模块
 
-- server 侧 `handle_client` 与事件源：[04-server.md](04-server.md)
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/side_panel.rs` | TUI 侧边面板多页 Markdown 管理（创建/追加/聚焦/加载文件/删除）；`BusEvent::SidePanelUpdated`；agent 可经 tool 写入侧边面板展示 plan/notes | ~607 行 |
+| `src/perf.rs` | 系统画像（CPU 数、可用内存、负载、WSL/SSH、终端类型）→ `PerformanceTier`(Full/Reduced/Minimal) → `TuiPerfPolicy`(FPS/动画/鼠标/键盘增强) 直接决定渲染策略 | 780 行 |
+| `src/dictation.rs` | 外部语音听写命令集成——调用户配置的 dictation command，解析 stdout 为文本 + transcript mode | ~578 行 |
+| `src/video_export.rs` | 会话录制导出为视频——找 ffmpeg/ffprobe、解析 TimelineEvent、渲染 TUI frame 为图、合成 MP4；支持 swarm 多 pane | ~1195 行 |
+
+## 回指
 - `ServerEvent`/`Request` wire 定义：[11-bus-message-protocol.md](11-bus-message-protocol.md)
 - IPC 传输（Unix socket / Windows Named Pipe / WebSocket）：[10-gateway-transport.md](10-gateway-transport.md)
 - 登录 picker / `PendingLogin` 状态机：[06-auth-login.md](06-auth-login.md)

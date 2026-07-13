@@ -122,8 +122,17 @@ pub enum StorageRecoveryEvent<'a> {
 - **Windows 权限 no-op**：`jcode-core::fs::set_permissions_owner_only`/`set_directory_permissions_owner_only` 在 Windows 是 no-op——secret 文件（如 `openrouter.env`）在 Windows 上不会被限制权限。
 - **`Session::save` 无事务保证**：snapshot checkpoint 先写新 snapshot 再删 journal；删 journal 前 crash 则下次 load 读到新 snapshot + 旧 journal 残余条目，可能产生重复消息（journal append-only 且 `apply_journal_entry` 是 `extend`，重复消息唯一影响是内存膨胀而非逻辑错误）。
 
-## 回指
+## 关联模块
 
-- Agent session save/load 调用点：[02-agent-runtime.md](02-agent-runtime.md)
+| 模块 | 路径 | 职责 | 规模 |
+|---|---|---|---|
+| `src/import.rs` + `src/import_tests.rs` | 导入 Claude Code/Codex/OpenCode/Pi 会话到 jcode——发现、解析 JSONL session 文件转 jcode Session；核心解析在 `jcode-import-core` | ~1427 行 |
+| `src/catchup.rs` | "Catch Up" 功能——用户回到已更新 session 时自动生成 catch-up brief（mermaid 流程图 + 活动步骤 + 文件变更 + 工具调用统计 + 验证说明） | ~618 行 |
+| `src/replay.rs` + `src/replay/` | 会话回放——`export_timeline()` 从 Session 生成 `TimelineEvent` 序列、`timeline_to_replay_events()` 转播放事件、`auto_edit_timeline()` 压缩死时间、swarm 多 pane 合成 | ~969 行 |
+| `src/id.rs` / `src/util.rs` | ID 生成、HTTP 错误体读取 + anyhow 错误链格式化（均 re-export `jcode-core`） | 60 行 |
+
+**Note**：replay 核心数据直接遍历 `session.messages`，与 session 持久化格式深度耦合，故归入本文档而非独立成篇。视频导出管线（SVG→PNG→MP4）见 [05-tui.md](05-tui.md) 关联模块的 `video_export.rs`。
+
+## 回指
 - Server 的 durable_state / reload_recovery / swarm_persistence：[04-server.md](04-server.md)
 - TUI session picker / resume：[05-tui.md](05-tui.md)

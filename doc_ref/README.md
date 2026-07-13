@@ -27,6 +27,14 @@
 | 10 | [10-gateway-transport.md](10-gateway-transport.md) | WebSocket Gateway、Unix socket / Windows Named Pipe 抽象 |
 | 11 | [11-bus-message-protocol.md](11-bus-message-protocol.md) | 事件总线、消息类型、wire protocol（NDJSON） |
 | 12 | [12-workspace-build-ci.md](12-workspace-build-ci.md) | 51-crate workspace、build.rs、CI、budget 脚本 |
+| 13 | [13-config.md](13-config.md) | 全局配置加载、OnceLock 单例、80+ `JCODE_*` env override |
+| 14 | [14-telemetry.md](14-telemetry.md) | 匿名遥测采集、Cloudflare Worker + D1、opt-out |
+| 15 | [15-update.md](15-update.md) | 自动更新、stable/main 双 channel、SHA256 校验 |
+| 16 | [16-overnight.md](16-overnight.md) | 无人值守运行、安全系统、通知分发、ambient 高级变体 |
+
+## 阅读约定补充
+
+- **关联模块**：除独立成篇的子系统外，`src/` 下大量辅助/功能模块（goal、catchup、import、usage、side_panel、perf、background、prompt、todo、soft_interrupt_store 等）已**就近归入**相关现有文档的「关联模块」小节（小表格：模块名 | 职责 | 归位说明）。这些小节优先保证可发现性，后续优化轮次再逐个深化。
 
 ## 跨文档线索（按关注点）
 
@@ -35,6 +43,7 @@
 - **想理解持久化与崩溃恢复**：08 (Storage/Session) + 04 (Server durable_state / reload_recovery)
 - **想理解远程客户端（iOS/Web）**：10 (Gateway/Transport) + 11 (Protocol) + 04 (Server accept loop)
 - **想理解多 agent 协作**：04 (swarm*) + 02 (subagent Registry clone) + 11 (SwarmEvent)
+- **想理解无人值守/夜间运行**：16 (overnight/safety/notifications) + 04 (ambient 系统) + 13 (SafetyConfig 通知渠道)
 
 ## 历史修复记录归档
 
