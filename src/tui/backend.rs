@@ -234,9 +234,14 @@ pub struct RemoteConnection {
     line_buffer: String,
     has_loaded_history: bool,
     call_output_tokens_seen: u64,
+    protocol_error_count: u32,
 }
 
 const DETACHED_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Max consecutive protocol errors before disconnecting.
+/// Prevents a reconnect storm when a single malformed NDJSON line is received.
+const MAX_CONSECUTIVE_PROTOCOL_ERRORS: u32 = 10;
 
 pub(crate) trait RemoteEventState {
     fn handle_tool_start(&mut self, id: &str, name: &str);
@@ -291,6 +296,7 @@ impl RemoteConnection {
             line_buffer: String::new(),
             has_loaded_history: false,
             call_output_tokens_seen: 0,
+            protocol_error_count: 0,
         };
 
         // Subscribe to events
@@ -806,15 +812,24 @@ impl RemoteConnection {
                         continue;
                     }
                     match serde_json::from_str(&self.line_buffer) {
-                        Ok(event) => return RemoteRead::Event(event),
+                        Ok(event) => {
+                            self.protocol_error_count = 0;
+                            return RemoteRead::Event(event);
+                        }
                         Err(error) => {
                             crate::logging::warn(&format!(
-                                "RemoteConnection::next_event: protocol error={} line={:?} (session_id={:?}, client_instance_id={:?})",
-                                error, self.line_buffer, self.session_id, self.client_instance_id
+                                "RemoteConnection::next_event: protocol error={} line={:?} (session_id={:?}, client_instance_id={:?}, protocol_error_count={})",
+                                error, self.line_buffer, self.session_id, self.client_instance_id, self.protocol_error_count
                             ));
-                            return RemoteRead::Disconnected(RemoteDisconnectReason::Protocol(
-                                error.to_string(),
-                            ));
+                            self.protocol_error_count += 1;
+                            if self.protocol_error_count >= MAX_CONSECUTIVE_PROTOCOL_ERRORS {
+                                self.protocol_error_count = 0;
+                                return RemoteRead::Disconnected(RemoteDisconnectReason::Protocol(
+                                    error.to_string(),
+                                ));
+                            }
+                            // Skip this malformed line and try the next one.
+                            continue;
                         }
                     }
                 }
@@ -856,6 +871,7 @@ impl RemoteConnection {
             line_buffer: String::new(),
             has_loaded_history: false,
             call_output_tokens_seen: 0,
+            protocol_error_count: 0,
         }
     }
 

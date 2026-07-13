@@ -175,10 +175,20 @@ impl McpClient {
                 .unwrap_or_else(|poisoned| poisoned.into_inner()) = init_result.capabilities;
         }
 
-        // Send initialized notification (no id, no response expected)
-        let notif = JsonRpcRequest::new(0, "notifications/initialized", None);
-        let serialized = serde_json::to_string(&notif)? + "\n";
-        self.transport.notify(serialized).await?;
+        // Send initialized notification.
+        // JSON-RPC 2.0: a notification has NO "id" field. Including id: 0 (which
+        // `JsonRpcRequest::new(0, ...)` would produce) is rejected by strict
+        // servers (e.g. Pydantic discriminated-union validation in
+        // SAITEC-Skills) as "Input should be 'ping'"/"Input should be
+        // 'initialize'". Build the wire payload directly so the id field is
+        // absent.
+        let notif = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": serde_json::Value::Null,
+        });
+        let msg = serde_json::to_string(&notif)? + "\n";
+        self.transport.notify(msg).await?;
 
         Ok(())
     }
