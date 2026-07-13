@@ -1190,6 +1190,12 @@ pub enum ServerEvent {
         /// Tool call ID this is associated with
         tool_call_id: String,
     },
+
+    /// Catch-all for unknown variants from newer server versions.
+    /// Without this, serde fails on any `type` tag it doesn't recognise,
+    /// forcing the TUI to disconnect from a perfectly capable server.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Summary of a tool call for the comm_summary response
@@ -1962,6 +1968,11 @@ fn default_model_direction() -> i8 {
 /// Encode an event as a newline-terminated JSON string
 pub fn encode_event(event: &ServerEvent) -> String {
     let mut json = serde_json::to_string(event).unwrap_or_else(|_| "{}".to_string());
+    debug_assert!(
+        !json.contains('\n'),
+        "encode_event produced JSON with internal newline (breaks NDJSON framing): {}",
+        json
+    );
     json.push('\n');
     json
 }

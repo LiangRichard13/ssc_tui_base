@@ -265,6 +265,25 @@ Env file: `AppData/Roaming/jcode/openai-compatible.env` (NOT `~/.jcode/` or `~/.
 
 **Fix** (`src/cli/auth_test/probes.rs`): for `OpenAiCompatible` targets, bypass stale `Expired` by checking `openai_compatible_profile_is_configured()` directly.
 
+### MCP `notifications/initialized`: JSON-RPC notification must not have an `id` field
+
+**Issue**: `McpClient::initialize()` sent `{"jsonrpc":"2.0","id":0,"method":"notifications/initialized"}` — the `id:0` field violates JSON-RPC 2.0 (notifications must have no `id`). This was rejected by strict Pydantic validation in the SAITEC-Skills Python MCP server (FastMCP), causing `PingRequest.method: Input should be 'ping', input_value='notifications/initialized'` warnings.
+
+**Fix** (`src/mcp/client.rs:296-301`): build the notification payload with `serde_json::json!` and omit the `id` field entirely.
+
+**Root cause chain** (3 bugs, fixed in one PR):
+1. notifications/initialized with id:0 → Python MCP rejects → tools list may be incomplete
+2. `RemoteConnection::next_event` (src/tui/backend.rs:808-819) immediately disconnects on ANY JSON parse failure → reconnect storm
+3. Wire NDJSON corruption from large MCP tool results on Windows named pipes → triggers bug 2
+
+**Fixes applied** (`fix/mcp-notification-id`):
+- Fix 1: notifications/initialized without `id` field (src/mcp/client.rs)
+- Fix 2: skip bad NDJSON lines up to 10 consecutive errors instead of immediate disconnect (src/tui/backend.rs)
+- Fix 3: debug_assert! in encode_event to catch internal newlines (crates/jcode-protocol/src/lib.rs:1968)
+- Fix 4: `#[serde(other)] Unknown` variant on ServerEvent for forward compat (crates/jcode-protocol/src/lib.rs:1195)
+
+**Key takeaway**: the "Unknown tool" errors after reconnect were NOT from MCP — `register_mcp_tools` in `handle_subscribe` reacquires pool handles every time. They were from the AI model calling tools without the `mcp__` prefix after the disconnect interrupted its execution context.
+
 ### OpenAI-compatible: 200K / `anthropic/claude-sonnet-4` regression
 
 **Symptom** (fixed `e05304a1`): context bar shows 200K, requests fail with `400: ... passed anthropic/claude-sonnet-4` after restart/revalidate.
