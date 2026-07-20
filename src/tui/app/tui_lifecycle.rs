@@ -483,6 +483,10 @@ impl App {
             usage_overlay: None,
             usage_report_refreshing: false,
             last_overnight_card_refresh: None,
+            // TUI update push state
+            pending_tui_update: None,
+            tui_update_progress: None,
+            tui_update_download_cancel: None,
         };
 
         for notice in app.provider.drain_startup_notices() {
@@ -847,6 +851,10 @@ impl App {
             usage_overlay: None,
             usage_report_refreshing: false,
             last_overnight_card_refresh: None,
+            // TUI update push state
+            pending_tui_update: None,
+            tui_update_progress: None,
+            tui_update_download_cancel: None,
         };
 
         for notice in app.provider.drain_startup_notices() {

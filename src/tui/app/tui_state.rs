@@ -961,6 +961,14 @@ impl crate::tui::TuiState for App {
         }
     }
 
+    fn pending_tui_update_payload(&self) -> Option<&crate::bus::TuiUpdatePayload> {
+        self.pending_tui_update.as_ref()
+    }
+
+    fn tui_update_progress(&self) -> Option<&crate::tui::app::TuiUpdateProgress> {
+        self.tui_update_progress.as_ref()
+    }
+
     fn info_widget_data(&self) -> crate::tui::info_widget::InfoWidgetData {
         let session_id = if self.is_remote {
             self.remote_session_id.as_deref()

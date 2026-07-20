@@ -87,6 +87,7 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/usage", "Show connected provider usage limits"),
     RegisteredCommand::public("/feedback", "Send feedback about SAITEC-TUI"),
     RegisteredCommand::public("/subscription", "Show SAITEC-TUI subscription status"),
+    RegisteredCommand::public("/download-latest", "Download the latest TUI update (v2.0)"),
     RegisteredCommand::public("/config", "Show or edit configuration"),
     RegisteredCommand::public("/reload", "Reload into newest available binary"),
     RegisteredCommand::public("/restart", "Restart with current binary"),

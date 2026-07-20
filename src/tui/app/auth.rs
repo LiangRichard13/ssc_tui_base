@@ -2139,9 +2139,9 @@ impl App {
                         }
 
                         if let Some(profile) = openai_compatible_profile {
-                            crate::provider_catalog::force_apply_openai_compatible_profile_env(Some(
-                                profile,
-                            ));
+                            crate::provider_catalog::force_apply_openai_compatible_profile_env(
+                                Some(profile),
+                            );
                             crate::cli::provider_init::lock_model_provider("openrouter");
                             let effective_model = resolved_openai_compatible
                                 .as_ref()
@@ -2950,23 +2950,201 @@ impl App {
 
     pub(super) fn handle_update_status(&mut self, status: crate::bus::UpdateStatus) {
         use crate::bus::UpdateStatus;
+        crate::logging::info(&format!(
+            "[tui-update] handle_update_status received: {:?}",
+            match &status {
+                UpdateStatus::Available { latest, .. } => format!("Available(v={})", latest),
+                UpdateStatus::Downloading { version } => format!("Downloading({})", version),
+                UpdateStatus::DownloadProgress { version, downloaded, total } => {
+                    format!("DownloadProgress({}/{})", downloaded, total)
+                }
+                UpdateStatus::Downloaded { version, path } => {
+                    format!("Downloaded(v={}, path={})", version, path.display())
+                }
+                UpdateStatus::Checking => "Checking".to_string(),
+                UpdateStatus::UpToDate => "UpToDate".to_string(),
+                UpdateStatus::Installed { version } => format!("Installed({})", version),
+                UpdateStatus::Error(e) => format!("Error({})", e),
+            }
+        ));
         match status {
             UpdateStatus::Checking => {
                 self.set_status_notice("Checking for updates...");
             }
-            UpdateStatus::Available { current, latest } => {
-                self.set_status_notice(format!("Update available: {} → {}", current, latest));
+            UpdateStatus::Available {
+                current,
+                latest,
+                payload,
+            } => {
+                crate::logging::info(&format!(
+                    "[tui-update] setting pending_tui_update: latest={}, size={}MB",
+                    latest,
+                    payload.size_bytes / 1_000_000,
+                ));
+                // 写入 App 字段 + 全局静态（兜底 &dyn TuiState trait dispatch）。
+                self.pending_tui_update = Some(payload.clone());
+                crate::saitec::tui_update::set_global_pending_update(payload.clone());
+                let size_mb = payload.size_bytes / 1_000_000;
+                self.set_status_notice(format!(
+                    "🆕 SAITEC-TUI v{} available ({} MB) — press U to download",
+                    latest, size_mb
+                ));
+                let _ = (current, latest);
             }
             UpdateStatus::Downloading { version } => {
-                self.set_status_notice(format!("⬇️  Downloading {}...", version));
+                // 下载任务启动：publish 进度初始值。
+                self.tui_update_progress = Some(super::TuiUpdateProgress {
+                    version: version.clone(),
+                    downloaded: 0,
+                    total: self
+                        .pending_tui_update
+                        .as_ref()
+                        .map(|p| p.size_bytes)
+                        .unwrap_or(0),
+                });
+                // 保留 pending_tui_update（用来取 download_url/fallback size_bytes 等）。
+                self.set_status_notice(format!("⬇️  Downloading {} ...", version));
+            }
+            UpdateStatus::DownloadProgress {
+                version,
+                downloaded,
+                total,
+            } => {
+                // 后端可能没有 Content-Length（chunked），total=0。保留 Downloading init
+                // 时从 payload.size_bytes 设的正确 total，避免被 0 覆盖。
+                let prev_total = self.tui_update_progress.as_ref().map(|p| p.total).unwrap_or(0);
+                let merged_total = if total > 0 {
+                    total
+                } else {
+                    prev_total.max(
+                        self.pending_tui_update
+                            .as_ref()
+                            .map(|p| p.size_bytes)
+                            .unwrap_or(0),
+                    )
+                };
+                self.tui_update_progress = Some(super::TuiUpdateProgress {
+                    version,
+                    downloaded,
+                    total: merged_total,
+                });
+                // 不写 notice —— 避免每 ~256KB 进度回调都覆盖状态栏。
+            }
+            UpdateStatus::Downloaded { version, path } => {
+                // 清理下载任务 + 释放 pending payload（banner 不再渲染）。
+                self.tui_update_progress = None;
+                self.tui_update_download_cancel = None;
+                self.pending_tui_update = None;
+                crate::saitec::tui_update::clear_global_pending_update();
+                self.set_status_notice(format!(
+                    "✅ SAITEC-TUI v{} downloaded to {}\n   Exit TUI and run that exe to install.",
+                    version,
+                    path.display()
+                ));
             }
             UpdateStatus::Installed { version } => {
                 self.set_status_notice(format!("✅ Updated to {} — restarting", version));
             }
             UpdateStatus::UpToDate => {}
             UpdateStatus::Error(e) => {
-                self.set_status_notice(format!("Update failed: {}", e));
+                // 清进度 & cancel handle，但保留 pending payload 让用户可重试。
+                self.tui_update_progress = None;
+                self.tui_update_download_cancel = None;
+                self.set_status_notice(format!("❌ Update failed: {}. Type /download-latest to retry.", e));
             }
+        }
+    }
+
+    /// TUI banner 上按 [U] 触发：把 pending payload 取出，async spawn 下载任务并 publish 进度事件。
+    /// 调用方先在 input handler 检查 `pending_tui_update.is_some()`。
+    /// Returns `true` if a download was kicked off (用于测试与 debug 日志)。
+    pub(super) fn start_tui_update_download(&mut self) -> bool {
+        let Some(payload) = self.pending_tui_update.clone() else {
+            return false;
+        };
+
+        // 未登录：直接报错，留在 pending 状态等用户登录。
+        let api_key = crate::saitec::tui_update::current_api_key();
+        let Some(api_key) = api_key else {
+            self.set_status_notice(
+                "⚠️  Cannot download: not logged in. Run /login (or /login jcode) first.",
+            );
+            return false;
+        };
+
+        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        self.tui_update_download_cancel = Some(cancel_tx);
+
+        let version = payload.latest_version.clone();
+        let download_url = payload.download_url.clone();
+
+        // 先 publish Downloading 让 banner 进入 progress 模式。
+        crate::bus::Bus::global().publish(crate::bus::BusEvent::UpdateStatus(
+            crate::bus::UpdateStatus::Downloading {
+                version: version.clone(),
+            },
+        ));
+
+        tokio::spawn(async move {
+            let dest = match crate::saitec::tui_update::available_dest_path(&version) {
+                Ok(p) => p,
+                Err(e) => {
+                    crate::bus::Bus::global().publish(crate::bus::BusEvent::UpdateStatus(
+                        crate::bus::UpdateStatus::Error(format!(
+                            "cannot resolve destination: {}",
+                            e
+                        )),
+                    ));
+                    return;
+                }
+            };
+
+            let url_for_closure = download_url.clone();
+            let version_for_progress = version.clone();
+
+            let result = crate::saitec::tui_update::download_tui_update(
+                &url_for_closure,
+                &dest,
+                Some(&api_key),
+                move |downloaded, total| {
+                    crate::bus::Bus::global().publish(crate::bus::BusEvent::UpdateStatus(
+                        crate::bus::UpdateStatus::DownloadProgress {
+                            version: version_for_progress.clone(),
+                            downloaded,
+                            total,
+                        },
+                    ));
+                },
+                cancel_rx,
+            )
+            .await;
+
+            match result {
+                Ok(path) => {
+                    crate::bus::Bus::global().publish(crate::bus::BusEvent::UpdateStatus(
+                        crate::bus::UpdateStatus::Downloaded { version, path },
+                    ));
+                }
+                Err(e) => {
+                    crate::bus::Bus::global().publish(crate::bus::BusEvent::UpdateStatus(
+                        crate::bus::UpdateStatus::Error(format!("download: {}", e)),
+                    ));
+                }
+            }
+        });
+
+        true
+    }
+
+    /// Esc in-flight: cancel 当前下载任务。`None` 表示无活跃任务。
+    /// 同步清 `tui_update_progress` + 全局静态避免 stale UI（async Error 事件到达前的窗口）。
+    pub(super) fn cancel_tui_update_download(&mut self) {
+        if let Some(tx) = self.tui_update_download_cancel.take() {
+            // notify download loop to bail；receiver 在 spawn 内 take，关闭后 task 退出。
+            let _ = tx.send(true);
+            // 同步清理进度（avoid stale UI），但保留 pending payload 让用户可重试。
+            self.tui_update_progress = None;
+            self.set_status_notice("❌ Update cancelled. Type /download-latest to retry.");
         }
     }
 

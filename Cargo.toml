@@ -1,5 +1,13 @@
 [package]
 name = "jcode"
+# version 必须严格符合 semver 2.0（cargo 不接受 "v" 前缀或非常规字符）。
+# 合法：`"1.0.1"`、`"1.0.1-alpha"`、`"2.0.0-beta1"`、`"2.0.0-rc.1+build.5"`。
+# 非法：`"v2.0"`、`"1.0"`（缺 patch）、`"2.0 补丁"`。
+# prerelease 后缀（`-alpha`/`-beta1`）会被 build.rs 注入 JCODE_SEMVER 时剥掉，
+# 最终通过 `strip_prerelease()` 传给后端 `GET /api/v1/tui/check-update?current_version=`
+# 的永远是纯三段数字 —— 后端按文件名 `vX.Y.Z.exe` 比较。
+# 发布到 SAITEC 后端分发目录时，编译产物 `target/release/jcode.exe` 重命名为
+# `v{MAJOR}.{MINOR}.{PATCH}.exe`（仅三段数字，无 prerelease 后缀）。
 version = "1.0.1-alpha"
 description = "Possibly the greatest coding agent ever built — blazing-fast TUI, multi-model, swarm coordination, 30+ tools"
 edition = "2024"

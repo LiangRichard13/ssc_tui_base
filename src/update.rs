@@ -901,71 +901,10 @@ pub fn download_and_install_blocking_with_progress(
     Ok(versioned_path)
 }
 
-pub fn check_and_maybe_update(auto_install: bool) -> UpdateCheckResult {
-    use crate::bus::{Bus, BusEvent, UpdateStatus};
-
-    if !should_auto_update() {
-        return UpdateCheckResult::NoUpdate;
-    }
-
-    let metadata = UpdateMetadata::load().unwrap_or_default();
-    if !metadata.should_check() {
-        return UpdateCheckResult::NoUpdate;
-    }
-
-    Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Checking));
-
-    match check_for_update_blocking() {
-        Ok(Some(release)) => {
-            let current = env!("JCODE_VERSION").to_string();
-            let latest = release.tag_name.clone();
-
-            Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Available {
-                current: current.clone(),
-                latest: latest.clone(),
-            }));
-
-            if auto_install {
-                Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Downloading {
-                    version: latest.clone(),
-                }));
-                match download_and_install_blocking(&release) {
-                    Ok(path) => {
-                        Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Installed {
-                            version: latest.clone(),
-                        }));
-                        UpdateCheckResult::UpdateInstalled {
-                            version: latest,
-                            path,
-                        }
-                    }
-                    Err(e) => {
-                        let msg = format!("Failed to install: {}", e);
-                        Bus::global()
-                            .publish(BusEvent::UpdateStatus(UpdateStatus::Error(msg.clone())));
-                        UpdateCheckResult::Error(msg)
-                    }
-                }
-            } else {
-                let mut metadata = UpdateMetadata::load().unwrap_or_default();
-                metadata.last_check = SystemTime::now();
-                let _ = metadata.save();
-                UpdateCheckResult::UpdateAvailable {
-                    current,
-                    latest,
-                    _release: release,
-                }
-            }
-        }
-        Ok(None) => {
-            let mut metadata = UpdateMetadata::load().unwrap_or_default();
-            metadata.last_check = SystemTime::now();
-            let _ = metadata.save();
-            UpdateCheckResult::NoUpdate
-        }
-        Err(e) => UpdateCheckResult::Error(format!("Check failed: {}", e)),
-    }
-}
+// `check_and_maybe_update` 之前是 TUI 自动检查 + 自动 install GitHub Release 的入口。
+// 现在 TUI 启动后台任务改成调 `crate::saitec::tui_update::check_tui_update`（SAITEC 后端通道）。
+// hot_exec / `jcode update` CLI 子命令走的是不同代码路径，不需要此函数。
+// function removed — 见 dev_ref_docs/15-update.md 的拆分。
 
 #[cfg(test)]
 mod tests {

@@ -1,9 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use std::io::IsTerminal;
-use std::process::Command as ProcessCommand;
 
-use crate::{build, logging, perf, server, startup_profile, storage, telemetry, update};
+use crate::{logging, perf, server, startup_profile, storage, telemetry, update};
 
 use super::{
     args::{Args, Command},
@@ -70,63 +69,88 @@ fn parse_and_prepare_args() -> Result<Args> {
 }
 
 fn spawn_background_update_check(args: &Args) {
-    let check_updates = should_spawn_background_update_check(args);
-    let auto_update = should_auto_install_update(args, has_live_terminal_attached());
-
-    if !check_updates {
+    if !should_spawn_background_update_check(args) {
         return;
     }
 
-    if update::is_release_build() {
-        std::thread::spawn(move || match update::check_and_maybe_update(auto_update) {
-            update::UpdateCheckResult::UpdateAvailable {
-                current, latest, ..
-            } => {
-                logging::info(&format!("Update available: {} -> {}", current, latest));
-            }
-            update::UpdateCheckResult::UpdateInstalled { version, path } => {
-                update::print_centered(&format!("✅ Updated to {}. Restarting...", version));
-                let args: Vec<String> = std::env::args().skip(1).collect();
-                let exec_path = build::client_update_candidate(false)
-                    .map(|(p, _)| p)
-                    .unwrap_or(path);
-                let err = crate::platform::replace_process(
-                    ProcessCommand::new(&exec_path)
-                        .args(&args)
-                        .arg("--no-update"),
-                );
-                eprintln!("Failed to exec new binary: {}", err);
-            }
-            update::UpdateCheckResult::Error(e) => {
-                logging::info(&format!("Update check failed: {}", e));
-            }
-            update::UpdateCheckResult::NoUpdate => {}
-        });
-    } else {
-        std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            if let Some(update_available) = hot_exec::check_for_updates()
-                && update_available
-            {
-                if auto_update {
-                    logging::info("Update available - auto-updating...");
-                    if let Err(e) = hot_exec::run_auto_update() {
-                        logging::error(&format!(
-                            "Auto-update failed: {}. Continuing with current version.",
-                            e
-                        ));
-                    }
-                } else {
-                    logging::info("Update available! Run `jcode update` or `/reload` to update.");
-                }
-            }
-            logging::info(&format!(
-                "[TIMING] background_update_check: auto_update={}, total={}ms",
-                auto_update,
-                start.elapsed().as_millis()
-            ));
-        });
+    // server 端不再做发布通道 update 检查 —— 见 `pub fn spawn_tui_update_check_for_client`。
+    // 服务端 publish 不会跨进程到 client 端 App 的 Bus 订阅者，因此必须由 client 自己跑。
+    // selfdev 路径额外做一次源码通道检查（git 状态）—— 仅日志，不影响 TUI banner。
+    if !update::is_release_build() {
+        spawn_hot_exec_update_check();
     }
+}
+
+/// 在持有 `tui::App` 的进程内 spawn SAITEC 后端 TUI 推送检查。
+///
+/// **必须** 在 `App` 已经 `Bus::subscribe` 之后调用 —— 该 spawn 任务 `Bus::publish`
+/// 一个 `UpdateStatus::Available`，由 client/local TUI 的本地订阅者收到并调 `handle_update_status`。
+/// 跨进程（如 server 进程 publish 给 client 进程）不可行：每个进程 `Bus::global()` 是独立的
+/// `OnceLock<Bus>` 单例。
+///
+/// 调用方：
+/// - `cli/commands.rs` —— `App::new(provider, registry)` 之后
+/// - `cli/tui_launch.rs` —— `App::new_for_remote_with_options(...)` 之后
+pub fn spawn_tui_update_check_for_client() {
+    use crate::bus::{Bus, BusEvent, UpdateStatus};
+    let current_raw = env!("JCODE_VERSION").to_string();
+    let current = crate::saitec::tui_update::strip_prerelease(&current_raw).to_string();
+    logging::info(&format!(
+        "[tui-update] spawn check-update: current_version={} (raw JCODE_VERSION={})",
+        current, current_raw
+    ));
+    tokio::spawn(async move {
+        // 推迟一下让 TUI App 完成 Bus::subscribe —— broadcast::channel subscribe 之前的 send 会丢。
+        // 2s 是稳的（HTTP 请求几百 ms 起，此延迟不会让用户感知到）。
+        tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+        let receiver_count = crate::bus::Bus::global().receiver_count();
+        crate::logging::info(&format!(
+            "[tui-update] about to publish (Bus receiver_count={})",
+            receiver_count
+        ));
+        match crate::saitec::tui_update::check_tui_update(&current).await {
+            Ok(Some(payload)) => {
+                crate::logging::info(&format!(
+                    "[tui-update] backend reports NEW version available: latest={} ({} MB), file={}, download_url={}",
+                    payload.latest_version,
+                    payload.size_bytes / 1_000_000,
+                    payload.filename,
+                    payload.download_url,
+                ));
+                Bus::global().publish(BusEvent::UpdateStatus(UpdateStatus::Available {
+                    current,
+                    latest: payload.latest_version.clone(),
+                    payload,
+                }));
+            }
+            Ok(None) => {
+                crate::logging::info(&format!(
+                    "[tui-update] backend reports up-to-date (is_new=false); latest={}",
+                    current,
+                ));
+            }
+            Err(e) => {
+                crate::logging::warn(&format!("tui update check failed: {:#}", e));
+            }
+        }
+    });
+}
+
+/// selfdev / 非 release build：保留 main channel（git pull + cargo build 源码）。
+/// 用户启动时给一句日志提示存在更新，不自动 install —— selfdev 用户通常自己 git pull。
+fn spawn_hot_exec_update_check() {
+    let start = std::time::Instant::now();
+    std::thread::spawn(move || {
+        if let Some(true) = hot_exec::check_for_updates() {
+            logging::info(
+                "Self-dev build: new commits detected. Use /reload to rebuild from source.",
+            );
+        }
+        logging::info(&format!(
+            "[TIMING] hot_exec_update_check: total={}ms",
+            start.elapsed().as_millis()
+        ));
+    });
 }
 
 fn should_spawn_background_update_check(args: &Args) -> bool {

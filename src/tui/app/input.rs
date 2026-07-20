@@ -1199,6 +1199,25 @@ pub(super) fn handle_pre_control_shortcuts(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> bool {
+    // TUI update banner shortcut: 注入式快捷键，不与任何 modifier 冲突。
+    // 仅在「未在 modifier 按下且无其他 modal」时消费 'u' / 'U'，避免误拦截用户输入。
+    if code == KeyCode::Char('u')
+        && !modifiers.contains(KeyModifiers::CONTROL)
+        && !modifiers.contains(KeyModifiers::ALT)
+        && app.pending_tui_update.is_some()
+        && app.tui_update_progress.is_none()
+    {
+        let started = app.start_tui_update_download();
+        if started {
+            return true;
+        }
+    }
+    // Esc: 取消正在进行的下载任务（无任务时正常落到下层 Esc handler）。
+    if code == KeyCode::Esc && app.tui_update_download_cancel.is_some() {
+        app.cancel_tui_update_download();
+        return true;
+    }
+
     if modifiers.contains(KeyModifiers::ALT) && matches!(code, KeyCode::Char('y')) {
         app.toggle_copy_selection_mode();
         return true;
@@ -1306,6 +1325,13 @@ pub(super) fn handle_modal_key(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> Result<bool> {
+    // 下载运行时 ESC 优先取消下载，不必再走 modal 分支（startup guide、picker 等）。
+    // 只有下载运行时才拦截；若无活跃下载，ESC 正常处理 modal 事件。
+    if code == KeyCode::Esc && app.tui_update_download_cancel.is_some() {
+        app.cancel_tui_update_download();
+        return Ok(true);
+    }
+
     if app.pending_login.is_some() {
         return Ok(handle_pending_login_key(app, code, modifiers));
     }
@@ -2351,6 +2377,22 @@ impl App {
         }
 
         let trimmed = input.trim();
+
+        // 内置命令：TUI 更新下载 —— 从全局静态读取 payload 并触发下载。
+        if trimmed == "/download-latest" || trimmed == "/tui-download" {
+            let payload_opt = crate::saitec::tui_update::TUI_PENDING_UPDATE
+                .get()
+                .and_then(|m| m.read().ok())
+                .and_then(|g| g.clone());
+            if let Some(payload) = payload_opt {
+                self.pending_tui_update = Some(payload);
+                self.start_tui_update_download();
+            } else {
+                self.set_status_notice("No TUI update available to download.");
+            }
+            return;
+        }
+
         let handled = commands::handle_help_command(self, trimmed)
             || commands::handle_session_command(self, trimmed)
             || commands::handle_dictation_command(self, trimmed)

@@ -171,6 +171,9 @@ pub async fn run_tui_client(
         app.set_server_spawning();
     }
     startup_profile::mark("app_new_for_remote");
+    // TUI update push：必须在 App 构造后调，使得后续 Bus::publish 命中本进程的订阅者。
+    // 见 `startup::spawn_tui_update_check_for_client` 注释。
+    super::startup::spawn_tui_update_check_for_client();
     if resume_session.is_none()
         && let Some(hints) = startup_hints
     {

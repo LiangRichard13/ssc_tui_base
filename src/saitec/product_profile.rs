@@ -21,6 +21,7 @@ const PUBLIC_COMMANDS: &[&str] = &[
     "/usage",
     "/version",
     "/quit",
+    "/download-latest",
 ];
 
 const HIDDEN_COMPATIBLE_COMMANDS: &[&str] = &[

@@ -124,11 +124,13 @@ impl SaitecLoginForm {
     }
 }
 
+/// 平台标准响应包装 `{ success, message, data }`。后端除下载接口（返回二进制文件流）外的所有
+/// JSON 接口都遵循此结构。`tui_update` 模块复用此反序列化。
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-struct ApiEnvelope<T> {
-    success: bool,
-    message: String,
-    data: T,
+pub struct ApiEnvelope<T> {
+    pub success: bool,
+    pub message: String,
+    pub data: T,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -313,6 +315,23 @@ pub fn saitec_mcp_url() -> String {
         .unwrap_or_else(|| DEFAULT_SAITEC_MCP_URL.to_string())
         .trim_end_matches('/')
         .to_string()
+}
+
+/// 当前活跃 SAITEC API key。
+///
+/// 优先级：`auth.json` 中 `SaitecSession.api_key`（最新登录，跨进程持久化）>
+/// `SAITEC_API_KEY` 环境变量 / `saitec.env` / `config.toml` 里的 `JCODE_API_BASE` 对应 key。
+/// 长运行 server 进程优先取 auth.json 而非 env——避免 logout + re-login 后 env 仍为旧值。
+/// 用于需要鉴权的接口（如 `GET /api/v1/tui/download`）注入 `X-API-Key` header。
+pub fn runtime_api_key() -> Option<String> {
+    load_session()
+        .ok()
+        .flatten()
+        .and_then(|session| {
+            let trimmed = session.api_key.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        })
+        .or_else(crate::subscription_catalog::configured_api_key)
 }
 
 pub(crate) fn generate_api_key_name_for_time(now: chrono::DateTime<chrono::Utc>) -> String {

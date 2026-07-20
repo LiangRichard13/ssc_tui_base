@@ -93,9 +93,7 @@ pub fn apply_runtime_env(config: &mut McpConfig) {
         return;
     };
     if let Some(api_key) = runtime_api_key() {
-        server
-            .headers
-            .insert("X-API-Key".to_string(), api_key);
+        server.headers.insert("X-API-Key".to_string(), api_key);
     }
     server.url = Some(crate::saitec::auth::saitec_mcp_url());
 }
@@ -145,16 +143,7 @@ pub async fn disconnect_saitec_mcp() {
 }
 
 fn runtime_api_key() -> Option<String> {
-    // Prefer auth.json (always current) over process env (may be stale in
-    // the long-running server process after a logout + re-login cycle).
-    crate::saitec::auth::load_session()
-        .ok()
-        .flatten()
-        .and_then(|session| {
-            let trimmed = session.api_key.trim();
-            (!trimmed.is_empty()).then(|| trimmed.to_string())
-        })
-        .or_else(|| crate::subscription_catalog::configured_api_key())
+    crate::saitec::auth::runtime_api_key()
 }
 
 #[cfg(test)]
@@ -218,7 +207,10 @@ mod tests {
         crate::saitec::mcp::ensure_bootstrap().unwrap();
 
         let mcp_path = temp.path().join("mcp.json");
-        assert!(mcp_path.exists(), "bootstrap should create config even without API key");
+        assert!(
+            mcp_path.exists(),
+            "bootstrap should create config even without API key"
+        );
         let cfg = McpConfig::load_from_file(&mcp_path).unwrap();
         let saitec = cfg
             .servers

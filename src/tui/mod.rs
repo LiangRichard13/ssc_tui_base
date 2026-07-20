@@ -261,6 +261,15 @@ pub trait TuiState {
     fn workspace_animation_tick(&self) -> u64 {
         0
     }
+    /// Pending TUI update payload (from `GET /api/v1/tui/check-update`).
+    /// `Some` ⇔ banner should render in status area; user presses `U` to download.
+    fn pending_tui_update_payload(&self) -> Option<&crate::bus::TuiUpdatePayload> {
+        None
+    }
+    /// Active download progress. `Some(version, downloaded, total)`. `total=0` 表示未知大小。
+    fn tui_update_progress(&self) -> Option<&crate::tui::app::TuiUpdateProgress> {
+        None
+    }
     /// Render streaming text using incremental markdown renderer
     /// This is more efficient than re-rendering on every frame
     fn render_streaming_markdown(&self, width: usize) -> Vec<Line<'static>>;

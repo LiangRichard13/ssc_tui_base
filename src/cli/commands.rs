@@ -171,6 +171,8 @@ async fn run_ambient_visible() -> Result<()> {
 
     let mut app = tui::App::new(provider, registry);
     app.set_ambient_mode(context.system_prompt, context.initial_message);
+    // TUI update push (local mode)：App 与 spawn 同进程，Bus::publish 直接命中订阅者。
+    super::startup::spawn_tui_update_check_for_client();
 
     let _ = crossterm::execute!(
         std::io::stdout(),
@@ -480,7 +482,9 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
     let gw_config = &crate::config::config().gateway;
 
     if !gw_config.enabled {
-        eprintln!("\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.saitec_tui/config.toml:\n");
+        eprintln!(
+            "\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.saitec_tui/config.toml:\n"
+        );
         eprintln!("    \x1b[2m[gateway]\x1b[0m");
         eprintln!("    \x1b[2menabled = true\x1b[0m");
         eprintln!("    \x1b[2mport = {}\x1b[0m\n", gw_config.port);
