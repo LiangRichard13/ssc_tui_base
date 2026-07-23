@@ -181,14 +181,8 @@ fn clear_saitec_session_after_confirmation(
                 let registry = app.registry.clone();
                 handle.spawn(async move {
                     crate::saitec::mcp::disconnect_saitec_mcp().await;
-                    let _ = mcp_manager
-                        .read()
-                        .await
-                        .disconnect("SAITEC-Skills")
-                        .await;
-                    registry
-                        .unregister_prefix("mcp__SAITEC-Skills__")
-                        .await;
+                    let _ = mcp_manager.read().await.disconnect("SAITEC-Skills").await;
+                    registry.unregister_prefix("mcp__SAITEC-Skills__").await;
                 });
             }
             app.mcp_server_names.retain(|(n, _)| n != "SAITEC-Skills");

@@ -1,8 +1,8 @@
 use super::protocol::McpServerConfig;
-use super::transport::transport_for;
 use super::transport::MessageTransport;
-use crate::mcp::transport::HttpMessageTransport;
+use super::transport::transport_for;
 use crate::mcp::protocol::JsonRpcRequest;
+use crate::mcp::transport::HttpMessageTransport;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -41,7 +41,10 @@ fn http_config_picks_http_transport() {
     };
     let t = transport_for(&cfg).expect("http transport should construct");
     let debug = format!("{:?}", t);
-    assert!(debug.contains("Http"), "expected Http transport, got: {debug}");
+    assert!(
+        debug.contains("Http"),
+        "expected Http transport, got: {debug}"
+    );
 }
 
 /// Read an HTTP request from a stream. Returns (method, path, headers, body).
@@ -111,9 +114,18 @@ async fn http_transport_round_trips_initialize_and_tools_list() {
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();
         let (_method, _path, headers, body) = read_http_request(&mut stream).await;
-        assert_eq!(headers.get("x-api-key").map(String::as_str), Some("sk-test"));
-        assert_eq!(headers.get("content-type").map(String::as_str), Some("application/json"));
-        assert_eq!(headers.get("accept").map(String::as_str), Some("application/json, text/event-stream"));
+        assert_eq!(
+            headers.get("x-api-key").map(String::as_str),
+            Some("sk-test")
+        );
+        assert_eq!(
+            headers.get("content-type").map(String::as_str),
+            Some("application/json")
+        );
+        assert_eq!(
+            headers.get("accept").map(String::as_str),
+            Some("application/json, text/event-stream")
+        );
 
         let req: Value = serde_json::from_str(&body).unwrap();
         let id = req.get("id").and_then(Value::as_u64).unwrap();
@@ -169,10 +181,7 @@ async fn http_transport_round_trips_initialize_and_tools_list() {
         .round_trip(serde_json::to_string(&init_req).unwrap() + "\n")
         .await
         .unwrap();
-    assert_eq!(
-        init_value.get("id").and_then(Value::as_u64),
-        Some(1)
-    );
+    assert_eq!(init_value.get("id").and_then(Value::as_u64), Some(1));
     assert!(init_value.get("result").is_some());
 
     // tools/list

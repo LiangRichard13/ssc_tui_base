@@ -105,7 +105,8 @@ impl NotificationDispatcher {
     /// Send a permission request notification (high priority).
     pub fn dispatch_permission_request(&self, action: &str, description: &str, request_id: &str) {
         let title = format!("SAITEC-TUI: permission needed ({})", action);
-        let safe_body = "An ambient action needs your approval. Open SAITEC-TUI to review.".to_string();
+        let safe_body =
+            "An ambient action needs your approval. Open SAITEC-TUI to review.".to_string();
         let detailed_body = format!(
             "Action: {}\n{}\n\nRequest ID: {}\nReview in SAITEC-TUI to approve or deny.",
             action, description, request_id

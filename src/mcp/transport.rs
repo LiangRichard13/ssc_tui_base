@@ -88,7 +88,11 @@ impl StdioMessageTransport {
             }
         });
 
-        *state = Some(StdioState { child, stdin, stdout });
+        *state = Some(StdioState {
+            child,
+            stdin,
+            stdout,
+        });
         Ok(())
     }
 }

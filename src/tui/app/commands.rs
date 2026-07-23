@@ -690,7 +690,8 @@ fn handle_subagent_model_command(app: &mut App, trimmed: &str) -> bool {
 
     if app.is_remote {
         app.push_display_message(DisplayMessage::error(
-            "`/subagent-model` requires a live SAITEC-TUI server connection in remote mode.".to_string(),
+            "`/subagent-model` requires a live SAITEC-TUI server connection in remote mode."
+                .to_string(),
         ));
         return true;
     }

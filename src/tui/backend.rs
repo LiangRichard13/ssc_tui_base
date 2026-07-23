@@ -819,7 +819,11 @@ impl RemoteConnection {
                         Err(error) => {
                             crate::logging::warn(&format!(
                                 "RemoteConnection::next_event: protocol error={} line={:?} (session_id={:?}, client_instance_id={:?}, protocol_error_count={})",
-                                error, self.line_buffer, self.session_id, self.client_instance_id, self.protocol_error_count
+                                error,
+                                self.line_buffer,
+                                self.session_id,
+                                self.client_instance_id,
+                                self.protocol_error_count
                             ));
                             self.protocol_error_count += 1;
                             if self.protocol_error_count >= MAX_CONSECUTIVE_PROTOCOL_ERRORS {

@@ -107,18 +107,16 @@ impl MultiProvider {
         // after restart.
         let configured_compat_profile: Option<crate::provider_catalog::OpenAiCompatibleProfile> = {
             let profiles = crate::provider_catalog::openai_compatible_profiles();
-            if profiles
-                .iter()
-                .copied()
-                .any(|p| {
-                    p.id == crate::provider_catalog::OPENAI_COMPAT_PROFILE.id
-                        && crate::provider_catalog::openai_compatible_profile_is_configured(p)
-                }) {
+            if profiles.iter().copied().any(|p| {
+                p.id == crate::provider_catalog::OPENAI_COMPAT_PROFILE.id
+                    && crate::provider_catalog::openai_compatible_profile_is_configured(p)
+            }) {
                 Some(crate::provider_catalog::OPENAI_COMPAT_PROFILE)
             } else {
-                profiles.iter().copied().find(|p| {
-                    crate::provider_catalog::openai_compatible_profile_is_configured(*p)
-                })
+                profiles
+                    .iter()
+                    .copied()
+                    .find(|p| crate::provider_catalog::openai_compatible_profile_is_configured(*p))
             }
         };
         if let Some(profile) = configured_compat_profile {
@@ -130,8 +128,14 @@ impl MultiProvider {
             "[bootstrap] openai-compatible: configured={:?}, active_id={:?}, explicit_runtime={}, sub_runtime={}",
             configured_compat_profile.map(|p| p.id),
             active_compatible_profile,
-            ["JCODE_OPENROUTER_API_BASE","JCODE_OPENROUTER_API_KEY_NAME","JCODE_OPENROUTER_ENV_FILE","JCODE_OPENROUTER_CACHE_NAMESPACE"]
-                .iter().any(|key| std::env::var_os(key).is_some()),
+            [
+                "JCODE_OPENROUTER_API_BASE",
+                "JCODE_OPENROUTER_API_KEY_NAME",
+                "JCODE_OPENROUTER_ENV_FILE",
+                "JCODE_OPENROUTER_CACHE_NAMESPACE"
+            ]
+            .iter()
+            .any(|key| std::env::var_os(key).is_some()),
             subscription_runtime,
         ));
         let generic_openrouter_key_present = std::env::var_os("OPENROUTER_API_KEY").is_some();

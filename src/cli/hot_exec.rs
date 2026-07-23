@@ -514,7 +514,10 @@ pub fn run_update() -> Result<()> {
     let repo_dir =
         get_repo_dir().ok_or_else(|| anyhow::anyhow!("Could not find jcode repository"))?;
 
-    update::print_centered(&format!("Updating SAITEC-TUI from {}...", repo_dir.display()));
+    update::print_centered(&format!(
+        "Updating SAITEC-TUI from {}...",
+        repo_dir.display()
+    ));
 
     update::print_centered("Pulling latest changes (fast-forward only)...");
     update::run_git_pull_ff_only(&repo_dir, true)?;

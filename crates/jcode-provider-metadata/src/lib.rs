@@ -1324,20 +1324,50 @@ mod tests {
     #[test]
     fn openai_compatible_model_context_limit_exact_match() {
         // Known model → limit
-        assert_eq!(openai_compatible_model_context_limit("deepseek-v4-flash"), Some(1_000_000));
-        assert_eq!(openai_compatible_model_context_limit("deepseek-v4-pro"), Some(1_000_000));
-        assert_eq!(openai_compatible_model_context_limit("glm-4.5-air"), Some(128_000));
-        assert_eq!(openai_compatible_model_context_limit("glm-4-long"), Some(1_000_000));
-        assert_eq!(openai_compatible_model_context_limit("glm-5.2"), Some(1_000_000));
-        assert_eq!(openai_compatible_model_context_limit("kimi-k2.6"), Some(256_000));
-        assert_eq!(openai_compatible_model_context_limit("qwen3.7-max"), Some(1_000_000));
-        assert_eq!(openai_compatible_model_context_limit("qwen3.6-flash"), Some(1_000_000));
+        assert_eq!(
+            openai_compatible_model_context_limit("deepseek-v4-flash"),
+            Some(1_000_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("deepseek-v4-pro"),
+            Some(1_000_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("glm-4.5-air"),
+            Some(128_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("glm-4-long"),
+            Some(1_000_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("glm-5.2"),
+            Some(1_000_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("kimi-k2.6"),
+            Some(256_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("qwen3.7-max"),
+            Some(1_000_000)
+        );
+        assert_eq!(
+            openai_compatible_model_context_limit("qwen3.6-flash"),
+            Some(1_000_000)
+        );
 
         // Case-insensitive
-        assert_eq!(openai_compatible_model_context_limit("DeepSeek-V4-Flash"), Some(1_000_000));
+        assert_eq!(
+            openai_compatible_model_context_limit("DeepSeek-V4-Flash"),
+            Some(1_000_000)
+        );
 
         // Unknown model → None (triggers caller's default fallback)
-        assert_eq!(openai_compatible_model_context_limit("nonexistent-model"), None);
+        assert_eq!(
+            openai_compatible_model_context_limit("nonexistent-model"),
+            None
+        );
         assert_eq!(openai_compatible_model_context_limit("gpt-4"), None);
         assert_eq!(openai_compatible_model_context_limit(""), None);
     }

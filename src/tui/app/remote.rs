@@ -382,8 +382,7 @@ pub(super) async fn handle_bus_event(
             app.handle_usage_report_progress(progress);
         }
         Ok(BusEvent::LoginCompleted(login)) => {
-            let success =
-                login.success && login.provider != "copilot_code";
+            let success = login.success && login.provider != "copilot_code";
             app.handle_login_completed(login);
             if success {
                 remote.notify_auth_changed_detached();

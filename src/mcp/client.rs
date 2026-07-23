@@ -6,7 +6,7 @@
 //! per-server state (tools, capabilities, request id counter).
 
 use super::protocol::*;
-use super::transport::{transport_for, MessageTransport};
+use super::transport::{MessageTransport, transport_for};
 use anyhow::{Context, Result};
 use serde_json::Value;
 use std::sync::Arc;

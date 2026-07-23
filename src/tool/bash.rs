@@ -413,7 +413,8 @@ async fn handle_background_output_line(
         }
         Ok(None) => {}
         Err(err) => {
-            let warning = format!("[saitec-tui warning] failed to parse background progress: {err}\n");
+            let warning =
+                format!("[saitec-tui warning] failed to parse background progress: {err}\n");
             file.write_all(warning.as_bytes()).await.ok();
             file.flush().await.ok();
         }

@@ -89,7 +89,8 @@ pub fn remember_last_focused_session(session_id: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         crate::storage::ensure_dir(parent)?;
     }
-    std::fs::write(&path, session_id).context("failed to persist last focused SAITEC-TUI session")?;
+    std::fs::write(&path, session_id)
+        .context("failed to persist last focused SAITEC-TUI session")?;
 
     if let Ok(mut cache) = last_focused_session_write_cache().lock() {
         *cache = Some(session_id.to_string());
