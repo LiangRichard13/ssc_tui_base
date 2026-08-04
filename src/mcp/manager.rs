@@ -197,8 +197,10 @@ impl McpManager {
             let mut handles = self.pool_handles.write().await;
             if handles.remove(name).is_some() {
                 if let Some(pool) = &self.pool {
-                    pool.release_handles(&self.session_id, &[name.to_string()])
-                        .await;
+                    // Truly tear down the pooled client (remove handle, shutdown
+                    // transport) so a later connect re-fetches tools/list instead
+                    // of reusing a stale handle with cached tool definitions.
+                    pool.disconnect_server(name).await;
                 }
                 return Ok(());
             }
@@ -389,4 +391,202 @@ fn estimate_tool_bytes(tool: &McpToolDef) -> usize {
             .map(|value| value.len())
             .unwrap_or(0)
         + crate::process_memory::estimate_json_bytes(&tool.input_schema)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mcp::protocol::{McpServerConfig, McpTransport};
+    use serde_json::Value;
+    use std::net::SocketAddr;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn read_http_request(
+        stream: &mut tokio::net::TcpStream,
+    ) -> (String, String, HashMap<String, String>, String) {
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 1024];
+        loop {
+            let n = stream.read(&mut tmp).await.unwrap();
+            buf.extend_from_slice(&tmp[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+            if n == 0 {
+                break;
+            }
+        }
+        let raw = String::from_utf8_lossy(&buf).to_string();
+        let mut lines = raw.split("\r\n");
+        let request_line = lines.next().unwrap_or("").to_string();
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next().unwrap_or("").to_string();
+        let path = parts.next().unwrap_or("").to_string();
+        let mut headers = HashMap::new();
+        let mut content_length: usize = 0;
+        for line in lines.by_ref() {
+            if line.is_empty() {
+                break;
+            }
+            if let Some((k, v)) = line.split_once(':') {
+                let k = k.trim().to_ascii_lowercase();
+                let v = v.trim().to_string();
+                if k == "content-length" {
+                    content_length = v.parse().unwrap_or(0);
+                }
+                headers.insert(k, v);
+            }
+        }
+        let mut body = String::new();
+        if let Some(idx) = raw.find("\r\n\r\n") {
+            body = raw[idx + 4..].to_string();
+        }
+        while body.len() < content_length {
+            let n = stream.read(&mut tmp).await.unwrap();
+            body.push_str(&String::from_utf8_lossy(&tmp[..n]));
+        }
+        (method, path, headers, body)
+    }
+
+    fn ok_json_response(id: u64, body: &str) -> String {
+        let resp = format!("{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{body}}}");
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+            resp.len(),
+            resp
+        )
+    }
+
+    /// A shared-server disconnect must actually remove the handle from the
+    /// pool, so a subsequent connect rebuilds the client (and re-fetches
+    /// tools/list) instead of reusing a stale handle.
+    #[tokio::test]
+    async fn shared_disconnect_removes_pool_handle() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr: SocketAddr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/mcp");
+
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            // Requests: initialize, notifications/initialized, tools/list.
+            for _ in 0..3 {
+                let (_m, _p, _h, body) = read_http_request(&mut stream).await;
+                let req: Value = serde_json::from_str(&body).unwrap();
+                let method = req.get("method").and_then(Value::as_str).unwrap_or("");
+                let id = req.get("id").and_then(Value::as_u64);
+                let resp = match method {
+                    "initialize" => ok_json_response(
+                        id.unwrap(),
+                        r#"{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"fake","version":"0.1.0"}}"#,
+                    ),
+                    "tools/list" => ok_json_response(
+                        id.unwrap(),
+                        r#"{"tools":[{"name":"ping","description":"test tool","inputSchema":{"type":"object"}}]}"#,
+                    ),
+                    _ => ok_json_response(0, "{}"),
+                };
+                stream.write_all(resp.as_bytes()).await.unwrap();
+                stream.flush().await.unwrap();
+            }
+        });
+
+        let pool = Arc::new(SharedMcpPool::new(McpConfig::default()));
+        let mgr = McpManager::with_shared_pool(Arc::clone(&pool), "test-session".to_string());
+
+        let config = McpServerConfig {
+            transport: McpTransport::Http,
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            url: Some(url.clone()),
+            headers: HashMap::new(),
+            shared: true,
+        };
+
+        mgr.connect("fake", &config).await.expect("connect");
+        assert!(pool.get_handle("fake").await.is_some());
+
+        mgr.disconnect("fake").await.expect("disconnect");
+        assert!(
+            pool.get_handle("fake").await.is_none(),
+            "shared disconnect must remove the handle from the pool so a later connect rebuilds it"
+        );
+
+        server.await.unwrap();
+    }
+
+    /// After a shared disconnect, a subsequent connect must re-fetch tools/list
+    /// from the server — not reuse a stale handle with cached tool definitions.
+    /// The mock server returns only `ping` on the first connection, then adds
+    /// `pong` on the second (simulating the server-side MCP update).
+    #[tokio::test]
+    async fn shared_reconnect_refetches_updated_tools() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr: SocketAddr = listener.local_addr().unwrap();
+        let url = format!("http://{addr}/mcp");
+
+        let server = tokio::spawn(async move {
+            // Two connection rounds: round 0 serves [ping], round 1 (after the
+            // server-side update) serves [ping, pong].
+            for round in 0..2 {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                // Requests: initialize, notifications/initialized, tools/list.
+                for _ in 0..3 {
+                    let (_m, _p, _h, body) = read_http_request(&mut stream).await;
+                    let req: Value = serde_json::from_str(&body).unwrap();
+                    let method = req.get("method").and_then(Value::as_str).unwrap_or("");
+                    let id = req.get("id").and_then(Value::as_u64);
+                    let tools_body = if round == 0 {
+                        r#"{"tools":[{"name":"ping","description":"test tool","inputSchema":{"type":"object"}}]}"#
+                    } else {
+                        r#"{"tools":[{"name":"ping","description":"test tool","inputSchema":{"type":"object"}},{"name":"pong","description":"new tool","inputSchema":{"type":"object"}}]}"#
+                    };
+                    let resp = match method {
+                        "initialize" => ok_json_response(
+                            id.unwrap(),
+                            r#"{"protocolVersion":"2024-11-05","capabilities":{"tools":{}},"serverInfo":{"name":"fake","version":"0.1.0"}}"#,
+                        ),
+                        "tools/list" => ok_json_response(id.unwrap(), tools_body),
+                        _ => ok_json_response(0, "{}"),
+                    };
+                    stream.write_all(resp.as_bytes()).await.unwrap();
+                    stream.flush().await.unwrap();
+                }
+            }
+        });
+
+        let pool = Arc::new(SharedMcpPool::new(McpConfig::default()));
+        let mgr = McpManager::with_shared_pool(Arc::clone(&pool), "test-session".to_string());
+
+        let config = McpServerConfig {
+            transport: McpTransport::Http,
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            url: Some(url.clone()),
+            headers: HashMap::new(),
+            shared: true,
+        };
+
+        // First connection: only `ping` exists.
+        mgr.connect("fake", &config).await.expect("first connect");
+        let handle = pool.get_handle("fake").await.unwrap();
+        let first: Vec<String> = handle.tools().iter().map(|t| t.name.clone()).collect();
+        assert_eq!(first, vec!["ping"]);
+
+        // Server-side update + reconnect: `pong` must appear.
+        mgr.disconnect("fake").await.expect("disconnect");
+        mgr.connect("fake", &config).await.expect("second connect");
+
+        let handle = pool.get_handle("fake").await.unwrap();
+        let second: Vec<String> = handle.tools().iter().map(|t| t.name.clone()).collect();
+        assert!(
+            second.contains(&"pong".to_string()),
+            "reconnect must re-fetch tools/list after server update, got: {:?}",
+            second
+        );
+
+        server.await.unwrap();
+    }
 }
