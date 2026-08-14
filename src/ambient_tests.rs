@@ -409,3 +409,79 @@ fn test_scheduled_queue_items_accessor() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, "s1");
 }
+
+#[test]
+fn test_scheduled_queue_remove_by_id() {
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let path = tmp.path().to_path_buf();
+
+    let mut queue = ScheduledQueue::load(path);
+    for id in ["s1", "s2", "s3"] {
+        queue.push(ScheduledItem {
+            id: id.into(),
+            scheduled_for: Utc::now() + Duration::hours(1),
+            context: format!("item {id}"),
+            priority: Priority::Normal,
+            target: ScheduleTarget::Ambient,
+            created_by_session: "test".into(),
+            created_at: Utc::now(),
+            working_dir: None,
+            task_description: None,
+            relevant_files: Vec::new(),
+            git_branch: None,
+            additional_context: None,
+        });
+    }
+
+    let removed = queue.remove("s2").expect("remove should succeed");
+    assert_eq!(removed.as_ref().map(|i| i.id.as_str()), Some("s2"));
+    assert_eq!(removed.as_ref().map(|i| i.context.as_str()), Some("item s2"));
+
+    let remaining: Vec<String> = queue.items().iter().map(|i| i.id.clone()).collect();
+    assert_eq!(remaining, vec!["s1".to_string(), "s3".to_string()]);
+
+    // Removing a non-existent id returns None and leaves the queue untouched.
+    let missing = queue.remove("nope").expect("remove missing should succeed");
+    assert!(missing.is_none());
+    assert_eq!(queue.items().len(), 2);
+}
+
+#[test]
+fn test_ambient_manager_cancel_by_id() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let mut manager = AmbientManager::new().expect("ambient manager");
+    let id = manager
+        .schedule(ScheduleRequest {
+            wake_in_minutes: Some(60),
+            wake_at: None,
+            context: "cancel me".into(),
+            priority: Priority::Normal,
+            target: ScheduleTarget::Ambient,
+            created_by_session: "test".into(),
+            working_dir: None,
+            task_description: Some("cancel me".into()),
+            relevant_files: Vec::new(),
+            git_branch: None,
+            additional_context: None,
+        })
+        .expect("schedule should succeed");
+    assert_eq!(manager.queue().len(), 1);
+
+    let cancelled = manager.cancel(&id).expect("cancel should succeed");
+    assert_eq!(cancelled.as_ref().map(|i| i.id.as_str()), Some(id.as_str()));
+    assert!(manager.queue().is_empty());
+
+    // Cancelling a non-existent id returns None.
+    let missing = manager.cancel("sched_00000000").expect("cancel missing");
+    assert!(missing.is_none());
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}

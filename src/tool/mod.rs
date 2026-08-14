@@ -185,6 +185,18 @@ impl Registry {
             Self::insert_tool_timed(&mut m, &mut timings, "goal", goal::GoalTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "gmail", gmail::GmailTool::new);
             Self::insert_tool_timed(&mut m, &mut timings, "schedule", ambient::ScheduleTool::new);
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "cancel_schedule",
+                ambient::CancelScheduleTool::new,
+            );
+            Self::insert_tool_timed(
+                &mut m,
+                &mut timings,
+                "list_schedule",
+                ambient::ListScheduleTool::new,
+            );
             Self::insert_tool_timed(&mut m, &mut timings, "selfdev", selfdev::SelfDevTool::new);
             let nonzero: Vec<String> = timings
                 .iter()

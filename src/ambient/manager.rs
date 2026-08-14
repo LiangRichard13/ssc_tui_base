@@ -95,6 +95,12 @@ impl AmbientManager {
         Ok(id)
     }
 
+    /// Cancel a pending scheduled item by id. Returns the removed item, or
+    /// `None` if no pending item with that id exists.
+    pub fn cancel(&mut self, id: &str) -> Result<Option<ScheduledItem>> {
+        self.queue.remove(id)
+    }
+
     pub fn state(&self) -> &AmbientState {
         &self.state
     }

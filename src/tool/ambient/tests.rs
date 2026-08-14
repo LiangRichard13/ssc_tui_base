@@ -427,3 +427,194 @@ async fn test_schedule_tool_requires_time() {
         .expect_err("should require wake_in_minutes or wake_at");
     assert!(err.to_string().contains("wake_in_minutes"));
 }
+
+#[test]
+fn test_cancel_schedule_tool_schema_requires_task_id() {
+    let tool = CancelScheduleTool::new();
+    let schema = tool.parameters_schema();
+    let required = schema["required"].as_array().expect("required list");
+    assert!(required.iter().any(|v| v.as_str() == Some("task_id")));
+}
+
+async fn make_cancel_ctx(session_id: &str) -> ToolContext {
+    ToolContext {
+        session_id: session_id.to_string(),
+        message_id: "msg_1".to_string(),
+        tool_call_id: "call_1".to_string(),
+        working_dir: None,
+        stdin_request_tx: None,
+        graceful_shutdown_signal: None,
+        execution_mode: crate::tool::ToolExecutionMode::Direct,
+    }
+}
+
+#[tokio::test]
+async fn test_cancel_schedule_tool_cancels_pending_task() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    // Create a task first so we have an id to cancel.
+    let schedule_tool = ScheduleTool::new();
+    let sched_out = schedule_tool
+        .execute(
+            json!({
+                "task": "task to cancel",
+                "wake_in_minutes": 60
+            }),
+            make_cancel_ctx("origin_session").await,
+        )
+        .await
+        .expect("schedule should succeed");
+    let id = sched_out
+        .output
+        .split("id: ")
+        .nth(1)
+        .expect("scheduled output should contain id")
+        .split(')')
+        .next()
+        .expect("id should terminate at the closing paren")
+        .trim()
+        .to_string();
+    assert!(
+        id.starts_with("sched_"),
+        "expected an id like sched_..., got: {id:?}"
+    );
+
+    let cancel_tool = CancelScheduleTool::new();
+    let cancel_out = cancel_tool
+        .execute(
+            json!({
+                "task_id": id
+            }),
+            make_cancel_ctx("origin_session").await,
+        )
+        .await
+        .expect("cancel should succeed");
+    assert!(
+        cancel_out.output.contains("task to cancel"),
+        "cancel output should mention the cancelled task: {}",
+        cancel_out.output
+    );
+
+    let manager = AmbientManager::new().expect("ambient manager");
+    assert!(
+        manager.queue().is_empty(),
+        "queue should be empty after cancelling the only task"
+    );
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[tokio::test]
+async fn test_cancel_schedule_tool_missing_id_reports_nothing_cancelled() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let cancel_tool = CancelScheduleTool::new();
+    let out = cancel_tool
+        .execute(
+            json!({
+                "task_id": "sched_00000000"
+            }),
+            make_cancel_ctx("origin_session").await,
+        )
+        .await
+        .expect("cancel missing should not error");
+    assert!(
+        out.output.to_lowercase().contains("not found")
+            || out.output.contains("no pending task"),
+        "missing id should report nothing to cancel: {}",
+        out.output
+    );
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[tokio::test]
+async fn test_list_schedule_tool_lists_pending_tasks() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    // Seed two pending tasks so the list has something to show.
+    let schedule_tool = ScheduleTool::new();
+    for task in ["first task", "second task"] {
+        schedule_tool
+            .execute(
+                json!({
+                    "task": task,
+                    "wake_in_minutes": 60
+                }),
+                make_cancel_ctx("origin_session").await,
+            )
+            .await
+            .expect("schedule should succeed");
+    }
+
+    let list_tool = ListScheduleTool::new();
+    let out = list_tool
+        .execute(json!({}), make_cancel_ctx("origin_session").await)
+        .await
+        .expect("list should succeed");
+    assert!(
+        out.output.contains("first task"),
+        "list should include the first task: {}",
+        out.output
+    );
+    assert!(
+        out.output.contains("second task"),
+        "list should include the second task: {}",
+        out.output
+    );
+    assert!(
+        out.output.contains("sched_"),
+        "list should include task ids: {}",
+        out.output
+    );
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}
+
+#[tokio::test]
+async fn test_list_schedule_tool_empty_queue_reports_nothing() {
+    let _guard = crate::storage::lock_test_env();
+    let temp = tempfile::tempdir().expect("tempdir");
+    let prev_home = std::env::var_os("JCODE_HOME");
+    crate::env::set_var("JCODE_HOME", temp.path());
+
+    let list_tool = ListScheduleTool::new();
+    let out = list_tool
+        .execute(json!({}), make_cancel_ctx("origin_session").await)
+        .await
+        .expect("list should succeed");
+    assert!(
+        out.output.to_lowercase().contains("no scheduled")
+            || out.output.contains("empty")
+            || out.output.contains("none"),
+        "empty queue should report no tasks: {}",
+        out.output
+    );
+
+    if let Some(prev) = prev_home {
+        crate::env::set_var("JCODE_HOME", prev);
+    } else {
+        crate::env::remove_var("JCODE_HOME");
+    }
+}

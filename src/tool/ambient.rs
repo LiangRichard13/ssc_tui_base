@@ -881,6 +881,157 @@ impl Tool for ScheduleTool {
 }
 
 // ===========================================================================
+// CancelScheduleTool — cancels a pending scheduled task by id
+// ===========================================================================
+
+pub struct CancelScheduleTool;
+
+impl Default for CancelScheduleTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CancelScheduleTool {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[derive(Deserialize)]
+struct CancelScheduleToolInput {
+    task_id: String,
+}
+
+#[async_trait]
+impl Tool for CancelScheduleTool {
+    fn name(&self) -> &str {
+        "cancel_schedule"
+    }
+
+    fn description(&self) -> &str {
+        "Cancel a pending scheduled task by its id (returned by the schedule tool)."
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "required": ["task_id"],
+            "properties": {
+                "intent": super::intent_schema_property(),
+                "task_id": {
+                    "type": "string",
+                    "description": "The id of the scheduled task to cancel, e.g. sched_1a2b3c4d"
+                }
+            }
+        })
+    }
+
+    async fn execute(&self, input: Value, ctx: ToolContext) -> Result<ToolOutput> {
+        let params: CancelScheduleToolInput = serde_json::from_value(input)?;
+
+        let mut manager = AmbientManager::new()?;
+        let removed = manager.cancel(&params.task_id)?;
+
+        match removed {
+            Some(item) => {
+                let when = item.scheduled_for.to_rfc3339();
+                Ok(
+                    ToolOutput::new(format!(
+                        "Cancelled scheduled task '{}' (id: {}, was due at {})",
+                        item.context, item.id, when
+                    ))
+                    .with_title(format!("cancelled: {}", item.context)),
+                )
+            }
+            None => {
+                let _ = ctx;
+                Ok(ToolOutput::new(format!(
+                    "Scheduled task {id} not found — nothing to cancel.",
+                    id = params.task_id
+                )).with_title("cancel_schedule: not found"))
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// ListScheduleTool — lists pending scheduled tasks
+// ===========================================================================
+
+pub struct ListScheduleTool;
+
+impl Default for ListScheduleTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ListScheduleTool {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl Tool for ListScheduleTool {
+    fn name(&self) -> &str {
+        "list_schedule"
+    }
+
+    fn description(&self) -> &str {
+        "List all pending scheduled tasks with their ids, contexts, priorities, and due times."
+    }
+
+    fn parameters_schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "intent": super::intent_schema_property()
+            }
+        })
+    }
+
+    async fn execute(&self, _input: Value, _ctx: ToolContext) -> Result<ToolOutput> {
+        let manager = AmbientManager::new()?;
+        let items = manager.queue().items();
+
+        if items.is_empty() {
+            return Ok(ToolOutput::new(
+                "No scheduled tasks are pending.",
+            ).with_title("list_schedule: empty"));
+        }
+
+        let mut output = format!("Pending scheduled tasks ({}):\n", items.len());
+        for item in items {
+            let target = match &item.target {
+                ScheduleTarget::Ambient => "ambient".to_string(),
+                ScheduleTarget::Session { session_id } => {
+                    format!("resume session {session_id}")
+                }
+                ScheduleTarget::Spawn { parent_session_id } => {
+                    format!("spawn from {parent_session_id}")
+                }
+            };
+            output.push_str(&format!(
+                "- {} · '{}' · {} · due {}\n",
+                item.id,
+                item.context,
+                match item.priority {
+                    Priority::Low => "low",
+                    Priority::Normal => "normal",
+                    Priority::High => "high",
+                },
+                item.scheduled_for.to_rfc3339(),
+            ));
+            output.push_str(&format!("    target: {target}\n"));
+        }
+
+        Ok(ToolOutput::new(output).with_title("list_schedule"))
+    }
+}
+
+// ===========================================================================
 // Helpers
 // ===========================================================================
 

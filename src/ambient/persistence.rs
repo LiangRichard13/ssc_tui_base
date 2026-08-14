@@ -78,6 +78,18 @@ impl ScheduledQueue {
         let _ = self.save();
     }
 
+    /// Remove a pending item by id. Returns the removed item, or `None` if no
+    /// pending item with that id exists. Only affects not-yet-ready items.
+    pub fn remove(&mut self, id: &str) -> Result<Option<ScheduledItem>> {
+        if let Some(index) = self.items.iter().position(|i| i.id == id) {
+            let removed = self.items.remove(index);
+            self.save()?;
+            Ok(Some(removed))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Pop items whose `scheduled_for` is in the past, sorted by priority
     /// (highest first) then by time (earliest first).
     pub fn pop_ready(&mut self) -> Vec<ScheduledItem> {
