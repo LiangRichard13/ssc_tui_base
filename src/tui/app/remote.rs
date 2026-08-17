@@ -46,8 +46,7 @@ use workspace::{handle_workspace_command, handle_workspace_navigation_key};
 pub(super) use input_dispatch::{
     apply_remote_transcript_event, apply_transcript_event, begin_remote_send,
     begin_remote_split_launch, finish_remote_split_launch, history_matches_pending_startup_prompt,
-    require_saitec_login_for_remote_user_send, route_prepared_input_to_new_remote_session,
-    submit_prepared_remote_input,
+    route_prepared_input_to_new_remote_session, submit_prepared_remote_input,
 };
 pub(super) use key_handling::{
     handle_remote_char_input, handle_remote_key, handle_remote_key_event, send_interleave_now,

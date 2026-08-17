@@ -18,28 +18,10 @@ impl App {
         // Subscribe to bus for background task completion notifications
         let mut bus_receiver = Bus::global().subscribe();
 
-        if !self.is_remote
-            && !self.is_replay
-            && self.display_messages.is_empty()
-            && self.pending_login.is_none()
-        {
-            let auth_status = crate::auth::AuthStatus::check_fast();
-            let has_base_model = auth_status.has_any_base_model();
-            let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
-
-            if !has_base_model {
-                // Setup mode: no base model configured — show the startup guide (blocking)
-                self.begin_pending_login(PendingLogin::StartupGuide {
-                    focused: StartupGuideAction::LoginSaitec,
-                    is_reminder: false,
-                });
-            } else if !saitec_ok {
-                // Reminder mode: base model OK but SAITEC not configured
-                self.begin_pending_login(PendingLogin::StartupGuide {
-                    focused: StartupGuideAction::LoginSaitec,
-                    is_reminder: true,
-                });
-            }
+        if !self.is_remote && !self.is_replay && self.display_messages.is_empty() {
+            // Login gate removed in chore/ssc-tui-baseline: previously a SAITEC
+            // startup guide (StartupGuide / StartupGuideAction) was triggered here.
+            // Both types are removed in stage 2 subtask B-3.
         }
 
         loop {
@@ -140,22 +122,9 @@ impl App {
         let mut remote_state = remote::RemoteRunState::default();
 
         // Startup guide check for remote mode — same logic as App::run()
-        if !self.is_replay && self.display_messages.is_empty() && self.pending_login.is_none() {
-            let auth_status = crate::auth::AuthStatus::check_fast();
-            let has_base_model = auth_status.has_any_base_model();
-            let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
-
-            if !has_base_model {
-                self.begin_pending_login(PendingLogin::StartupGuide {
-                    focused: StartupGuideAction::LoginSaitec,
-                    is_reminder: false,
-                });
-            } else if !saitec_ok {
-                self.begin_pending_login(PendingLogin::StartupGuide {
-                    focused: StartupGuideAction::LoginSaitec,
-                    is_reminder: true,
-                });
-            }
+        if !self.is_replay && self.display_messages.is_empty() {
+            // Login gate removed in chore/ssc-tui-baseline: previously a SAITEC
+            // startup guide was triggered here too. See stage 2 subtask B-3.
         }
 
         'outer: loop {

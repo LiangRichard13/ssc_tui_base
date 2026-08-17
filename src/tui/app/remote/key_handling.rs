@@ -16,9 +16,6 @@ pub(in crate::tui::app) async fn send_interleave_now(
     if content.trim().is_empty() {
         return;
     }
-    if !require_saitec_login_for_remote_user_send(app) {
-        return;
-    }
     let msg_clone = content.clone();
     match remote.soft_interrupt(content, false).await {
         Err(e) => {

@@ -2417,15 +2417,12 @@ impl App {
             return;
         }
 
-        if !trimmed.is_empty()
-            && !trimmed.starts_with('/')
-            && crate::saitec::auth::ensure_logged_in().is_err()
-        {
-            self.push_display_message(DisplayMessage::error(
-                "Please log in first. Use `/login` to open the Saitec login form.".to_string(),
-            ));
-            self.set_status_notice("Login: required");
-            return;
+        if !trimmed.is_empty() {
+            if !trimmed.starts_with('/') {
+                crate::telemetry::record_command_family(trimmed);
+            }
+            // Login gate removed in chore/ssc-tui-baseline: non-command input
+            // falls through to extract_input_shell_command below.
         }
 
         if let Some(command) = extract_input_shell_command(&input) {

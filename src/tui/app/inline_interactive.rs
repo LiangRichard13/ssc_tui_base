@@ -285,7 +285,6 @@ impl App {
 
         can_leak_static_catalog
             && (!self.is_remote || remote_has_catalog)
-            && crate::saitec::auth::ensure_logged_in().is_err()
     }
 
     fn saitec_model_route_filter_provider_name(&self) -> Option<&str> {
