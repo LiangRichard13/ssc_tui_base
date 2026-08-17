@@ -140,10 +140,10 @@ fn matrix_login_provider_ids_and_aliases_are_unique() {
 #[test]
 fn matrix_tui_login_selection_supports_numbers_and_names() {
     let providers = tui_login_providers();
-    assert_eq!(
-        resolve_login_selection("1", &providers).map(|provider| provider.id),
-        Some("claude")
-    );
+    // Stage 2B: the picker now exposes the full catalog, so "1" still picks
+    // the first provider by surface order, but it no longer has to be
+    // `claude`. We only assert that the picker resolves it to *some* provider.
+    assert!(resolve_login_selection("1", &providers).is_some());
     assert_eq!(
         resolve_login_selection("anthropic", &providers).map(|provider| provider.id),
         Some("claude")
@@ -152,11 +152,18 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
 }
 
 #[test]
-fn saitec_allowlisted_provider_ids_match_product_requirements() {
-    assert_eq!(
-        crate::saitec::product_profile::allowed_base_model_provider_ids(),
-        &["openai", "claude", "zai", "kimi", "alibaba-coding-plan"]
-    );
+fn baseline_provider_ids_include_canonical_base_models() {
+    // Stage 2B (chore/ssc-tui-baseline): the SAITEC-specific allowlist is
+    // gone; the catalog now exposes its full union. This test pins the
+    // canonical names that the basemodel picker and CLI login both depend
+    // on so any future regression surfaces here.
+    let ids = crate::saitec::product_profile::allowed_base_model_provider_ids();
+    for canonical in ["openai", "claude", "kimi"] {
+        assert!(
+            ids.contains(&canonical),
+            "canonical base-model provider `{canonical}` missing from product_profile::allowed_base_model_provider_ids()"
+        );
+    }
 }
 
 #[test]
@@ -169,17 +176,21 @@ fn saitec_allowlist_accepts_aliases_through_catalog_resolution() {
 }
 
 #[test]
-fn saitec_visible_base_model_providers_only_include_allowlisted_entries() {
+fn baseline_visible_base_model_providers_include_canonical_entries() {
+    // Stage 2B: the previously SAITEC-only filter is lifted; the visible
+    // list now exposes the union of providers the catalog knows about.
     let providers = saitec_visible_base_model_providers();
     let provider_ids = providers
         .iter()
         .map(|provider| provider.id)
         .collect::<Vec<_>>();
 
-    assert_eq!(
-        provider_ids,
-        vec!["openai", "claude", "zai", "kimi", "alibaba-coding-plan"]
-    );
+    for canonical in ["openai", "claude", "kimi"] {
+        assert!(
+            provider_ids.iter().any(|id| id == &canonical),
+            "canonical base-model provider `{canonical}` missing from visible base-model providers list"
+        );
+    }
 }
 
 #[test]
