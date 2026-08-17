@@ -15,22 +15,8 @@ pub(crate) struct SaitecPendingForm {
     pub submitting: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StartupGuideAction {
-    LoginSaitec,
-    SetupBaseModel,
-    SkipSaitec,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) enum PendingLogin {
-    /// Startup welcome guide — shown on first launch or when SAITEC/base-model not configured.
-    StartupGuide {
-        focused: StartupGuideAction,
-        /// false = Setup mode: no base model configured yet (must configure one).
-        /// true  = Reminder mode: base model OK, but SAITEC not configured.
-        is_reminder: bool,
-    },
     /// Waiting for the user to fill in the SAITEC business-login form.
     SaitecForm { form: SaitecPendingForm },
     /// Waiting for user to paste Claude OAuth code for a specific stored account
@@ -96,7 +82,6 @@ pub(crate) enum PendingLogin {
 impl PendingLogin {
     pub(crate) fn telemetry_context(&self) -> Option<(String, String)> {
         match self {
-            Self::StartupGuide { .. } => None,
             Self::SaitecForm { .. } => Some(("jcode".to_string(), "password".to_string())),
             Self::ClaudeAccount { .. } => Some(("claude".to_string(), "oauth".to_string())),
             Self::OpenAiAccount { .. } => Some(("openai".to_string(), "oauth".to_string())),

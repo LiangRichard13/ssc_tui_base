@@ -204,16 +204,6 @@ pub trait TuiState {
     fn pending_startup_guide(&self) -> bool {
         false
     }
-    /// Returns the current StartupGuide button focus and mode (reminder vs setup).
-    /// Used by the renderer to draw the correct highlighted button.
-    fn startup_guide_focus(
-        &self,
-    ) -> (
-        Option<crate::tui::app::StartupGuideAction>,
-        bool, /* is_reminder */
-    ) {
-        (None, false)
-    }
     /// Pending text-entry login flow (API key, API base, etc.) rendered as a modal overlay.
     fn pending_text_entry_overlay(&self) -> Option<PendingTextEntryOverlay> {
         None

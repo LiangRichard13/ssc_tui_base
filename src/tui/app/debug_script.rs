@@ -94,7 +94,6 @@ impl App {
                     PendingLogin::CursorApiKey => "cursor_api_key",
                     PendingLogin::Copilot => "copilot",
                     PendingLogin::AutoImportSelection { .. } => "auto_import_selection",
-                    PendingLogin::StartupGuide { .. } => "startup_guide",
                 }),
                 "pending_text_entry_focus": match self.pending_text_entry_focus {
                     PendingTextEntryFocus::Input => "input",

@@ -8,7 +8,6 @@ pub(crate) use self::auth_account_commands::{
     handle_account_command_remote, handle_auth_command, resolve_account_provider_descriptor,
     save_openai_fast_setting_local,
 };
-pub(crate) use self::auth_types::StartupGuideAction;
 pub(crate) use self::auth_types::{
     AccountCommand, PendingAccountInput, PendingLogin, SaitecLoginField, SaitecPendingForm,
 };
@@ -52,33 +51,6 @@ impl App {
 
     /// After a login picker close (Esc/cancel), check if we should reopen the
     /// startup guide because the user was in the middle of first-run setup.
-    pub(super) fn restore_startup_guide_if_needed(&mut self) {
-        if self.display_user_message_count > 0 || !self.streaming_text.is_empty() {
-            return;
-        }
-        let auth_status = crate::auth::AuthStatus::check_fast();
-        let has_base_model = auth_status.has_any_base_model();
-        let saitec_ok = crate::saitec::auth::ensure_logged_in().is_ok();
-
-        if saitec_ok {
-            return; // everything is fine
-        }
-
-        if has_base_model {
-            // Reminder mode: BM okay but SAITEC missing
-            self.begin_pending_login(PendingLogin::StartupGuide {
-                focused: StartupGuideAction::LoginSaitec,
-                is_reminder: true,
-            });
-        } else {
-            // Setup mode: no BM configured yet
-            self.begin_pending_login(PendingLogin::StartupGuide {
-                focused: StartupGuideAction::LoginSaitec,
-                is_reminder: false,
-            });
-        }
-    }
-
     pub(crate) fn open_saitec_base_model_login_picker(&mut self) {
         use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
 
@@ -1765,7 +1737,7 @@ impl App {
         if trimmed.is_empty()
             && !matches!(
                 pending,
-                PendingLogin::SaitecForm { .. } | PendingLogin::StartupGuide { .. }
+                PendingLogin::SaitecForm { .. }
             )
         {
             let help = match &pending {
@@ -1801,31 +1773,6 @@ impl App {
         }
 
         match pending {
-            PendingLogin::StartupGuide {
-                focused,
-                is_reminder,
-            } => {
-                match focused {
-                    StartupGuideAction::LoginSaitec => {
-                        self.start_jcode_login();
-                    }
-                    StartupGuideAction::SetupBaseModel => {
-                        self.open_saitec_base_model_login_picker();
-                    }
-                    StartupGuideAction::SkipSaitec => {
-                        self.push_display_message(DisplayMessage::system(
-                            "SAITEC login skipped. You can log in anytime via `/login jcode`."
-                                .to_string(),
-                        ));
-                        self.set_status_notice("SAITEC skipped");
-                        // If this was the last thing preventing startup, let the
-                        // branded startup surface collapse and show the conversation.
-                        if is_reminder && self.display_user_message_count == 0 {
-                            self.pending_login = None;
-                        }
-                    }
-                }
-            }
             PendingLogin::OpenAiCompatibleModelName {
                 provider,
                 provider_id,
@@ -2742,18 +2689,9 @@ impl App {
                 self.pending_login = None;
             }
             // After a successful non-jcode login, if SAITEC is still not configured
-            // and we are still in startup state, transition to the Reminder guide.
-            if login.provider != "jcode"
-                && self.display_user_message_count == 0
-                && self.streaming_text.is_empty()
-                && self.pending_login.is_none()
-                && crate::saitec::auth::ensure_logged_in().is_err()
-            {
-                self.begin_pending_login(PendingLogin::StartupGuide {
-                    focused: StartupGuideAction::LoginSaitec,
-                    is_reminder: true,
-                });
-            }
+            // Stage 2B-3: the SAITEC-Reminder startup guide transition is
+            // retired — the user is no longer funneled into a setup overlay
+            // after a non-JCODE login.
         } else {
             let message = crate::auth::login_diagnostics::augment_auth_error_message(
                 &login.provider,

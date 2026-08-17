@@ -1933,9 +1933,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         }
 
         input_ui::draw_startup_input(frame, app, prompt_area, &mut debug_capture);
-        if app.pending_startup_guide() {
-            overlays::draw_startup_guide_overlay(frame, shell_content_area, app);
-        } else if let Some(form) = app.pending_saitec_login_form() {
+        if let Some(form) = app.pending_saitec_login_form() {
             overlays::draw_saitec_login_overlay(
                 frame,
                 shell_content_area,

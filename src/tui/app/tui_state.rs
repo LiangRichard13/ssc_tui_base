@@ -584,7 +584,6 @@ impl crate::tui::TuiState for App {
                     | PendingLogin::OpenAiCompatibleApiBase { .. }
                     | PendingLogin::OpenAiCompatibleModelName { .. }
                     | PendingLogin::CursorApiKey
-                    | PendingLogin::StartupGuide { .. }
             )
         ) && self.display_user_message_count == 0
             && self.streaming_text.is_empty()
@@ -598,20 +597,6 @@ impl crate::tui::TuiState for App {
         match self.pending_login.as_ref() {
             Some(PendingLogin::SaitecForm { form }) => Some(form),
             _ => None,
-        }
-    }
-
-    fn pending_startup_guide(&self) -> bool {
-        matches!(&self.pending_login, Some(PendingLogin::StartupGuide { .. }))
-    }
-
-    fn startup_guide_focus(&self) -> (Option<crate::tui::app::StartupGuideAction>, bool) {
-        match &self.pending_login {
-            Some(PendingLogin::StartupGuide {
-                focused,
-                is_reminder,
-            }) => (Some(*focused), *is_reminder),
-            _ => (None, false),
         }
     }
 

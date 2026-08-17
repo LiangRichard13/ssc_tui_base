@@ -873,7 +873,6 @@ impl App {
                 crate::tui::login_picker::OverlayAction::Continue => {}
                 crate::tui::login_picker::OverlayAction::Close => {
                     self.login_picker_overlay = None;
-                    self.restore_startup_guide_if_needed();
                 }
                 crate::tui::login_picker::OverlayAction::Execute(provider) => {
                     self.login_picker_overlay = None;

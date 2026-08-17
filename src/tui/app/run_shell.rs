@@ -19,9 +19,9 @@ impl App {
         let mut bus_receiver = Bus::global().subscribe();
 
         if !self.is_remote && !self.is_replay && self.display_messages.is_empty() {
-            // Login gate removed in chore/ssc-tui-baseline: previously a SAITEC
-            // startup guide (StartupGuide / StartupGuideAction) was triggered here.
-            // Both types are removed in stage 2 subtask B-3.
+            // Stage 2A removed the local SAITEC startup guide; stage 2B-3 fully
+            // retires the StartupGuide / StartupGuideAction types. Nothing to
+            // restore here for the baseline.
         }
 
         loop {
