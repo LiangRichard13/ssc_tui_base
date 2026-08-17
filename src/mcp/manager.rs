@@ -312,7 +312,7 @@ impl McpManager {
     }
 
     /// Re-acquire a handle from the shared pool without re-connecting.
-    /// Used after a pool-level reconnect (e.g., after SAITEC login).
+    /// Used after a pool-level reconnect (e.g., after auth reconnect).
     pub async fn reacquire_pool_handle(&self, name: &str) -> bool {
         if let Some(pool) = &self.pool {
             if let Some(handle) = pool.get_handle(name).await {

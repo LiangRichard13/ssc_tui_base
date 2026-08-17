@@ -178,10 +178,8 @@ impl McpClient {
         // Send initialized notification.
         // JSON-RPC 2.0: a notification has NO "id" field. Including id: 0 (which
         // `JsonRpcRequest::new(0, ...)` would produce) is rejected by strict
-        // servers (e.g. Pydantic discriminated-union validation in
-        // SAITEC-Skills) as "Input should be 'ping'"/"Input should be
-        // 'initialize'". Build the wire payload directly so the id field is
-        // absent.
+        // servers enforcing discriminated-union validation. Build the wire
+        // payload directly so the id field is absent.
         let notif = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "notifications/initialized",
