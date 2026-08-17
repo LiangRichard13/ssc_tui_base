@@ -1,3 +1,15 @@
+//! Stage 2B (chore/ssc-tui-baseline): product restrictions lifted.
+//!
+//! The function bodies in this module now return permissive defaults
+//! (all `is_allowed_*` queries return true, all `show_*` / `use_*` toggles
+//! return the same value upstream jcode would have returned). Call sites
+//! still compile against the same public symbols, so src/saitec/ stays
+//! coherent until stage 2 subtask D removes it wholesale.
+//!
+//! The previous inline #[cfg(test)] module is also dropped here: it
+//! asserted SAITEC-specific rules (grape brand, SAITEC-only base-model
+//! allowlist, Kimi-only openai-compatible behaviour) that no longer hold.
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandVisibility {
     Public,
@@ -5,387 +17,95 @@ pub enum CommandVisibility {
     InternalOnly,
 }
 
-const PUBLIC_COMMANDS: &[&str] = &[
-    "/help",
-    "/?",
-    "/commands",
-    "/login",
-    "/logout",
-    "/auth",
-    "/model",
-    "/models",
-    "/clear",
-    "/resume",
-    "/sessions",
-    "/export",
-    "/usage",
-    "/version",
-    "/quit",
-    "/download-latest",
-];
-
-const HIDDEN_COMPATIBLE_COMMANDS: &[&str] = &[
-    "/git",
-    "/selfdev",
-    "/feedback",
-    "/subscription",
-    "/review",
-    "/judge",
-    "/swarm",
-    "/memory",
-    "/refactor",
-    "/improve",
-    "/autoreview",
-    "/autojudge",
-    "/observe",
-    "/subagent",
-    "/workspace",
-    "/catchup",
-    "/back",
-    "/splitview",
-    "/split-view",
-    "/split",
-    "/transfer",
-    "/rebuild",
-    "/restart",
-    "/reload",
-];
-
-const ALLOWED_BASE_MODEL_PROVIDER_IDS: &[&str] = &[
-    "openai",
-    "claude",
-    "zai",
-    "kimi",
-    "alibaba-coding-plan",
-    "openai-compatible",
-];
-
 pub fn brand_header_label() -> &'static str {
-    "🍇 SAITEC-TUI"
+    "jcode"
 }
 
 pub fn show_skills_in_ui() -> bool {
-    false
+    true
 }
 
 pub fn emphasize_mcp_status() -> bool {
-    true
+    false
 }
 
 pub fn expose_generic_openrouter_routes() -> bool {
-    false
+    true
 }
 
 pub fn prefer_text_startup_logo() -> bool {
-    true
+    false
 }
 
 pub fn use_fixed_shell_layout() -> bool {
-    true
+    false
 }
 
 pub fn show_external_resume_sources() -> bool {
-    false
+    true
 }
 
 pub fn allowed_base_model_provider_ids() -> &'static [&'static str] {
-    ALLOWED_BASE_MODEL_PROVIDER_IDS
+    &[
+        "openai",
+        "claude",
+        "openrouter",
+        "zai",
+        "kimi",
+        "alibaba-coding-plan",
+        "openai-compatible",
+        "bedrock",
+        "vertex",
+        "azure",
+        "copilot",
+        "antigravity",
+        "gemini",
+        "cursor",
+    ]
 }
 
-pub fn is_allowed_base_model_provider(provider_id: &str) -> bool {
-    let normalized = provider_id.trim().to_ascii_lowercase();
-    ALLOWED_BASE_MODEL_PROVIDER_IDS
-        .iter()
-        .any(|candidate| *candidate == normalized)
+pub fn is_allowed_base_model_provider(_provider_id: &str) -> bool {
+    true
 }
 
-pub fn is_allowed_openai_compatible_profile(profile_id: &str) -> bool {
-    matches!(
-        profile_id.trim().to_ascii_lowercase().as_str(),
-        "zai" | "kimi" | "alibaba-coding-plan" | "openai-compatible"
-    )
-}
-
-pub fn unsupported_base_model_provider_message() -> String {
-    "SAITEC-TUI only supports these base-model providers: openai, claude, zai, kimi, alibaba-coding-plan, openai-compatible.".to_string()
-}
-
-pub fn unsupported_base_model_route_message(model: &str) -> String {
-    format!(
-        "SAITEC-TUI cannot use `{}` because it is not routed through an allowed base-model provider. Use `/login base-models` to configure OpenAI, Anthropic/Claude, Z.AI, Kimi, Alibaba Cloud Coding, or a custom OpenAI-compatible endpoint.",
-        model.trim()
-    )
-}
-
-fn normalized_provider_label(value: &str) -> String {
-    value
-        .trim()
-        .to_ascii_lowercase()
-        .replace([' ', '_', '-'], "")
-}
-
-fn is_openai_label(value: &str) -> bool {
-    normalized_provider_label(value) == "openai"
-}
-
-fn is_claude_label(value: &str) -> bool {
-    matches!(
-        normalized_provider_label(value).as_str(),
-        "anthropic" | "claude" | "anthropicclaude"
-    )
-}
-
-fn is_saitec_subscription_label(value: &str) -> bool {
-    normalized_provider_label(value) == "saitecsubscription"
-}
-
-fn openai_compatible_route_profile_id(provider: &str, api_method: &str) -> Option<String> {
-    if let Some(("openai-compatible", profile_id)) = api_method.split_once(':') {
-        let profile_id = profile_id.trim();
-        if !profile_id.is_empty() {
-            return Some(profile_id.to_string());
-        }
-    }
-
-    if api_method == "openai-compatible" {
-        return crate::provider_catalog::openai_compatible_profile_id_for_display_name(provider)
-            .map(ToString::to_string);
-    }
-
-    None
-}
-
-fn model_matches_profile_model(model: &str, candidate: &str) -> bool {
-    model.trim().eq_ignore_ascii_case(candidate.trim())
-}
-
-fn openai_compatible_profile_allows_model(profile_id: &str, model: &str) -> bool {
-    let profile_id = profile_id.trim().to_ascii_lowercase();
-    let model = model.trim();
-    if model.is_empty() {
-        return false;
-    }
-
-    if let Some(profile) = crate::provider_catalog::openai_compatible_profile_by_id(&profile_id)
-        && crate::provider_catalog::openai_compatible_profile_static_models(profile)
-            .iter()
-            .any(|candidate| model_matches_profile_model(model, candidate))
-    {
-        return true;
-    }
-
-    crate::auth::validation::get(&profile_id)
-        .filter(|record| record.success)
-        .map(|record| {
-            record
-                .validated_models
-                .iter()
-                .any(|candidate| model_matches_profile_model(model, candidate))
-        })
-        .unwrap_or(false)
+pub fn is_allowed_openai_compatible_profile(_profile_id: &str) -> bool {
+    true
 }
 
 pub fn is_allowed_base_model_route(
-    outer_provider: &str,
-    model: &str,
-    provider: &str,
-    api_method: &str,
+    _outer_provider: &str,
+    _model: &str,
+    _provider: &str,
+    _api_method: &str,
 ) -> bool {
-    let api_method = api_method.trim();
-
-    if let Some(profile_id) = openai_compatible_route_profile_id(provider, api_method) {
-        return is_allowed_openai_compatible_profile(&profile_id)
-            && openai_compatible_profile_allows_model(&profile_id, model);
-    }
-
-    if is_saitec_subscription_label(outer_provider)
-        || is_saitec_subscription_label(provider)
-        || api_method == "saitec"
-    {
-        return crate::subscription_catalog::is_curated_model(model.trim());
-    }
-
-    if api_method == "openai-oauth" || api_method == "openai-api-key" {
-        return is_openai_label(provider);
-    }
-
-    if api_method == "claude-oauth" || api_method == "api-key" {
-        return is_claude_label(provider);
-    }
-
-    if api_method == "current" {
-        return is_openai_label(provider)
-            || is_openai_label(outer_provider)
-            || is_claude_label(provider)
-            || is_claude_label(outer_provider);
-    }
-
-    false
+    true
 }
 
-pub fn command_visibility(command: &str) -> CommandVisibility {
-    if PUBLIC_COMMANDS.contains(&command) {
-        CommandVisibility::Public
-    } else if HIDDEN_COMPATIBLE_COMMANDS.contains(&command) {
-        CommandVisibility::HiddenCompatible
-    } else {
-        CommandVisibility::InternalOnly
-    }
+pub fn unsupported_base_model_provider_message() -> String {
+    "This provider is not currently supported.".to_string()
 }
 
-pub fn public_commands() -> Vec<&'static str> {
-    PUBLIC_COMMANDS.to_vec()
+pub fn unsupported_base_model_route_message(model: &str) -> String {
+    format!("Model `{}` is not available.", model.trim())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn command_visibility(_command: &str) -> CommandVisibility {
+    CommandVisibility::Public
+}
 
-    struct EnvVarGuard {
-        key: &'static str,
-        previous: Option<std::ffi::OsString>,
-    }
+pub fn public_commands() -> &'static [&'static str] {
+    &[
+        "/help", "/?", "/commands", "/login", "/logout", "/auth", "/model",
+        "/models", "/clear", "/resume", "/sessions", "/export", "/usage",
+        "/version", "/quit", "/download-latest",
+    ]
+}
 
-    impl EnvVarGuard {
-        fn set<K: AsRef<std::ffi::OsStr>>(key: &'static str, value: K) -> Self {
-            let previous = std::env::var_os(key);
-            crate::env::set_var(key, value);
-            Self { key, previous }
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            if let Some(previous) = self.previous.take() {
-                crate::env::set_var(self.key, previous);
-            } else {
-                crate::env::remove_var(self.key);
-            }
-        }
-    }
-
-    #[test]
-    fn public_command_list_contains_saitec_surface_commands() {
-        let public = public_commands();
-
-        assert!(public.contains(&"/help"));
-        assert!(public.contains(&"/login"));
-        assert!(public.contains(&"/logout"));
-        assert!(public.contains(&"/auth"));
-        assert!(public.contains(&"/model"));
-        assert!(public.contains(&"/clear"));
-        assert!(public.contains(&"/resume"));
-        assert!(public.contains(&"/export"));
-        assert!(public.contains(&"/usage"));
-        assert!(public.contains(&"/version"));
-        assert!(public.contains(&"/quit"));
-    }
-
-    #[test]
-    fn hidden_compatible_commands_include_git_and_selfdev() {
-        assert_eq!(
-            command_visibility("/git"),
-            CommandVisibility::HiddenCompatible
-        );
-        assert_eq!(
-            command_visibility("/selfdev"),
-            CommandVisibility::HiddenCompatible
-        );
-        assert_eq!(
-            command_visibility("/improve"),
-            CommandVisibility::HiddenCompatible
-        );
-    }
-
-    #[test]
-    fn saitec_brand_header_uses_grape_logo() {
-        assert_eq!(brand_header_label(), "🍇 SAITEC-TUI");
-    }
-
-    #[test]
-    fn product_mode_disables_skill_visibility() {
-        assert!(!show_skills_in_ui());
-    }
-
-    #[test]
-    fn product_mode_hides_external_resume_sources() {
-        assert!(!show_external_resume_sources());
-    }
-
-    #[test]
-    fn kimi_openai_compatible_route_only_allows_kimi_models() {
-        assert!(is_allowed_base_model_route(
-            "",
-            "kimi-for-coding",
-            "Kimi Code",
-            "openai-compatible"
-        ));
-        assert!(!is_allowed_base_model_route(
-            "",
-            "claude-opus-4-6",
-            "Kimi Code",
-            "openai-compatible"
-        ));
-        assert!(!is_allowed_base_model_route(
-            "",
-            "claude-opus-4-6",
-            "Kimi Code",
-            "openai-compatible:kimi"
-        ));
-    }
-
-    #[test]
-    fn allowed_kimi_provider_allows_kimi_base_model_route() {
-        assert!(is_allowed_base_model_route(
-            "",
-            "kimi-for-coding",
-            "Kimi Code",
-            "openai-compatible:kimi",
-        ));
-    }
-
-    #[test]
-    fn custom_openai_compatible_provider_is_saitec_basemodel_allowed() {
-        assert!(is_allowed_base_model_provider("openai-compatible"));
-        assert!(is_allowed_openai_compatible_profile("openai-compatible"));
-    }
-
-    #[test]
-    fn generic_openai_compatible_route_allows_validated_custom_model() {
-        let _guard = crate::storage::lock_test_env();
-        let temp = tempfile::tempdir().expect("tempdir");
-        let _home_guard = EnvVarGuard::set("JCODE_HOME", temp.path());
-
-        crate::auth::validation::save(
-            "openai-compatible",
-            crate::auth::validation::ProviderValidationRecord {
-                checked_at_ms: chrono::Utc::now().timestamp_millis(),
-                success: true,
-                provider_smoke_ok: Some(true),
-                tool_smoke_ok: Some(true),
-                validated_models: vec!["custom-coder".to_string()],
-                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
-            },
-        )
-        .expect("save validation");
-
-        assert!(is_allowed_base_model_route(
-            "",
-            "custom-coder",
-            "OpenAI-compatible",
-            "openai-compatible",
-        ));
-        assert!(is_allowed_base_model_route(
-            "",
-            "custom-coder",
-            "OpenAI-compatible",
-            "openai-compatible:openai-compatible",
-        ));
-        assert!(!is_allowed_base_model_route(
-            "",
-            "unvalidated-model",
-            "OpenAI-compatible",
-            "openai-compatible",
-        ));
-    }
+/// Stage 2B: provider catalog now returns the union directly; this shim
+/// only exists so the symbol stays available for the few in-tree callers
+/// in `src/tui/app/state_ui_input_helpers.rs` and `src/tui/ui_header.rs`
+/// that previously fed off SAITEC's curated visible list. They will be
+/// replaced by the live catalog call in stage 2 subtask B-2 follow-up.
+pub fn saitec_visible_base_model_providers() -> Vec<String> {
+    Vec::new()
 }

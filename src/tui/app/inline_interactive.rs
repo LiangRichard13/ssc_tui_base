@@ -116,26 +116,16 @@ impl App {
         .any(|value| value.to_ascii_lowercase().contains("openrouter"))
     }
 
-    fn model_picker_route_is_saitec_mcp_only(route: &crate::provider::ModelRoute) -> bool {
-        let model = Self::normalized_saitec_provider_label(&route.model);
-        let provider = Self::normalized_saitec_provider_label(&route.provider);
-        let detail = Self::normalized_saitec_provider_label(&route.detail);
-        model == "mcponly"
-            || provider == "saitec"
-            || provider == "mcponly"
-            || detail.contains("mcponly")
+    // Stage 2B (chore/ssc-tui-baseline): the SAITEC-specific "MCP-only" route
+    // detector is retired — every route is now permitted through the picker.
+    fn model_picker_route_is_saitec_mcp_only(_route: &crate::provider::ModelRoute) -> bool {
+        false
     }
 
     fn filter_saitec_model_picker_routes(
         routes: Vec<crate::provider::ModelRoute>,
     ) -> Vec<crate::provider::ModelRoute> {
         routes
-            .into_iter()
-            .filter(|route| {
-                !Self::model_picker_route_mentions_openrouter(route)
-                    && !Self::model_picker_route_is_saitec_mcp_only(route)
-            })
-            .collect()
     }
 
     pub(super) fn model_picker_display_routes(
@@ -295,71 +285,24 @@ impl App {
         }
     }
 
+    // Stage 2B: label is no longer SAITEC-specific; we keep the trimming
+    // (sane in any case) but drop the lowercasing / separator-stripping so
+    // that preserved callers can compare against the unmodified provider label.
     fn normalized_saitec_provider_label(value: &str) -> String {
-        value
-            .trim()
-            .to_ascii_lowercase()
-            .replace([' ', '_', '-'], "")
+        value.trim().to_string()
     }
 
+    // Stage 2B: base-model route filtering is no longer applied. The picker
+    // shows every route that the upstream catalog surfaces.
     pub(super) fn should_filter_saitec_base_model_routes(&self) -> bool {
-        let Some(provider_name) = self.saitec_model_route_filter_provider_name() else {
-            return self.is_remote;
-        };
-        if crate::provider_catalog::openai_compatible_profile_id_for_display_name(provider_name)
-            .is_some_and(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
-        {
-            return true;
-        }
-        matches!(
-            Self::normalized_saitec_provider_label(provider_name).as_str(),
-            "openrouter"
-                | "openai"
-                | "anthropic"
-                | "claude"
-                | "saitecsubscription"
-                | "kimicode"
-                | "zai"
-                | "alibabacodingplan"
-                | "alibabacloudcoding"
-        )
+        false
     }
 
     pub(super) fn filter_saitec_model_routes_for_picker(
         &self,
         routes: Vec<crate::provider::ModelRoute>,
     ) -> Vec<crate::provider::ModelRoute> {
-        let routes = routes
-            .into_iter()
-            .filter(|route| !Self::model_picker_route_is_saitec_mcp_only(route))
-            .collect::<Vec<_>>();
-
-        if !self.should_filter_saitec_base_model_routes() {
-            return routes;
-        }
-
-        let outer_provider = self
-            .saitec_model_route_filter_provider_name()
-            .unwrap_or_default();
         routes
-            .into_iter()
-            .filter(|route| {
-                if crate::subscription_catalog::is_runtime_mode_enabled()
-                    && crate::subscription_catalog::is_curated_model(&route.model)
-                {
-                    return true;
-                }
-                if self.is_remote {
-                    return Self::remote_saitec_model_route_is_allowed(route);
-                }
-                crate::saitec::product_profile::is_allowed_base_model_route(
-                    outer_provider,
-                    &route.model,
-                    &route.provider,
-                    &route.api_method,
-                ) && !Self::is_saitec_unconfigured_base_route(route)
-            })
-            .collect()
     }
 
     fn remote_saitec_model_route_is_allowed(route: &crate::provider::ModelRoute) -> bool {
