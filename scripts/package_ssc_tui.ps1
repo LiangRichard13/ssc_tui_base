@@ -20,12 +20,12 @@ $BuildDir = if ([string]::IsNullOrWhiteSpace($TargetTriple)) {
 
 $SourceExe = Join-Path $BuildDir "jcode.exe"
 $SourcePdb = Join-Path $BuildDir "jcode.pdb"
-$DistDir = Join-Path $RepoRoot "dist\saitec-tui"
-$BrandedExe = Join-Path $DistDir "saitec-tui.exe"
-$BrandedPdb = Join-Path $DistDir "saitec-tui.pdb"
+$DistDir = Join-Path $RepoRoot "dist\ssc-tui"
+$BrandedExe = Join-Path $DistDir "ssc-tui.exe"
+$BrandedPdb = Join-Path $DistDir "ssc-tui.pdb"
 $InstallScriptPath = Join-Path $DistDir "install.ps1"
-$LogoAsset = Join-Path $RepoRoot "SAITEC_logo.png"
-$PackagedLogoAsset = Join-Path $DistDir "SAITEC_logo.png"
+$LogoAsset = Join-Path $RepoRoot "SSC_logo.png"
+$PackagedLogoAsset = Join-Path $DistDir "SSC_logo.png"
 
 if (-not (Test-Path -LiteralPath $SourceExe)) {
     throw "Missing build artifact: $SourceExe"
@@ -46,8 +46,8 @@ if ($IncludeDebugSymbols -and (Test-Path -LiteralPath $SourcePdb)) {
     Copy-Item -LiteralPath $SourcePdb -Destination $BrandedPdb -Force
 }
 
-# SAITEC-Skills MCP server is now HTTP-based (see crate MCP transport).
-# The MCP endpoint URL is defined in DEFAULT_SAITEC_MCP_URL (src/saitec/auth.rs)
+# SSC-Skills MCP server is now HTTP-based (see crate MCP transport).
+# The MCP endpoint URL is defined in DEFAULT_SSC_MCP_URL (src/ssc/auth.rs)
 # and is injected at runtime via apply_runtime_env(). No local MCP resources
 # are bundled in the installer.
 $installScript = @'
@@ -64,13 +64,13 @@ function Write-Info([string]$Message) {
 }
 
 if (-not $InstallDir) {
-    $InstallDir = Join-Path $env:LOCALAPPDATA "saitec-tui\bin"
+    $InstallDir = Join-Path $env:LOCALAPPDATA "ssc-tui\bin"
 }
 
-$SourceExe = Join-Path $PSScriptRoot "saitec-tui.exe"
-$TargetExe = Join-Path $InstallDir "saitec-tui.exe"
-$SourceLogo = Join-Path $PSScriptRoot "SAITEC_logo.png"
-$TargetLogo = Join-Path $InstallDir "SAITEC_logo.png"
+$SourceExe = Join-Path $PSScriptRoot "ssc-tui.exe"
+$TargetExe = Join-Path $InstallDir "ssc-tui.exe"
+$SourceLogo = Join-Path $PSScriptRoot "SSC_logo.png"
+$TargetLogo = Join-Path $InstallDir "SSC_logo.png"
 
 if (-not (Test-Path -LiteralPath $SourceExe)) {
     throw "Missing packaged executable: $SourceExe"
@@ -96,16 +96,16 @@ if (-not $SkipPathUpdate) {
 $env:Path = "$InstallDir;$env:Path"
 
 Write-Host ""
-Write-Info "SAITEC-TUI installed successfully."
+Write-Info "SSC-TUI installed successfully."
 Write-Info "  launcher: $TargetExe"
 Write-Host ""
 
-if (Get-Command saitec-tui -ErrorAction SilentlyContinue) {
-    Write-Info "Run 'saitec-tui' to get started."
+if (Get-Command ssc-tui -ErrorAction SilentlyContinue) {
+    Write-Info "Run 'ssc-tui' to get started."
 } else {
     Write-Host "  Open a new terminal window, then run:"
     Write-Host ""
-    Write-Host "    saitec-tui" -ForegroundColor Green
+    Write-Host "    ssc-tui" -ForegroundColor Green
 }
 '@
 
@@ -113,7 +113,7 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($InstallScriptPath, $installScript, $Utf8NoBom)
 
 Write-Host ""
-Write-Info "SAITEC package ready at $DistDir"
+Write-Info "SSC package ready at $DistDir"
 Write-Info "  exe: $BrandedExe"
 Write-Info "  installer: $InstallScriptPath"
 if ($IncludeDebugSymbols -and (Test-Path -LiteralPath $BrandedPdb)) {

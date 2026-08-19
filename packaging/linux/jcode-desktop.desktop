@@ -1,12 +1,12 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=SAITEC-TUI Desktop
+Name=SSC-TUI Desktop
 GenericName=AI Evaluation Workspace
-Comment=SAITEC-TUI fullscreen desktop workspace
-Exec=saitec-tui-desktop
-Icon=saitec-tui
+Comment=SSC-TUI fullscreen desktop workspace
+Exec=ssc-tui-desktop
+Icon=ssc-tui
 Terminal=false
 Categories=Development;IDE;
 StartupNotify=true
-Keywords=SAITEC;TUI;AI;Evaluation;Agent;Workspace;
+Keywords=SSC;TUI;AI;Evaluation;Agent;Workspace;

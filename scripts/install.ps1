@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Install SAITEC-TUI on Windows.
+    Install SSC-TUI on Windows.
 .DESCRIPTION
-    Downloads the latest SAITEC-TUI release and installs it to %LOCALAPPDATA%\jcode\bin.
+    Downloads the latest SSC-TUI release and installs it to %LOCALAPPDATA%\jcode\bin.
 
     One-liner install:
       irm https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.ps1 | iex
@@ -71,61 +71,9 @@ function Resolve-OptionalPath([string]$PathValue) {
     }
 }
 
-function Copy-SaitecSkillsResources(
-    [string]$BinaryPath,
-    [string]$VersionDir,
-    [string]$StableDir,
-    [string]$InstallDir,
-    [string]$SourceOverride
-) {
-    $resourceCandidates = @(
-        $SourceOverride,
-        (Join-Path (Get-Location) '_vendor\SAITEC-Skills'),
-        (Join-Path $PSScriptRoot '..\_vendor\SAITEC-Skills'),
-        (Join-Path (Split-Path -Parent $BinaryPath) 'resources\SAITEC-Skills')
-    )
-
-    $resolvedSource = $null
-    foreach ($candidate in $resourceCandidates) {
-        if (-not $candidate) {
-            continue
-        }
-        $full = [System.IO.Path]::GetFullPath($candidate)
-        if (Test-Path -LiteralPath $full) {
-            $resolvedSource = $full
-            break
-        }
-    }
-
-    if (-not $resolvedSource) {
-        Write-Warn "SAITEC-Skills resources were not found; MCP bootstrap may stay disabled until resources are added"
-        return
-    }
-
-    $destinations = @(
-        (Join-Path (Join-Path $VersionDir 'resources') 'SAITEC-Skills'),
-        (Join-Path (Join-Path $StableDir 'resources') 'SAITEC-Skills'),
-        (Join-Path (Join-Path (Split-Path -Parent $InstallDir) 'resources') 'SAITEC-Skills')
-    )
-
-    foreach ($destDir in $destinations) {
-        if ([System.StringComparer]::OrdinalIgnoreCase.Equals(
-            [System.IO.Path]::GetFullPath($resolvedSource),
-            [System.IO.Path]::GetFullPath($destDir)
-        )) {
-            Write-Info "SAITEC-Skills resources already present: $destDir"
-            continue
-        }
-
-        $destRoot = Split-Path -Parent $destDir
-        New-Item -ItemType Directory -Path $destRoot -Force | Out-Null
-        if (Test-Path -LiteralPath $destDir) {
-            Remove-Item -LiteralPath $destDir -Recurse -Force
-        }
-        Copy-Item -LiteralPath $resolvedSource -Destination $destDir -Recurse -Force
-        Write-Info "Bundled SAITEC-Skills resources: $destDir"
-    }
-}
+# Stage 4 (chore/ssc-tui-baseline): the MCP transport is HTTP, so the
+# installer no longer bundles any local skills resources. Copy-SscSkillsResources
+# and its call site are removed — the upstream vendor tree is gone.
 
 function Stop-ProcessTree([int]$ProcessId) {
     try {
@@ -422,7 +370,7 @@ function Install-JcodeHotkey([string]$JcodeExePath) {
         Write-Warn "Hotkey will start on next login, but could not be launched immediately"
     }
 
-    Write-Info "Configured Alt+; to launch SAITEC-TUI in Alacritty"
+    Write-Info "Configured Alt+; to launch SSC-TUI in Alacritty"
     return $true
 }
 
@@ -490,12 +438,12 @@ if (Test-Path $LauncherPath) {
 
 if ($Existing) {
     if ($Existing -match [regex]::Escape($VersionNum)) {
-        Write-Info "SAITEC-TUI $Version is already installed - reinstalling"
+        Write-Info "SSC-TUI $Version is already installed - reinstalling"
     } else {
-        Write-Info "Updating SAITEC-TUI $Existing -> $Version"
+        Write-Info "Updating SSC-TUI $Existing -> $Version"
     }
 } else {
-    Write-Info "Installing SAITEC-TUI $Version"
+    Write-Info "Installing SSC-TUI $Version"
 }
 Write-Info "  launcher: $LauncherPath"
 
@@ -534,7 +482,6 @@ if ($ResolvedArtifactExePath) {
 }
 
 $DestBin = Join-Path $VersionDir "jcode.exe"
-$ExtractedSaitecResources = $null
 
 if ($DownloadMode -eq "tar") {
     Write-Info "Extracting..."
@@ -543,7 +490,6 @@ if ($DownloadMode -eq "tar") {
     if (-not (Test-Path $SrcBin)) {
         Write-Err "Downloaded archive did not contain expected binary: $Artifact.exe"
     }
-    $ExtractedSaitecResources = Join-Path $TempDir "resources\SAITEC-Skills"
     Move-Item -Path $SrcBin -Destination $DestBin -Force
 } elseif ($DownloadMode -eq "bin") {
     Move-Item -Path $DownloadPath -Destination $DestBin -Force
@@ -572,7 +518,7 @@ if ($DownloadMode -eq "tar") {
         Write-Err "Failed to clone $Repo at $Version (exit code: $($gitCloneResult.ExitCode))"
     }
 
-    Write-Info "Building SAITEC-TUI from source (this can take several minutes)..."
+    Write-Info "Building SSC-TUI from source (this can take several minutes)..."
     $cargoResult = Invoke-ProcessWithTimeout -FilePath "cargo" -ArgumentList @("build", "--release", "--manifest-path", (Join-Path $SrcDir "Cargo.toml")) -TimeoutSeconds 1800 -FriendlyName "cargo-build" -CaptureOutput
     if ($cargoResult.TimedOut) {
         Write-LogTail -Path $cargoResult.StdoutPath -Label "cargo stdout"
@@ -590,12 +536,7 @@ if ($DownloadMode -eq "tar") {
     Copy-Item -Path $BuiltBin -Destination $DestBin -Force
 }
 
-Copy-SaitecSkillsResources `
-    -BinaryPath $DestBin `
-    -VersionDir $VersionDir `
-    -StableDir $StableDir `
-    -InstallDir $InstallDir `
-    -SourceOverride $ExtractedSaitecResources
+# Stage 4: no local skills resources to copy (HTTP MCP transport).
 
 Copy-Item -Path $DestBin -Destination (Join-Path $StableDir "jcode.exe") -Force
 Set-Content -Path (Join-Path $BuildsDir "stable-version") -Value $VersionNum
@@ -630,7 +571,7 @@ if ($SkipHotkeySetup) {
 Set-SetupHintsState -AlacrittyConfigured:(Test-AlacrittyInstalled) -HotkeyConfigured:$configuredHotkey
 
 Write-Host ""
-Write-Info "SAITEC-TUI $Version installed successfully!"
+Write-Info "SSC-TUI $Version installed successfully!"
 Write-Host ""
 
 if (Test-AlacrittyInstalled) {
@@ -641,14 +582,14 @@ if (Test-AlacrittyInstalled) {
 }
 
 if ($configuredHotkey) {
-    Write-Info "Global hotkey ready: Alt+; opens SAITEC-TUI in Alacritty"
+    Write-Info "Global hotkey ready: Alt+; opens SSC-TUI in Alacritty"
     Write-Host ""
 }
 
 if (Get-Command jcode -ErrorAction SilentlyContinue) {
-    Write-Info "Run 'saitec-tui' to get started."
+    Write-Info "Run 'ssc-tui' to get started."
 } else {
     Write-Host "  Open a new terminal window, then run:"
     Write-Host ""
-    Write-Host "    saitec-tui" -ForegroundColor Green
+    Write-Host "    ssc-tui" -ForegroundColor Green
 }

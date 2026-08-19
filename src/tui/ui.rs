@@ -1042,71 +1042,12 @@ pub(super) fn should_show_startup_splash(app: &dyn TuiState) -> bool {
         || is_remote_preconversation_startup
 }
 
-fn startup_logo_asset_path() -> Option<std::path::PathBuf> {
-    const EMBEDDED_STARTUP_LOGO_BYTES: &[u8] = include_bytes!("../../SAITEC_logo.png");
-    static EMBEDDED_STARTUP_LOGO_PATH: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
-
-    fn materialized_embedded_logo_path() -> Option<std::path::PathBuf> {
-        EMBEDDED_STARTUP_LOGO_PATH
-            .get_or_init(|| {
-                let path = std::env::temp_dir()
-                    .join("ssc-tui")
-                    .join("SAITEC_logo.png");
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent).ok()?;
-                }
-
-                let needs_write = std::fs::metadata(&path)
-                    .map(|metadata| metadata.len() != EMBEDDED_STARTUP_LOGO_BYTES.len() as u64)
-                    .unwrap_or(true);
-                if needs_write {
-                    std::fs::write(&path, EMBEDDED_STARTUP_LOGO_BYTES).ok()?;
-                }
-
-                Some(path)
-            })
-            .clone()
-    }
-
-    let mut candidates = Vec::new();
-    if let Ok(exe) = std::env::current_exe()
-        && let Some(exe_dir) = exe.parent()
-    {
-        candidates.push(exe_dir.to_path_buf());
-    }
-    if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd.clone());
-        if let Some(parent) = cwd.parent() {
-            candidates.push(parent.to_path_buf());
-        }
-    }
-
-    for base in candidates {
-        let candidate = base.join("SAITEC_logo.png");
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    materialized_embedded_logo_path()
-}
-
-fn startup_logo_region(width: u16) -> Option<ImageRegion> {
-    if false {
-        return None;
-    }
-
-    let path = startup_logo_asset_path()?;
-    let (img_width, img_height) = image::image_dimensions(&path).ok()?;
-    let hash = crate::tui::mermaid::register_external_image(&path, img_width, img_height);
-    let estimated_height =
-        crate::tui::mermaid::estimate_image_height(img_width, img_height, width).max(4);
-    Some(ImageRegion {
-        abs_line_idx: 0,
-        end_line: estimated_height as usize,
-        hash,
-        height: estimated_height,
-    })
+// Stage 4 (chore/ssc-tui-baseline): the SAITEC_logo.png asset is gone and
+// there is no replacement image, so startup always uses the text logo. The
+// image asset loader (which used include_bytes! on the removed file) is
+// retired with it.
+fn startup_logo_region(_width: u16) -> Option<ImageRegion> {
+    None
 }
 
 fn draw_startup_logo(

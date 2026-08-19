@@ -43,8 +43,6 @@ $installScript = Join-Path $repoRoot 'scripts\install.ps1'
 $launcherPath = Join-Path $installDir 'jcode.exe'
 $versionDir = Join-Path $localAppData ('jcode\builds\versions\' + $Version.TrimStart('v') + '\jcode.exe')
 $stablePath = Join-Path $localAppData 'jcode\builds\stable\jcode.exe'
-$launcherResources = Join-Path $localAppData 'jcode\resources\SAITEC-Skills\mcp_server\server.py'
-$versionResources = Join-Path $localAppData ('jcode\builds\versions\' + $Version.TrimStart('v') + '\resources\SAITEC-Skills\mcp_server\server.py')
 
 foreach ($path in @($launcherPath, $versionDir, $stablePath)) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -52,11 +50,9 @@ foreach ($path in @($launcherPath, $versionDir, $stablePath)) {
     }
 }
 
-foreach ($path in @($launcherResources, $versionResources)) {
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "Expected SAITEC resource missing: $path"
-    }
-}
+# Stage 4 (chore/ssc-tui-baseline): no local skills resources are bundled
+# (MCP is HTTP transport), so we no longer assert the SSC-Skills resource
+# tree. $launcherResources / $versionResources are gone.
 
 $versionOutput = & $launcherPath --version
 if ($LASTEXITCODE -ne 0) {

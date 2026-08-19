@@ -16,9 +16,9 @@ cargo test --test e2e <name> -- --exact --nocapture  # single e2e test
 cargo test -p jcode-core              # specific crate
 cargo fmt --all -- --check            # format check
 cargo clippy --all-targets --all-features -- -D warnings
-.\scripts\dev_saitec_tui.ps1 [-Profile selfdev]  # build dev/selfdev
-.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild  # stop dev instance
-cargo build --release; .\scripts\package_saitec.ps1  # package dist
+.\scripts\dev_ssc_tui.ps1 [-Profile selfdev]  # build dev/selfdev
+.\scripts\dev_ssc_tui.ps1 -StopRunning -NoBuild  # stop dev instance
+cargo build --release; .\scripts\package_ssc.ps1  # package dist
 scripts/remote_build.sh               # remote build (low resources)
 ```
 
@@ -45,7 +45,7 @@ Budget scripts in `scripts/`（code size, panics, test size, warnings）— CI �
 | 06 | [Auth / Login](dev_ref_docs/06-auth-login.md) | 两层 login 架构、`PendingLogin` 13 variant、AuthStatus 30s/5s 缓存、StartupGuide |
 | 07 | [Memory](dev_ref_docs/07-memory.md) | 跨会话记忆、MemoryGraph、Sidecar、embedding、GRAPH_VERSION=2 |
 | 08 | [Storage / Session](dev_ref_docs/08-storage-session.md) | JSON 持久化、snapshot+journal、`.bak` 恢复、PID 崩溃检测、restart_snapshot |
-| 09 | [MCP / SAITEC](dev_ref_docs/09-mcp-saitec.md) | JSON-RPC、`SharedMcpPool`、SAITEC-Skills HTTP、凭据三件套、lifecycle sync |
+| 09 | [MCP / SSC](dev_ref_docs/09-mcp-ssc.md) | JSON-RPC、`SharedMcpPool`、SSC-Skills HTTP、凭据三件套、lifecycle sync |
 | 10 | [Gateway / Transport](dev_ref_docs/10-gateway-transport.md) | WebSocket Gateway（TCP:7643）、Unix socket / Windows Named Pipe 抽象 |
 | 11 | [Bus / Message / Protocol](dev_ref_docs/11-bus-message-protocol.md) | `Bus` broadcast(256) ~25 事件、`ServerEvent` ~40 variant、NDJSON wire 格式 |
 | 12 | [Workspace / Build / CI](dev_ref_docs/12-workspace-build-ci.md) | 51-crate 分组、feature flags、build profiles、build.rs、CI 5 job、budget 脚本 |
@@ -61,7 +61,7 @@ Budget scripts in `scripts/`（code size, panics, test size, warnings）— CI �
 ## 按关注点速查
 
 - **想理解一个用户请求怎么流转**：01 → 04 → 02 → 03 → 11 → 05
-- **想理解凭据与登录**：06 + 09（SAITEC 凭据三件套）+ 03（Provider 凭据探测）
+- **想理解凭据与登录**：06 + 09（SSC 凭据三件套）+ 03（Provider 凭据探测）
 - **想理解持久化与崩溃恢复**：08 + 04（durable_state / reload_recovery）
 - **想理解远程客户端（iOS/Web）**：10 + 11 + 04（accept loop）
 - **想理解多 agent 协作**：04（swarm*）+ 02（subagent Registry clone）+ 11（SwarmEvent）
@@ -78,10 +78,10 @@ Budget scripts in `scripts/`（code size, panics, test size, warnings）— CI �
 
 | 修复 | 涉及 commit | 归档位置 |
 |---|---|---|
-| SAITEC-Skills HTTP transport（no local vendor） | — | [09](dev_ref_docs/09-mcp-saitec.md) |
+| SSC-Skills HTTP transport（no local vendor） | — | [09](dev_ref_docs/09-mcp-ssc.md) |
 | OpenAI-compatible: config vs credentials env hygiene | — | [03](dev_ref_docs/03-provider.md) |
 | AuthTest deadlock from stale `auth-validation.json` | `b18a4c17` | [01](dev_ref_docs/01-cli.md) + [06](dev_ref_docs/06-auth-login.md) |
-| MCP `notifications/initialized` 无 `id` + NDJSON reconnect storm + Unknown tool 链 | `fix/mcp-notification-id` | [09](dev_ref_docs/09-mcp-saitec.md) + [05](dev_ref_docs/05-tui.md) + [11](dev_ref_docs/11-bus-message-protocol.md) |
+| MCP `notifications/initialized` 无 `id` + NDJSON reconnect storm + Unknown tool 链 | `fix/mcp-notification-id` | [09](dev_ref_docs/09-mcp-ssc.md) + [05](dev_ref_docs/05-tui.md) + [11](dev_ref_docs/11-bus-message-protocol.md) |
 | OpenAI-compatible 200K / `anthropic/claude-sonnet-4` regression | `e05304a1` | [03](dev_ref_docs/03-provider.md) |
 | Config.toml named provider `JCODE_OPENROUTER_MODEL` symmetric cleanup | after `e05304a1` | [03](dev_ref_docs/03-provider.md) |
 | Restart endpoint reversion to localhost:11434 from stale Ollama marker | `dba79fc3` | [03](dev_ref_docs/03-provider.md) |

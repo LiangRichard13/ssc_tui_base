@@ -14,7 +14,7 @@ function Write-Info([string]$Message) {
 }
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$SupportScriptPath = Join-Path $PSScriptRoot "dev_saitec_tui_support.ps1"
+$SupportScriptPath = Join-Path $PSScriptRoot "dev_ssc_tui_support.ps1"
 . $SupportScriptPath
 $cargoCommand = Resolve-DevCargoCommand
 
@@ -34,7 +34,7 @@ $stoppedCopiedRuntimeProcesses = Stop-ProcessesUnderDirectory -DirectoryPath $la
 $stoppedBuildArtifactLocks = Stop-ProcessesByExecutablePath -ExecutablePath $buildArtifacts.ExePath
 
 if ($stoppedRecordedRuntime) {
-    Write-Info "Stopped existing recorded SAITEC dev runtime before build."
+    Write-Info "Stopped existing recorded SSC dev runtime before build."
 }
 
 if ($stoppedCopiedRuntimeProcesses -gt 0) {
@@ -47,9 +47,9 @@ if ($stoppedBuildArtifactLocks -gt 0) {
 
 if ($StopRunning) {
     if ($stoppedRecordedRuntime -or $stoppedCopiedRuntimeProcesses -gt 0 -or $stoppedBuildArtifactLocks -gt 0) {
-        Write-Info "Stopped existing SAITEC dev runtime."
+        Write-Info "Stopped existing SSC dev runtime."
     } else {
-        Write-Info "No running SAITEC dev runtime was recorded."
+        Write-Info "No running SSC dev runtime was recorded."
     }
 
     if ($NoBuild) {
@@ -69,7 +69,7 @@ if (-not $NoBuild) {
     }
     $cargoArgs += @("-p", "jcode", "--bin", "jcode")
 
-    Write-Info ("Building SAITEC dev runtime with: " + $cargoCommand + " " + ($cargoArgs -join " "))
+    Write-Info ("Building SSC dev runtime with: " + $cargoCommand + " " + ($cargoArgs -join " "))
     & $cargoCommand @cargoArgs
     if ($LASTEXITCODE -ne 0) {
         throw "cargo build failed with exit code $LASTEXITCODE"
@@ -90,7 +90,7 @@ if (Test-Path -LiteralPath $buildArtifacts.PdbPath) {
     Copy-Item -LiteralPath $buildArtifacts.PdbPath -Destination $layout.RuntimePdb -Force
 }
 
-Write-Info "Launching SAITEC dev runtime from copied executable"
+Write-Info "Launching SSC dev runtime from copied executable"
 $process = Start-Process `
     -FilePath $layout.RuntimeExe `
     -WorkingDirectory $RepoRoot `
@@ -103,7 +103,7 @@ Write-DevRuntimeState `
     -RuntimeExe $layout.RuntimeExe
 
 Write-Host ""
-Write-Info "SAITEC dev runtime ready"
+Write-Info "SSC dev runtime ready"
 Write-Info "  source exe: $($buildArtifacts.ExePath)"
 Write-Info "  runtime exe: $($layout.RuntimeExe)"
 Write-Info "  pid: $($process.Id)"

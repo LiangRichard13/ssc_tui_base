@@ -58,7 +58,7 @@ function New-DevRuntimeLayout {
         [string]$Timestamp
     )
 
-    $runtimeRoot = Join-Path $RepoRootPath "dist\dev-saitec-tui"
+    $runtimeRoot = Join-Path $RepoRootPath "dist\dev-ssc-tui"
     $nameParts = @("run", $ProfileName)
     if (-not [string]::IsNullOrWhiteSpace($TargetTripleName)) {
         $nameParts += $TargetTripleName

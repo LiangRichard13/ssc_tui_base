@@ -1,11 +1,11 @@
-# SAITEC-TUI
+# SSC-TUI
 
-SAITEC-TUI 是一个 AI 原生的终端集成工具，面向大模型评测与治理、AIGC 内容检测、任务编排和后续数据处理/数据评估场景。它把 SAITEC 平台账号、基座模型账号、评测工具、检测工具、文件产物和任务状态统一放进一个 TUI 工作台里，让用户可以用自然语言完成从登录、配置模型到执行检测/评测的完整流程。
+SSC-TUI 是一个 AI 原生的终端集成工具，面向大模型评测与治理、AIGC 内容检测、任务编排和后续数据处理/数据评估场景。它把 SSC 平台账号、基座模型账号、评测工具、检测工具、文件产物和任务状态统一放进一个 TUI 工作台里，让用户可以用自然语言完成从登录、配置模型到执行检测/评测的完整流程。
 
-本项目不再是通用代码代理工具的 README。SAITEC-TUI 的产品定位是:
+本项目不再是通用代码代理工具的 README。SSC-TUI 的产品定位是:
 
-- 为 SAITEC 平台用户提供统一的 AI 能力入口。
-- 让用户先登录 SAITEC 并获得平台 API Key，再登录或配置可用的基座模型。
+- 为 SSC 平台用户提供统一的 AI 能力入口。
+- 让用户先登录 SSC 并获得平台 API Key，再登录或配置可用的基座模型。
 - 内置 AIGC 文本、图片、视频检测能力。
 - 内置大模型通用能力评测、安全评测和语料安全评测能力。
 - 逐步承载数据处理、数据质检、数据评估、评测报告和治理工作流。
@@ -27,11 +27,11 @@ SAITEC-TUI 是一个 AI 原生的终端集成工具，面向大模型评测与�
 
 ## 产品定位
 
-SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆多个 API、脚本和评测工具，只需要在终端中启动 TUI，完成两类登录，然后通过自然语言或内置命令使用平台能力。
+SSC-TUI 是 SSC 平台的本地交互入口。用户不需要分别记忆多个 API、脚本和评测工具，只需要在终端中启动 TUI，完成两类登录，然后通过自然语言或内置命令使用平台能力。
 
-第一类登录是 SAITEC 登录。用户使用 SAITEC 账号登录后，系统会向 SAITEC Core 申请并保存一个业务 API Key。这个 API Key 用于访问平台侧的检测、评测、文件和任务接口。
+第一类登录是 SSC 登录。用户使用 SSC 账号登录后，系统会向 SSC Core 申请并保存一个业务 API Key。这个 API Key 用于访问平台侧的检测、评测、文件和任务接口。
 
-第二类登录是基座模型登录。模型评测、Agent 推理和部分治理流程需要调用大模型。SAITEC-TUI 当前面向产品场景收敛到一组受支持的基座模型供应商，避免用户在过宽的供应商列表里迷路。
+第二类登录是基座模型登录。模型评测、Agent 推理和部分治理流程需要调用大模型。SSC-TUI 当前面向产品场景收敛到一组受支持的基座模型供应商，避免用户在过宽的供应商列表里迷路。
 
 完成这两类登录后，用户可以在同一个 TUI 内执行:
 
@@ -47,7 +47,7 @@ SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆�
 
 | 能力域 | 当前支持 | 说明 |
 |---|---|---|
-| SAITEC 平台登录 | 支持 | 登录 SAITEC 后自动创建并保存业务 API Key |
+| SSC 平台登录 | 支持 | 登录 SSC 后自动创建并保存业务 API Key |
 | 基座模型登录 | 支持 | 支持 OpenAI、Claude、Z.AI、Kimi、Alibaba Cloud Coding 等产品允许的模型入口 |
 | AIGC 文本检测 | 支持 | 单条文本和批量文本检测 |
 | AIGC 图片检测 | 支持 | AI 生成图片检测、篡改检测、可视化产物 |
@@ -62,9 +62,9 @@ SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆�
 
 典型用户路径如下:
 
-1. 启动 SAITEC-TUI。
-2. 选择 SAITEC 登录，使用邮箱或手机号加密码完成平台登录。
-3. 登录成功后，SAITEC-TUI 自动向 SAITEC Core 创建业务 API Key，并写入本地安全存储。
+1. 启动 SSC-TUI。
+2. 选择 SSC 登录，使用邮箱或手机号加密码完成平台登录。
+3. 登录成功后，SSC-TUI 自动向 SSC Core 创建业务 API Key，并写入本地安全存储。
 4. 选择基座模型登录，配置 OpenAI、Claude、Z.AI、Kimi 或 Alibaba Cloud Coding 等模型供应商。
 5. 使用 `/model` 选择实际运行模型。
 6. 用自然语言发起任务，例如检测文本、上传图片检测、评测模型安全性、用 JSONL 数据集跑通用评测。
@@ -73,9 +73,9 @@ SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆�
 一个最小上手流程:
 
 ```text
-启动 SAITEC-TUI
+启动 SSC-TUI
 -> /login
--> 选择 SAITEC
+-> 选择 SSC
 -> 填写邮箱或手机号以及密码
 -> /login base-models
 -> 选择并登录一个基座模型
@@ -88,16 +88,16 @@ SAITEC-TUI 是 SAITEC 平台的本地交互入口。用户不需要分别记忆�
 
 ### Windows 安装包
 
-如果你已经拿到 `dist/saitec-tui` 目录，可以在 PowerShell 中执行:
+如果你已经拿到 `dist/ssc-tui` 目录，可以在 PowerShell 中执行:
 
 ```powershell
-.\dist\saitec-tui\install.ps1
+.\dist\ssc-tui\install.ps1
 ```
 
-安装脚本会把 `saitec-tui.exe` 安装到用户目录下，并把启动目录加入用户 `PATH`。安装完成后打开新的终端窗口:
+安装脚本会把 `ssc-tui.exe` 安装到用户目录下，并把启动目录加入用户 `PATH`。安装完成后打开新的终端窗口:
 
 ```powershell
-saitec-tui
+ssc-tui
 ```
 
 ### 从源码启动开发版本
@@ -106,26 +106,26 @@ saitec-tui
 
 - Rust 工具链。
 - PowerShell。
-- Python 3，用于本地 SAITEC-Skills MCP 运行环境。
-- 能访问 SAITEC Core API 的网络环境。
+- Python 3，用于本地 SSC-Skills MCP 运行环境。
+- 能访问 SSC Core API 的网络环境。
 
 在仓库根目录运行:
 
 ```powershell
-.\scripts\dev_saitec_tui.ps1
+.\scripts\dev_ssc_tui.ps1
 ```
 
 这个脚本会:
 
-- 准备 SAITEC-Skills 所需 Python 环境。
+- 准备 SSC-Skills 所需 Python 环境。
 - 构建开发版本。
-- 将运行时复制到 `dist\dev-saitec-tui`。
+- 将运行时复制到 `dist\dev-ssc-tui`。
 - 启动一个隔离的开发运行时。
 
 如只想停止当前记录的开发运行时:
 
 ```powershell
-.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild
+.\scripts\dev_ssc_tui.ps1 -StopRunning -NoBuild
 ```
 
 ### 从源码打包
@@ -136,23 +136,23 @@ saitec-tui
 cargo build --release
 ```
 
-然后生成 SAITEC-TUI 分发目录:
+然后生成 SSC-TUI 分发目录:
 
 ```powershell
-.\scripts\package_saitec.ps1
+.\scripts\package_ssc.ps1
 ```
 
 打包结果位于:
 
 ```text
-dist\saitec-tui\
+dist\ssc-tui\
 ```
 
 其中包含:
 
-- `saitec-tui.exe`: 产品可执行文件。
+- `ssc-tui.exe`: 产品可执行文件。
 - `install.ps1`: 自包含安装脚本。
-- `SAITEC_logo.png`: 产品 Logo 资源，如果仓库中存在该文件。
+- `SSC_logo.png`: 产品 Logo 资源，如果仓库中存在该文件。
 
 如果本机资源不足导致构建被终止，可以使用仓库内的远程构建脚本:
 
@@ -162,39 +162,39 @@ scripts/remote_build.sh
 
 ## 登录与账号
 
-SAITEC-TUI 的登录分为两层。
+SSC-TUI 的登录分为两层。
 
-### 1. SAITEC 平台登录
+### 1. SSC 平台登录
 
-SAITEC 登录用于访问平台侧的检测、评测、任务和文件能力。用户可以在 TUI 内执行:
+SSC 登录用于访问平台侧的检测、评测、任务和文件能力。用户可以在 TUI 内执行:
 
 ```text
 /login
 ```
 
-然后选择 SAITEC 登录。登录表单支持:
+然后选择 SSC 登录。登录表单支持:
 
 - 邮箱 + 密码。
 - 手机号 + 密码。
 
-邮箱和手机号至少填写一个。登录成功后，SAITEC-TUI 会:
+邮箱和手机号至少填写一个。登录成功后，SSC-TUI 会:
 
-- 调用 SAITEC Core 登录接口获取用户身份令牌。
+- 调用 SSC Core 登录接口获取用户身份令牌。
 - 使用身份令牌创建一个业务 API Key。
 - 将业务 API Key 和必要的用户元数据保存到本地。
-- 将 API Key 注入 SAITEC-Skills 运行环境，供内置能力调用。
+- 将 API Key 注入 SSC-Skills 运行环境，供内置能力调用。
 
-默认 SAITEC Core 地址可通过环境变量覆盖:
+默认 SSC Core 地址可通过环境变量覆盖:
 
 ```powershell
-$env:SAITEC_AUTH_BASE = "https://your-saitec-auth.example.com"
-$env:CORE_API_BASE = "https://your-saitec-core.example.com"
+$env:SSC_AUTH_BASE = "https://your-ssc-auth.example.com"
+$env:CORE_API_BASE = "https://your-ssc-core.example.com"
 ```
 
 也可以直接提供平台 API Key:
 
 ```powershell
-$env:SAITEC_API_KEY = "your-saitec-api-key"
+$env:SSC_API_KEY = "your-ssc-api-key"
 ```
 
 ### 2. 基座模型登录
@@ -225,7 +225,7 @@ $env:SAITEC_API_KEY = "your-saitec-api-key"
 
 ## 内置评测与检测能力
 
-SAITEC-TUI 内置的 SAITEC-Skills MCP 服务负责把用户意图转换为平台任务。用户通常不需要直接记忆工具名，只需要描述任务目标。Agent 会根据任务类型选择正确的检测或评测流程。
+SSC-TUI 内置的 SSC-Skills MCP 服务负责把用户意图转换为平台任务。用户通常不需要直接记忆工具名，只需要描述任务目标。Agent 会根据任务类型选择正确的检测或评测流程。
 
 ### AIGC 文本检测
 
@@ -253,7 +253,7 @@ SAITEC-TUI 内置的 SAITEC-Skills MCP 服务负责把用户意图转换为平�
 - 检测图片是否存在篡改、合成或修图痕迹。
 - 生成检测框、可视化结果和报告产物。
 
-本地图片需要先上传到平台文件服务，获得可供任务使用的 `storage_uri` 后再执行检测。SAITEC-TUI 会在工作流里处理这个步骤。
+本地图片需要先上传到平台文件服务，获得可供任务使用的 `storage_uri` 后再执行检测。SSC-TUI 会在工作流里处理这个步骤。
 
 示例:
 
@@ -289,7 +289,7 @@ SAITEC-TUI 内置的 SAITEC-Skills MCP 服务负责把用户意图转换为平�
 - 测试模型安全边界和拒答能力。
 - 使用被测模型与 Judge 模型形成自动评测闭环。
 
-当评测需要调用第三方模型时，需要先配置对应模型的 API Key。SAITEC-TUI 会根据用户选择的模型和 Judge 模型提示所需凭证。
+当评测需要调用第三方模型时，需要先配置对应模型的 API Key。SSC-TUI 会根据用户选择的模型和 Judge 模型提示所需凭证。
 
 示例:
 
@@ -328,7 +328,7 @@ SAITEC-TUI 内置的 SAITEC-Skills MCP 服务负责把用户意图转换为平�
 
 ## 数据与产物
 
-SAITEC-TUI 的检测与评测任务通常会产生结构化结果和文件产物。
+SSC-TUI 的检测与评测任务通常会产生结构化结果和文件产物。
 
 ### 支持的输入
 
@@ -364,9 +364,9 @@ SAITEC-TUI 的检测与评测任务通常会产生结构化结果和文件产物
 
 | 命令 | 说明 |
 |---|---|
-| `/login` | 打开登录选择器，可选择 SAITEC 登录或基座模型配置 |
+| `/login` | 打开登录选择器，可选择 SSC 登录或基座模型配置 |
 | `/login base-models` | 打开基座模型登录/配置选择器 |
-| `/logout` | 清除 SAITEC 登录状态并回到登录流程 |
+| `/logout` | 清除 SSC 登录状态并回到登录流程 |
 | `/model` | 打开模型选择器 |
 | `/models` | `/model` 的别名 |
 | `/refresh-model-list` | 刷新模型目录和可用路由 |
@@ -376,46 +376,46 @@ SAITEC-TUI 的检测与评测任务通常会产生结构化结果和文件产物
 | `/usage` | 查看用量信息 |
 | `/version` | 查看版本信息 |
 | `/help` | 查看帮助 |
-| `/quit` | 退出 SAITEC-TUI |
+| `/quit` | 退出 SSC-TUI |
 
 ## 本地配置与安全
 
 ### 本地目录
 
-SAITEC-TUI 默认使用用户主目录下的专用目录:
+SSC-TUI 默认使用用户主目录下的专用目录:
 
 ```text
-~/.saitec_tui/
+~/.ssc_tui/
 ```
 
 常见文件:
 
 | 路径 | 说明 |
 |---|---|
-| `~/.saitec_tui/auth.json` | SAITEC 平台登录信息、业务 API Key 和用户元数据 |
-| `~/.saitec_tui/saitec.env` | SAITEC API Key 的环境变量桥接文件 |
-| `~/.saitec_tui/mcp.json` | SAITEC-Skills MCP 服务器配置 |
-| `~/.saitec_tui/config.toml` | 产品配置 |
-| `~/.saitec_tui/logs/` | 运行日志 |
-| `~/.saitec_tui/sessions/` | 会话记录 |
+| `~/.ssc_tui/auth.json` | SSC 平台登录信息、业务 API Key 和用户元数据 |
+| `~/.ssc_tui/ssc.env` | SSC API Key 的环境变量桥接文件 |
+| `~/.ssc_tui/mcp.json` | SSC-Skills MCP 服务器配置 |
+| `~/.ssc_tui/config.toml` | 产品配置 |
+| `~/.ssc_tui/logs/` | 运行日志 |
+| `~/.ssc_tui/sessions/` | 会话记录 |
 
 ### 环境变量
 
 | 变量 | 说明 |
 |---|---|
-| `SAITEC_API_KEY` | 平台 API Key，可用于非交互或外部注入 |
-| `SAITEC_API_BASE` | SAITEC API 地址兼容变量 |
-| `SAITEC_AUTH_BASE` | SAITEC 登录页或登录服务地址 |
-| `CORE_API_BASE` | SAITEC Core API 地址，内置能力会访问该地址 |
-| `SAITEC_TUI_PYTHON` | 指定 SAITEC-Skills MCP 使用的 Python 可执行文件 |
-| `SAITEC_SKILLS_ROOT` | 指定 SAITEC-Skills 资源目录 |
-| `SAITEC_TUI_HOME` | 运行时注入给 SAITEC-Skills 的本地产品目录 |
+| `SSC_API_KEY` | 平台 API Key，可用于非交互或外部注入 |
+| `SSC_API_BASE` | SSC API 地址兼容变量 |
+| `SSC_AUTH_BASE` | SSC 登录页或登录服务地址 |
+| `CORE_API_BASE` | SSC Core API 地址，内置能力会访问该地址 |
+| `SSC_TUI_PYTHON` | 指定 SSC-Skills MCP 使用的 Python 可执行文件 |
+| `SSC_SKILLS_ROOT` | 指定 SSC-Skills 资源目录 |
+| `SSC_TUI_HOME` | 运行时注入给 SSC-Skills 的本地产品目录 |
 
 ### 安全策略
 
-- SAITEC API Key 只写入本地安全存储和运行时环境，不应出现在对话正文里。
+- SSC API Key 只写入本地安全存储和运行时环境，不应出现在对话正文里。
 - 本地凭证文件会尽量使用仅当前用户可读写的权限。
-- SAITEC-Skills 请求通过 SAITEC Core 代理 API，携带平台 API Key 进行鉴权。
+- SSC-Skills 请求通过 SSC Core 代理 API，携带平台 API Key 进行鉴权。
 - 检测与评测任务由平台侧负责用户归属、任务归属和数据库事务管理。
 - 对于图片、视频和 dataset，本地文件会先上传到平台文件服务，再通过平台侧 URI 创建任务。
 
@@ -444,39 +444,39 @@ scripts/remote_build.sh
 ### 开发运行
 
 ```powershell
-.\scripts\dev_saitec_tui.ps1
+.\scripts\dev_ssc_tui.ps1
 ```
 
 常用参数:
 
 ```powershell
-.\scripts\dev_saitec_tui.ps1 -Profile selfdev
-.\scripts\dev_saitec_tui.ps1 -Profile release
-.\scripts\dev_saitec_tui.ps1 -StopRunning -NoBuild
+.\scripts\dev_ssc_tui.ps1 -Profile selfdev
+.\scripts\dev_ssc_tui.ps1 -Profile release
+.\scripts\dev_ssc_tui.ps1 -StopRunning -NoBuild
 ```
 
 ### Windows 打包
 
 ```powershell
 cargo build --release
-.\scripts\package_saitec.ps1
+.\scripts\package_ssc.ps1
 ```
 
 生成目录:
 
 ```text
-dist\saitec-tui\
+dist\ssc-tui\
 ```
 
 安装:
 
 ```powershell
-.\dist\saitec-tui\install.ps1
+.\dist\ssc-tui\install.ps1
 ```
 
 ## 路线图
 
-SAITEC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计划包括:
+SSC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计划包括:
 
 - 数据集上传后的结构化预览、字段识别和格式校验。
 - JSON/JSONL/CSV 等常见数据格式的清洗、抽样、切分和转换。
@@ -490,22 +490,22 @@ SAITEC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计
 
 ### 启动后要求登录
 
-这是预期行为。SAITEC-TUI 在没有有效 SAITEC 登录状态时会阻止普通任务执行。运行:
+这是预期行为。SSC-TUI 在没有有效 SSC 登录状态时会阻止普通任务执行。运行:
 
 ```text
 /login
 ```
 
-完成 SAITEC 登录后再继续。
+完成 SSC 登录后再继续。
 
-### SAITEC 登录失败
+### SSC 登录失败
 
 检查:
 
 - 邮箱或手机号至少填写一个。
 - 密码不为空。
-- `CORE_API_BASE` 或 `SAITEC_AUTH_BASE` 是否指向正确服务。
-- 网络是否能访问 SAITEC Core。
+- `CORE_API_BASE` 或 `SSC_AUTH_BASE` 是否指向正确服务。
+- 网络是否能访问 SSC Core。
 - 账号是否有创建 API Key 的权限。
 
 ### 基座模型不可用
@@ -520,20 +520,20 @@ SAITEC-TUI 的下一阶段重点会围绕数据处理与数据评估展开，计
 
 确认供应商已登录、API Key 有效、模型目录已刷新，并选择一个可用模型。
 
-### SAITEC-Skills 未加载
+### SSC-Skills 未加载
 
 检查:
 
-- 仓库或安装包中是否包含 `SAITEC-Skills` 资源。
-- `~/.saitec_tui/mcp.json` 是否存在并包含 `SAITEC-Skills`。
+- 仓库或安装包中是否包含 `SSC-Skills` 资源。
+- `~/.ssc_tui/mcp.json` 是否存在并包含 `SSC-Skills`。
 - Python 是否可用。
-- `SAITEC_TUI_PYTHON` 是否指向正确 Python。
-- `SAITEC_SKILLS_ROOT` 是否指向正确资源目录。
+- `SSC_TUI_PYTHON` 是否指向正确 Python。
+- `SSC_SKILLS_ROOT` 是否指向正确资源目录。
 
 开发环境可重新运行:
 
 ```powershell
-.\scripts\dev_saitec_tui.ps1
+.\scripts\dev_ssc_tui.ps1
 ```
 
 ### 文件检测任务失败
