@@ -1304,99 +1304,12 @@ fn reset_prompt_viewport_state_for_test() {
     });
 }
 
-/// RAII guard for the global `TUI_PENDING_UPDATE` static — sets a payload on
-/// construction and clears it on drop so tests don't leak global state.
-struct GlobalUpdatePayloadGuard;
-
-impl GlobalUpdatePayloadGuard {
-    fn set(payload: crate::bus::TuiUpdatePayload) -> Self {
-        crate::saitec::tui_update::set_global_pending_update(payload);
-        Self
-    }
-}
-
-impl Drop for GlobalUpdatePayloadGuard {
-    fn drop(&mut self) {
-        crate::saitec::tui_update::clear_global_pending_update();
-    }
-}
-
-/// While the agent is processing (waiting for an LLM response), the bottom
-/// status line must keep rendering the activity spinner — the TUI-update banner
-/// must not replace it. This is a regression guard for the banner-added-in
-/// `f147e9fd` that previously short-circuited `draw_status` whenever a global
-/// pending-update payload existed.
-#[test]
-fn streaming_status_hides_tui_update_banner() {
-    let _guard = viewport_snapshot_test_lock();
-    let _payload_guard = GlobalUpdatePayloadGuard::set(crate::bus::TuiUpdatePayload {
-        latest_version: "9.9.9".to_string(),
-        is_new: true,
-        filename: "v9.9.9.exe".to_string(),
-        size_bytes: 100,
-        release_notes: None,
-        download_url: "http://example.com/download".to_string(),
-    });
-
-    let state = TestState {
-        status: ProcessingStatus::Streaming,
-        ..Default::default()
-    };
-
-    let backend = ratatui::backend::TestBackend::new(80, 1);
-    let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
-    terminal
-        .draw(|frame| {
-            let area = frame.area();
-            crate::tui::ui::input_ui::draw_status(frame, &state, area, 0);
-        })
-        .expect("draw_status");
-
-    let rendered = buffer_to_text(&terminal).join("\n");
-    assert!(
-        !rendered.contains("SAITEC-TUI"),
-        "streaming status must not be replaced by the update banner: {rendered:?}"
-    );
-    assert!(
-        rendered.contains("⠋") || rendered.contains("•"),
-        "streaming status should show an activity indicator, got: {rendered:?}"
-    );
-}
-
-/// While idle, the TUI-update banner must still render — the fix only hides it
-/// during processing, it does not remove the update notice entirely.
-#[test]
-fn idle_status_still_shows_tui_update_banner() {
-    let _guard = viewport_snapshot_test_lock();
-    let _payload_guard = GlobalUpdatePayloadGuard::set(crate::bus::TuiUpdatePayload {
-        latest_version: "9.9.9".to_string(),
-        is_new: true,
-        filename: "v9.9.9.exe".to_string(),
-        size_bytes: 100,
-        release_notes: None,
-        download_url: "http://example.com/download".to_string(),
-    });
-
-    let state = TestState {
-        status: ProcessingStatus::Idle,
-        ..Default::default()
-    };
-
-    let backend = ratatui::backend::TestBackend::new(80, 1);
-    let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
-    terminal
-        .draw(|frame| {
-            let area = frame.area();
-            crate::tui::ui::input_ui::draw_status(frame, &state, area, 0);
-        })
-        .expect("draw_status");
-
-    let rendered = buffer_to_text(&terminal).join("\n");
-    assert!(
-        rendered.contains("SAITEC-TUI"),
-        "idle status should still show the update banner, got: {rendered:?}"
-    );
-}
+// Stage 2C (chore/ssc-tui-baseline): the global TUI pending-update
+// payload and its renderer are retired. The streaming_status_hides_tui_update_banner
+// and idle_status_still_shows_tui_update_banner regression guards are
+// removed — there is no longer a TUI-update banner to either hide or
+// surface. The remaining draw_status regression guards (processing
+// spinner, etc.) still cover the spinner-vs-other-states contract.
 
 #[path = "basic.rs"]
 mod basic;
