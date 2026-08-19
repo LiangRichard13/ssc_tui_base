@@ -990,15 +990,7 @@ pub struct App {
     usage_report_refreshing: bool,
     /// Last time the passive overnight progress card polled its run files.
     last_overnight_card_refresh: Option<Instant>,
-    // === TUI update push (SAITEC backend /api/v1/tui/{check-update,download}) ===
-    /// Pending update payload from `GET /api/v1/tui/check-update`. Banner is rendered
-    /// while `Some`; user presses `U` to trigger download. `pub(super)` 让 `mod auth`
-    /// / `handle_update_status` 可写入。
-    pub(super) pending_tui_update: Option<crate::bus::TuiUpdatePayload>,
-    /// `Some(version, downloaded, total)` while a download is in flight. `total=0` 表未知。
-    pub(super) tui_update_progress: Option<TuiUpdateProgress>,
-    /// Watch sender 用于取消正在进行的下载（Esc）。`Some` ⇔ 当前有活跃下载。
-    pub(super) tui_update_download_cancel: Option<tokio::sync::watch::Sender<bool>>,
+    // === TUI update push retired in stage 2C (chore/ssc-tui-baseline) ===
 }
 
 /// 流式下载进度快照。仅字段用途，渲染时由 ui_status.rs 读出来。`u64` 字节。

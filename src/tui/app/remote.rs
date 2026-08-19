@@ -397,9 +397,7 @@ pub(super) async fn handle_bus_event(
             }
             app.handle_provider_validation_completed(event);
         }
-        Ok(BusEvent::UpdateStatus(status)) => {
-            app.handle_update_status(status);
-        }
+        // Stage 2C: BusEvent::UpdateStatus arm removed (SAITEC update push retired).
         Ok(BusEvent::SessionUpdateStatus(status)) => {
             app.handle_session_update_status(status);
         }

@@ -489,72 +489,9 @@ fn append_batch_progress_spans(
 }
 
 pub(super) fn draw_status(frame: &mut Frame, app: &dyn TuiState, area: Rect, pending_count: usize) {
-    // TUI update banner / progress: 只在空闲时显示。处理中（等待 LLM 响应 /
-    // 流式输出）让位给底部 spinner —— 否则 banner 会一直遮蔽加载动画。
+    // Stage 2C: TUI update banner / progress draw_status path removed.
     if !app.is_processing() {
-        // TUI update banner / progress: 优先于 build_progress / rate_limit / processing 显示。
-        if let Some(progress) = app.tui_update_progress() {
-            let pct = if progress.total > 0 {
-                ((progress.downloaded as f64 / progress.total as f64) * 100.0).round() as u8
-            } else {
-                0
-            };
-            let downloaded_mb = progress.downloaded / 1_000_000;
-            let total_str = if progress.total > 0 {
-                format!("{} MB", progress.total / 1_000_000)
-            } else {
-                "?".to_string()
-            };
-            let banner = Line::from(vec![
-                Span::styled("⬇️  ", Style::default().fg(rgb(72, 199, 142))),
-                Span::styled(
-                    format!("Downloading SAITEC-TUI v{}: ", progress.version),
-                    Style::default().fg(rgb(72, 199, 142)),
-                ),
-                Span::styled(
-                    format!("{}% ({} / {} MB) ", pct, downloaded_mb, total_str),
-                    Style::default().fg(dim_color()),
-                ),
-                Span::styled("[Esc] cancel", Style::default().fg(rgb(255, 193, 7))),
-            ]);
-            let aligned = if app.centered_mode() {
-                banner.alignment(Alignment::Center)
-            } else {
-                banner
-            };
-            frame.render_widget(Paragraph::new(aligned), area);
-            return;
-        }
-        // TUI update banner: 优先读全局静态（直接绕过 &dyn TuiState trait dispatch）。
-        // 全局由 tui/app/auth.rs::handle_update_status 写入，0 overhead 无 dispatch。
-        let global_payload = crate::saitec::tui_update::TUI_PENDING_UPDATE
-            .get()
-            .and_then(|m| m.read().ok())
-            .and_then(|g| g.clone());
-        if let Some(ref payload) = global_payload {
-            let size_mb = payload.size_bytes / 1_000_000;
-            use std::sync::atomic::{AtomicBool, Ordering};
-            static GLOBAL_FOUND_LOG: AtomicBool = AtomicBool::new(false);
-            if !GLOBAL_FOUND_LOG.swap(true, Ordering::Relaxed) {
-                crate::logging::info(&format!(
-                    "[tui-update-draw] global payload found: latest={}, size={}MB",
-                    payload.latest_version, size_mb,
-                ));
-            }
-            let banner = super::tui_update_banner_line(payload);
-            let aligned = if app.centered_mode() {
-                banner.alignment(Alignment::Center)
-            } else {
-                banner
-            };
-            frame.render_widget(Paragraph::new(aligned), area);
-            return;
-        }
-        use std::sync::atomic::{AtomicBool, Ordering};
-        static GLOBAL_NONE_LOG: AtomicBool = AtomicBool::new(false);
-        if !GLOBAL_NONE_LOG.swap(true, Ordering::Relaxed) {
-            crate::logging::info("[tui-update-draw] global payload=None (only once)");
-        }
+        // Stage 2C: TUI update banner / progress draw_status path removed.
     }
 
     let elapsed = app.elapsed().map(|d| d.as_secs_f32()).unwrap_or(0.0);

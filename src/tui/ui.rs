@@ -1762,41 +1762,8 @@ pub(crate) fn link_target_from_screen(column: u16, row: u16) -> Option<String> {
     link_target_from_snapshot(&snapshot, point)
 }
 
-/// 检查全局 TUI update payload，如有更新则构造 `Paragraph`。
-/// 用于 startup splash 阶段（此时 `draw_status` 不执行）。
-fn make_tui_update_banner(footer: Rect) -> Option<ratatui::widgets::Paragraph<'static>> {
-    let payload = crate::saitec::tui_update::TUI_PENDING_UPDATE
-        .get()
-        .and_then(|m| m.read().ok())
-        .and_then(|g| g.clone())?;
-    let line = tui_update_banner_line(&payload);
-    Some(ratatui::widgets::Paragraph::new(line))
-}
-
-/// 共享：从 payload 构造 banner Line。供 splash 与主布局（`ui_input.rs::draw_status`
-/// 全局 payload 分支）共用，避免两处 Span 序列漂移。
-pub(super) fn tui_update_banner_line(
-    payload: &crate::bus::TuiUpdatePayload,
-) -> ratatui::text::Line<'static> {
-    use ratatui::prelude::*;
-    use ratatui::text::{Line, Span};
-    use crate::tui::color_support::rgb;
-    let size_mb = payload.size_bytes / 1_000_000;
-    Line::from(vec![
-        Span::styled("🆕  ", Style::default().fg(rgb(72, 199, 142))),
-        Span::styled(
-            format!("SAITEC-TUI v{} available ", payload.latest_version),
-            Style::default()
-                .fg(rgb(72, 199, 142))
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            format!("({} MB) ", size_mb),
-            Style::default().fg(dim_color()),
-        ),
-        Span::styled("/download-latest", Style::default().fg(rgb(255, 193, 7))),
-    ])
-}
+// Stage 2C: make_tui_update_banner / tui_update_banner_line removed
+// (SAITEC backend TUI update push retired).
 
 pub fn draw(frame: &mut Frame, app: &dyn TuiState) {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1952,39 +1919,8 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         }
         // 在 splash 底部状态区域渲染 TUI update progress（先于 banner）。
         // splash 阶段 draw_status 不执行，所以需要手动渲染。优先显示进度条。
-        if let Some(footer) = shell_footer_area
-            && footer.height >= 1
-        {
-            if let Some(progress) = app.tui_update_progress() {
-                let pct = if progress.total > 0 {
-                    ((progress.downloaded as f64 / progress.total as f64) * 100.0).round() as u8
-                } else {
-                    0
-                };
-                let downloaded_mb = progress.downloaded / 1_000_000;
-                let total_str = if progress.total > 0 {
-                    format!("{} MB", progress.total / 1_000_000)
-                } else {
-                    "?".to_string()
-                };
-                use ratatui::prelude::*;
-                let progress_line = Line::from(vec![
-                    Span::styled("⬇️  ", Style::default().fg(crate::tui::color_support::rgb(72, 199, 142))),
-                    Span::styled(
-                        format!("Downloading SAITEC-TUI v{}: ", progress.version),
-                        Style::default().fg(crate::tui::color_support::rgb(72, 199, 142)),
-                    ),
-                    Span::styled(
-                        format!("{}% ({} / {} MB) ", pct, downloaded_mb, total_str),
-                        Style::default().fg(theme_support::dim_color()),
-                    ),
-                    Span::styled("[Esc] cancel", Style::default().fg(crate::tui::color_support::rgb(255, 193, 7))),
-                ]);
-                frame.render_widget(Paragraph::new(progress_line), footer);
-            } else if let Some(banner) = make_tui_update_banner(footer) {
-                frame.render_widget(banner, footer);
-            }
-        }
+        // Stage 2C: TUI update progress / banner rendering retired.
+
         record_layout_snapshot(
             shell_snapshot_area.unwrap_or(shell_content_area),
             None,

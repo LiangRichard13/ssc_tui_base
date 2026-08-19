@@ -190,54 +190,6 @@ pub struct SidePanelUpdated {
     pub snapshot: SidePanelSnapshot,
 }
 
-/// 发布通道更新 payload：由 `GET /api/v1/tui/check-update` 反序列化得到。
-/// 携带渲染 banner 与下载所需的最小信息；不与 GitHub Release `GitHubAsset` 复用。
-#[derive(Clone, Debug, serde::Deserialize)]
-pub struct TuiUpdatePayload {
-    /// 服务器最新版本号（去掉前缀 'v'），如 `"1.0.1"`。
-    pub latest_version: String,
-    /// 是否比 current 更新（true=应提示用户）。
-    pub is_new: bool,
-    /// exe 文件名，如 `"v1.0.1.exe"`。
-    pub filename: String,
-    /// 文件字节数，用于显示「X MB」与下载进度条。
-    pub size_bytes: u64,
-    /// 同目录同名 `.md`/`.txt` 的内容；缺失则为 `None`。
-    pub release_notes: Option<String>,
-    /// 指向 `GET /api/v1/tui/download` 的绝对 URL（需 `X-API-Key` 鉴权）。
-    pub download_url: String,
-}
-
-#[derive(Clone, Debug)]
-pub enum UpdateStatus {
-    Checking,
-    Available {
-        current: String,
-        latest: String,
-        payload: TuiUpdatePayload,
-    },
-    /// 下载任务启动（用户按 [U] 触发）。
-    Downloading {
-        version: String,
-    },
-    /// 流式下载进度回调。`total=0` 表示未知总大小。
-    DownloadProgress {
-        version: String,
-        downloaded: u64,
-        total: u64,
-    },
-    /// 下载完成；`path` 是落地后的 .exe，用户手动退出 TUI 后运行此文件安装。
-    Downloaded {
-        version: String,
-        path: std::path::PathBuf,
-    },
-    Installed {
-        version: String,
-    },
-    UpToDate,
-    Error(String),
-}
-
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ClientMaintenanceAction {
@@ -317,8 +269,6 @@ pub enum BusEvent {
     ModelRefreshCompleted(ModelRefreshCompleted),
     /// Local git status command completed off the UI thread
     GitStatusCompleted(GitStatusCompleted),
-    /// Update check status from background thread
-    UpdateStatus(UpdateStatus),
     /// Interactive client update status for a specific session
     SessionUpdateStatus(SessionUpdateStatus),
     /// External dictation command completed with transcript text

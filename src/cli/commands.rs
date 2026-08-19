@@ -171,8 +171,8 @@ async fn run_ambient_visible() -> Result<()> {
 
     let mut app = tui::App::new(provider, registry);
     app.set_ambient_mode(context.system_prompt, context.initial_message);
-    // TUI update push (local mode)：App 与 spawn 同进程，Bus::publish 直接命中订阅者。
-    super::startup::spawn_tui_update_check_for_client();
+    // Stage 2C: SAITEC backend update push retired — no equivalent spawn
+    // hook in ambient-visible mode (this branch never carried args).
 
     let _ = crossterm::execute!(
         std::io::stdout(),

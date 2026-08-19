@@ -238,12 +238,7 @@ async fn handle_remote_key_internal(
     let mut modifiers = modifiers;
     ctrl_bracket_fallback_to_esc(&mut code, &mut modifiers);
 
-    // ESC 优先取消 TUI 更新下载 —— 必须在 pending_login 之前检查，
-    // 否则 ESC 被 login key handler 吃掉（如 startup guide 阶段）。
-    if code == KeyCode::Esc && app.tui_update_download_cancel.is_some() {
-        app.cancel_tui_update_download();
-        return Ok(());
-    }
+    // Stage 2C: ESC-cancel-download removed (SAITEC backend push retired).
 
     if input::handle_pending_login_key(app, code, modifiers) {
         return Ok(());
