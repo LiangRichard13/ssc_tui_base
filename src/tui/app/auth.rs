@@ -9,7 +9,8 @@ pub(crate) use self::auth_account_commands::{
     save_openai_fast_setting_local,
 };
 pub(crate) use self::auth_types::{
-    AccountCommand, PendingAccountInput, PendingLogin, SaitecLoginField, SaitecPendingForm,
+    AccountCommand, PendingAccountInput, PendingLogin, SaitecLoginField, SaitecLoginForm,
+    SaitecPendingForm,
 };
 
 use super::*;
@@ -458,42 +459,22 @@ impl App {
         form.focus = SaitecLoginField::Submit;
         form.submitting = true;
         self.set_status_notice("Login [saitec]: submitting...");
-        let login_form = form.form.clone();
+        let _login_form = form.form.clone();
         self.stage_saitec_form(form);
         self.sync_input_with_pending_saitec_form();
-        tokio::spawn(async move {
-            match crate::saitec::auth::submit_business_login(&login_form).await {
-                Ok(session) => match crate::saitec::auth::save_session(&session) {
-                    Ok(()) => {
-                        crate::auth::AuthStatus::invalidate_cache();
-                        Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
-                            provider: "jcode".to_string(),
-                            success: true,
-                            message: format!(
-                                "**Saitec login successful.**\n\nAuthenticated as `{}` and stored credentials at `~/.saitec_tui/auth.json`.",
-                                session.user_id.as_deref().unwrap_or("unknown-user")
-                            ),
-                        }));
-                    }
-                    Err(err) => {
-                        Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
-                            provider: "jcode".to_string(),
-                            success: false,
-                            message: format!("Saitec login failed while saving auth: {}", err),
-                        }));
-                    }
-                },
-                Err(err) => {
-                    Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
-                        provider: "jcode".to_string(),
-                        success: false,
-                        message: format!("Saitec login failed: {}", err),
-                    }));
-                }
-            }
-        });
+        // Stage 2D (chore/ssc-tui-baseline): the SAITEC backend login flow is
+        // retired. Submission always fails with an explicit message so users
+        // are not left hanging on a form that can no longer complete.
+        let message = "The SAITEC backend login is not available in the baseline. \
+                       Configure providers via their own env files or `/account` flows."
+            .to_string();
+        Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
+            provider: "jcode".to_string(),
+            success: false,
+            message,
+        }));
         self.push_display_message(DisplayMessage::system(
-            "Submitting Saitec credentials...".to_string(),
+            "SAITEC login unavailable in baseline.".to_string(),
         ));
     }
 
@@ -545,7 +526,8 @@ impl App {
 
     pub(super) fn show_jcode_subscription_status(&mut self) {
         let configured_key = crate::subscription_catalog::configured_api_key().is_some();
-        let core_api_base = crate::saitec::auth::core_api_base();
+        // Stage 2D: SAITEC backend core-api base retired.
+        let core_api_base = "unavailable (baseline)".to_string();
         let mut message = String::from("**SAITEC MCP Status**\n\n");
         message.push_str(&format!(
             "- Platform credentials: {}\n",
@@ -731,7 +713,7 @@ impl App {
         self.set_status_notice("Login: credentials required");
         self.begin_pending_login(PendingLogin::SaitecForm {
             form: SaitecPendingForm {
-                form: crate::saitec::auth::SaitecLoginForm::new(
+                form: SaitecLoginForm::new(
                     "".to_string(),
                     "".to_string(),
                     "".to_string(),
@@ -2660,31 +2642,10 @@ impl App {
             self.set_status_notice(format!("Login: {} ready", login.provider));
             if login.provider == "jcode" {
                 crate::subscription_catalog::clear_runtime_env();
-                // Reconnect SAITEC-Skills MCP with the newly saved API key
-                if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                    let mcp_manager = Arc::clone(&self.mcp_manager);
-                    let registry = self.registry.clone();
-                    handle.spawn(async move {
-                        // 1. Pool 层：重建连接（新 transport + 新 API key）
-                        crate::saitec::mcp::reconnect_saitec_mcp().await;
-
-                        // 2. Manager 层：从 pool 重新获取 handle
-                        let mgr = mcp_manager.read().await;
-                        mgr.reacquire_pool_handle("SAITEC-Skills").await;
-                        drop(mgr);
-
-                        // 3. Registry 层：重新注册 SAITEC-Skills 工具
-                        let tools = crate::mcp::create_mcp_tools(mcp_manager).await;
-                        for (name, tool) in tools {
-                            if name.starts_with("mcp__SAITEC-Skills__") {
-                                registry.register(name, tool).await;
-                            }
-                        }
-                    });
-                }
-            } else {
-                self.trigger_provider_auth_changed();
+                // Stage 2D: SAITEC-Skills MCP reconnect retired — the baseline
+                // no longer injects the SAITEC API key into a transport.
             }
+            self.trigger_provider_auth_changed();
             if self.pending_login.is_some() {
                 self.pending_login = None;
             }

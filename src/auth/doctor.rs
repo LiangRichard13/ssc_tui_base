@@ -85,7 +85,7 @@ pub fn recommended_actions(
     validation_result: Option<&str>,
 ) -> Vec<String> {
     let mut actions = Vec::new();
-    let saitec_login = "Use `/login` or `jcode login --provider jcode` for Saitec access.";
+    let saitec_login = "Reconnect the provider from `/account` or its own config flow.";
     match assessment.state {
         AuthState::NotConfigured => {
             actions.push("Review provider-specific auth from `/account`.".to_string());

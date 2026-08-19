@@ -177,7 +177,8 @@ pub fn active_openai_compatible_profile_id() -> Option<String> {
         .copied()
         .filter(|profile| profile.id != OPENAI_COMPAT_PROFILE.id)
         .filter(|profile| {
-            crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
+            // Stage 2D: SAITEC allowlist retired.
+            true
         })
         .filter(|profile| openai_compatible_profile_is_configured(*profile))
         .map(|profile| profile.id.to_string())
@@ -191,23 +192,14 @@ pub fn active_openai_compatible_profile_id() -> Option<String> {
 }
 
 pub fn saitec_visible_base_model_providers() -> Vec<LoginProviderDescriptor> {
+    // Stage 2D: SAITEC allowlist retired; this is now identical to
+    // tui_login_providers (the previous allowlist filter is gone).
     tui_login_providers()
-        .into_iter()
-        .filter(|provider| {
-            crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
-        })
-        .collect()
 }
 
 pub fn saitec_auth_status_login_providers() -> Vec<LoginProviderDescriptor> {
     let mut providers = vec![JCODE_LOGIN_PROVIDER];
-    providers.extend(
-        auth_status_login_providers()
-            .into_iter()
-            .filter(|provider| {
-                crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
-            }),
-    );
+    providers.extend(auth_status_login_providers());
     providers
 }
 

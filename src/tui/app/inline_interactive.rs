@@ -330,17 +330,9 @@ impl App {
                     .flatten()
             });
 
-        if profile_id
-            .is_some_and(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
-        {
-            return crate::saitec::product_profile::is_allowed_base_model_route(
-                "",
-                &route.model,
-                &route.provider,
-                &route.api_method,
-            );
-        }
-
+        // Stage 2D: is_allowed_openai_compatible_profile / is_allowed_base_model_route
+        // retired — every openai-compatible route is honored.
+        let _ = profile_id;
         true
     }
 
@@ -408,7 +400,8 @@ impl App {
 
         let Some(route) = matching_route else {
             return Err(
-                crate::saitec::product_profile::unsupported_base_model_route_message(requested),
+                // Stage 2D: unsupported_base_model_route_message retired.
+            format!("Model `{requested}` is not available."),
             );
         };
 

@@ -239,9 +239,15 @@ pub async fn run_login_provider(
                 eprintln!("Imported {} existing auth source(s).", imported);
                 Ok(LoginFlowOutcome::Completed)
             }
-            LoginProviderTarget::Jcode => login_jcode_flow()
-                .await
-                .map(|_| LoginFlowOutcome::Completed),
+            LoginProviderTarget::Jcode => {
+                // Stage 2D (chore/ssc-tui-baseline): the SAITEC backend login
+                // flow is retired. Providers in the baseline authenticate
+                // against their own endpoints directly.
+                anyhow::bail!(
+                    "The SAITEC backend login (`jcode login jcode`) is not available in the baseline. \
+                     Configure providers via their own env files or `/account` flows instead."
+                );
+            }
             LoginProviderTarget::Claude => login_claude_flow(account_label, options.no_browser)
                 .await
                 .map(|_| LoginFlowOutcome::Completed),
@@ -381,46 +387,13 @@ async fn notify_running_server_auth_changed_best_effort() {
 }
 
 async fn login_jcode_flow() -> Result<()> {
-    let login_url = crate::saitec::auth::authorize_url(crate::saitec::auth::DEFAULT_CALLBACK_PORT);
-    let callback_url =
-        crate::saitec::auth::callback_url(crate::saitec::auth::DEFAULT_CALLBACK_PORT);
-
-    eprintln!("Starting Saitec login...");
-    eprintln!(
-        "Open the Saitec login page below, sign in, then paste the callback URL (or query string containing `auth_token`) back into this terminal.\n"
+    // Stage 2D (chore/ssc-tui-baseline): the SAITEC OAuth / business login
+    // backend (http://101.133.153.37:8080) is retired. The cli dispatch
+    // now bails out before reaching here.
+    anyhow::bail!(
+        "The SAITEC backend login is not available in the baseline. \
+         Configure providers via their own env files or `/account` flows."
     );
-    eprintln!("Login URL:\n{}\n", login_url);
-    eprintln!("Expected callback target: {}\n", callback_url);
-
-    let browser_opened = if crate::auth::browser_suppressed(false) {
-        false
-    } else {
-        open::that(&login_url).is_ok()
-    };
-    if browser_opened {
-        eprintln!("Opened your browser automatically.\n");
-    } else {
-        eprintln!("Could not open a browser automatically on this machine.\n");
-    }
-
-    eprint!("Paste the Saitec callback URL or query string: ");
-    io::stdout().flush()?;
-    let callback_input = read_secret_line()?;
-    let session = crate::saitec::auth::session_from_callback_input(&callback_input).await?;
-    crate::saitec::auth::save_session(&session)?;
-    crate::auth::AuthStatus::invalidate_cache();
-
-    eprintln!("\nSaitec login successful.");
-    eprintln!(
-        "Stored auth token at {}",
-        crate::saitec::paths::auth_file()?.display()
-    );
-    eprintln!(
-        "Authenticated as {}.",
-        session.user_id.as_deref().unwrap_or("mock-user")
-    );
-    crate::telemetry::record_auth_success("jcode", "oauth");
-    Ok(())
 }
 
 fn login_openai_api_key_flow() -> Result<()> {

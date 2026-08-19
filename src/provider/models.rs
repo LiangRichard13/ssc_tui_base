@@ -80,19 +80,11 @@ fn subscription_visible_route(mut route: ModelRoute) -> ModelRoute {
     route
 }
 
-fn subscription_allows_direct_base_model_route(route: &ModelRoute) -> bool {
-    if !(route.api_method == "openai-compatible"
-        || route.api_method.starts_with("openai-compatible:"))
-    {
-        return false;
-    }
-
-    crate::saitec::product_profile::is_allowed_base_model_route(
-        "",
-        &route.model,
-        &route.provider,
-        &route.api_method,
-    )
+fn subscription_allows_direct_base_model_route(_route: &ModelRoute) -> bool {
+    // Stage 2D (chore/ssc-tui-baseline): SAITEC allowlist retired. The route
+    // shape guard (openai-compatible / openai-compatible:*) still applies in
+    // the caller; the former is_allowed_base_model_route gate is always true.
+    true
 }
 
 #[cfg(test)]
@@ -104,12 +96,10 @@ pub(crate) fn subscription_allows_direct_model_spec(model: &str) -> bool {
         return false;
     };
     let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
-    crate::saitec::product_profile::is_allowed_base_model_route(
-        "",
-        target_model,
-        &resolved.display_name,
-        &format!("openai-compatible:{}", resolved.id),
-    )
+    // Stage 2D: is_allowed_base_model_route retired (SAITEC allowlist gone);
+    // the openai-compatible / profile-resolved lookup is sufficient for the
+    // baseline subscription path.
+    resolved.display_name.starts_with("openai-compatible")
 }
 
 #[cfg(test)]

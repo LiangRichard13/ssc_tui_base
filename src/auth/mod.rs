@@ -419,29 +419,27 @@ impl AuthStatus {
                 AuthRefreshSupport::ExternalManaged,
                 AuthValidationMethod::TrustedImportScan,
             ),
-            crate::provider_catalog::LoginProviderTarget::Jcode => {
-                let (source, detail) = summarize_sources(vec![
-                    crate::saitec::auth::load_session().ok().flatten().map(|_| {
-                        (
-                            AuthCredentialSource::JcodeManagedFile,
-                            "~/.saitec_tui/auth.json".to_string(),
-                        )
-                    }),
-                    env_source(crate::subscription_catalog::JCODE_API_KEY_ENV),
-                    config_source(
-                        crate::subscription_catalog::JCODE_API_KEY_ENV,
-                        crate::subscription_catalog::JCODE_ENV_FILE,
-                        "~/.saitec_tui/saitec.env",
-                    ),
-                ]);
-                (
-                    source,
-                    detail,
-                    AuthExpiryConfidence::PresenceOnly,
-                    AuthRefreshSupport::ManualRelogin,
-                    AuthValidationMethod::CompositeProbe,
-                )
-            }
+            // Stage 2D: JcodeManagedFile credential source retired — the SAITEC
+    // backend session file (~/.saitec_tui/auth.json) is gone with the module.
+    // The env-file / env-var sources for the jcode subscription are still
+    // useful and remain.
+    crate::provider_catalog::LoginProviderTarget::Jcode => {
+        let (source, detail) = summarize_sources(vec![
+            env_source(crate::subscription_catalog::JCODE_API_KEY_ENV),
+            config_source(
+                crate::subscription_catalog::JCODE_API_KEY_ENV,
+                crate::subscription_catalog::JCODE_ENV_FILE,
+                "~/.saitec_tui/saitec.env",
+            ),
+        ]);
+        (
+            source,
+            detail,
+            AuthExpiryConfidence::PresenceOnly,
+            AuthRefreshSupport::ManualRelogin,
+            AuthValidationMethod::CompositeProbe,
+        )
+    }
             crate::provider_catalog::LoginProviderTarget::OpenRouter => {
                 let (source, detail) = summarize_sources(vec![
                     env_source("OPENROUTER_API_KEY"),

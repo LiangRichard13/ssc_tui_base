@@ -57,21 +57,13 @@ impl MultiProvider {
             if let Some(profile) =
                 crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
-                if crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
-                {
-                    crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
-                } else {
-                    crate::logging::warn(&format!(
-                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
-                        pref,
-                        crate::saitec::product_profile::unsupported_base_model_provider_message()
-                    ));
-                }
+                // Stage 2D: SAITEC allowlist retired. Any openai-compatible
+                // profile selected via config is honored.
+                crate::provider_catalog::apply_openai_compatible_profile_env(Some(profile));
             } else if cfg.providers.contains_key(pref) {
                 crate::logging::warn(&format!(
-                    "Ignoring unsupported SAITEC named provider profile '{}'. {}",
+                    "Provider profile '{}' is not configured; ignoring default_provider setting.",
                     pref,
-                    crate::saitec::product_profile::unsupported_base_model_provider_message()
                 ));
             }
         }
@@ -147,10 +139,9 @@ impl MultiProvider {
         ]
         .iter()
         .any(|key| std::env::var_os(key).is_some());
-        let compatible_runtime_allowed = active_compatible_profile
-            .as_deref()
-            .map(crate::saitec::product_profile::is_allowed_openai_compatible_profile)
-            .unwrap_or(false)
+        // Stage 2D: is_allowed_openai_compatible_profile retired (SAITEC
+        // allowlist gone); every active compatible profile is honored.
+        let compatible_runtime_allowed = active_compatible_profile.is_some()
             && (!generic_openrouter_key_present || explicit_compatible_runtime_env);
         let openrouter_runtime_allowed = (subscription_runtime || compatible_runtime_allowed)
             && (!generic_openrouter_key_present || explicit_compatible_runtime_env);
@@ -335,59 +326,43 @@ impl MultiProvider {
             if let Some(profile) =
                 crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
-                if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
-                {
-                    crate::logging::warn(&format!(
-                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
-                        pref,
-                        crate::saitec::product_profile::unsupported_base_model_provider_message()
+                // Stage 2D: SAITEC allowlist retired. Any openai-compatible
+                // profile selected via config is honored.
+                let is_configured = availability.is_configured(ActiveProvider::OpenRouter);
+                if is_configured {
+                    active = ActiveProvider::OpenRouter;
+                    let resolved =
+                        crate::provider_catalog::resolve_openai_compatible_profile(profile);
+                    crate::logging::info(&format!(
+                        "Using preferred provider '{}' from config via OpenAI-compatible profile {}",
+                        pref, resolved.display_name
                     ));
                 } else {
-                    let is_configured = availability.is_configured(ActiveProvider::OpenRouter);
-                    if is_configured {
-                        active = ActiveProvider::OpenRouter;
-                        let resolved =
-                            crate::provider_catalog::resolve_openai_compatible_profile(profile);
-                        crate::logging::info(&format!(
-                            "Using preferred provider '{}' from config via OpenAI-compatible profile {}",
-                            pref, resolved.display_name
-                        ));
-                    } else {
-                        crate::logging::warn(&format!(
-                            "Preferred provider '{}' is not configured, using auto-detected default",
-                            pref
-                        ));
-                    }
+                    crate::logging::warn(&format!(
+                        "Preferred provider '{}' is not configured, using auto-detected default",
+                        pref
+                    ));
                 }
             } else if cfg.providers.contains_key(pref) {
                 crate::logging::warn(&format!(
-                    "Ignoring unsupported SAITEC named provider profile '{}'. {}",
+                    "Provider profile '{}' is not configured; ignoring default_provider setting.",
                     pref,
-                    crate::saitec::product_profile::unsupported_base_model_provider_message()
                 ));
             } else if let Some(pref_provider) = Self::parse_provider_hint(pref) {
-                if !crate::saitec::product_profile::is_allowed_base_model_provider(
-                    Self::provider_key(pref_provider),
-                ) {
-                    crate::logging::warn(&format!(
-                        "Ignoring unsupported SAITEC default_provider '{}'. {}",
-                        pref,
-                        crate::saitec::product_profile::unsupported_base_model_provider_message()
+                // Stage 2D: is_allowed_base_model_provider retired; any
+                // parseable provider hint is honored.
+                let is_configured = availability.is_configured(pref_provider);
+                if is_configured {
+                    active = pref_provider;
+                    crate::logging::info(&format!(
+                        "Using preferred provider '{}' from config",
+                        pref
                     ));
                 } else {
-                    let is_configured = availability.is_configured(pref_provider);
-                    if is_configured {
-                        active = pref_provider;
-                        crate::logging::info(&format!(
-                            "Using preferred provider '{}' from config",
-                            pref
-                        ));
-                    } else {
-                        crate::logging::warn(&format!(
-                            "Preferred provider '{}' is not configured, using auto-detected default",
-                            pref
-                        ));
-                    }
+                    crate::logging::warn(&format!(
+                        "Preferred provider '{}' is not configured, using auto-detected default",
+                        pref
+                    ));
                 }
             } else {
                 crate::logging::warn(&format!(

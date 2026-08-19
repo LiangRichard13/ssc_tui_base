@@ -297,8 +297,7 @@ impl LogoFrameOptions {
 }
 
 pub(crate) fn brand_animation_enabled() -> bool {
-    crate::perf::tui_policy().enable_decorative_animations
-        || crate::saitec::product_profile::use_fixed_shell_layout()
+    crate::perf::tui_policy().enable_decorative_animations || false
 }
 
 fn startup_logo_text_lines(width: usize) -> Vec<String> {
@@ -457,7 +456,10 @@ pub(crate) fn animated_startup_logo_lines(width: usize, elapsed: f32) -> Vec<Lin
 fn animated_brand_header_line_for(elapsed: f32, animated: bool) -> Line<'static> {
     if !animated {
         return Line::from(Span::styled(
-            crate::saitec::product_profile::brand_header_label().to_string(),
+            // Stage 2D: SAITEC brand_header_label retired; use a neutral placeholder
+            // string. Stage 3 (chore/ssc-tui-baseline) will set the actual
+            // ssc-tui header label here.
+            "jcode".to_string(),
             Style::default().fg(header_name_color()),
         ))
         .alignment(Alignment::Center);
@@ -1088,7 +1090,7 @@ pub(crate) fn build_header_lines(app: &dyn TuiState, width: u16) -> Vec<Line<'st
     );
 
     let skills = app.available_skills();
-    if crate::saitec::product_profile::show_skills_in_ui() && !skills.is_empty() {
+    if false && !skills.is_empty() {
         let full = format!(
             "skills: {}",
             skills

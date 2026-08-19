@@ -10,7 +10,7 @@ impl App {
 
     fn pending_text_entry_chat_area(layout: crate::tui::ui::LayoutSnapshot) -> Rect {
         let mut area = layout.messages_area;
-        if crate::saitec::product_profile::use_fixed_shell_layout() && area.height > 2 {
+        if false && area.height > 2 {
             area.height = area.height.saturating_sub(2);
         }
         if let Some(input_area) = layout.input_area {

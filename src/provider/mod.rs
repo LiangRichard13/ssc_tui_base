@@ -552,12 +552,6 @@ impl MultiProvider {
         if model.is_empty() {
             anyhow::bail!("Model cannot be empty");
         }
-        if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id) {
-            anyhow::bail!(
-                "{}",
-                crate::saitec::product_profile::unsupported_base_model_provider_message()
-            );
-        }
         let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
         if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
             anyhow::bail!(
@@ -601,32 +595,23 @@ impl MultiProvider {
             if let Some(profile) =
                 crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
             {
-                if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id)
-                {
-                    anyhow::bail!(
-                        "{}",
-                        crate::saitec::product_profile::unsupported_base_model_provider_message()
-                    );
-                }
+                // Stage 2D: SAITEC allowlist retired.
                 return self.set_model_on_provider(ActiveProvider::OpenRouter, model);
             }
 
             if crate::config::config().providers.contains_key(pref) {
                 anyhow::bail!(
-                    "{}",
-                    crate::saitec::product_profile::unsupported_base_model_provider_message()
+                    "Provider profile '{}' is not configured. Run `jcode login --provider {}` first.",
+                    pref,
+                    crate::provider_catalog::resolve_openai_compatible_profile_selection(pref)
+                        .map(|p| p.id.to_string())
+                        .unwrap_or_else(|| pref.to_string()),
                 );
             }
 
             if let Some(provider) = Self::parse_provider_hint(pref) {
-                if !crate::saitec::product_profile::is_allowed_base_model_provider(
-                    Self::provider_key(provider),
-                ) {
-                    anyhow::bail!(
-                        "{}",
-                        crate::saitec::product_profile::unsupported_base_model_provider_message()
-                    );
-                }
+                // Stage 2D: is_allowed_base_model_provider retired; any parseable
+                // provider hint is honored.
                 return self.set_model_on_provider(provider, model);
             }
         }
@@ -1031,9 +1016,7 @@ impl Provider for MultiProvider {
             .iter()
             .copied()
         {
-            if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(profile.id) {
-                continue;
-            }
+            // Stage 2D: SAITEC allowlist retired. Every configured profile is honored.
             if !crate::provider_catalog::openai_compatible_profile_is_configured(profile) {
                 continue;
             }
@@ -1161,9 +1144,9 @@ impl Provider for MultiProvider {
                 openrouter.supports_provider_routing_features();
             openrouter_supports_provider_features = supports_openrouter_provider_features;
             let mut scheduled_endpoint_refreshes = 0usize;
-            let expose_generic_openrouter_routes =
-                crate::saitec::product_profile::expose_generic_openrouter_routes()
-                    || !supports_openrouter_provider_features;
+            // Stage 2D: expose_generic_openrouter_routes always true.
+            let expose_generic_openrouter_routes = true
+                || !supports_openrouter_provider_features;
             if expose_generic_openrouter_routes {
                 for model in openrouter.available_models_display() {
                     openrouter_models += 1;
@@ -1251,7 +1234,7 @@ impl Provider for MultiProvider {
         // Also add Claude/OpenAI models via openrouter as alternative routes
         if has_openrouter
             && openrouter_supports_provider_features
-            && crate::saitec::product_profile::expose_generic_openrouter_routes()
+            // Stage 2D: expose_generic_openrouter_routes always true.
         {
             for model in known_anthropic_model_ids() {
                 let or_model = format!("anthropic/{}", model);

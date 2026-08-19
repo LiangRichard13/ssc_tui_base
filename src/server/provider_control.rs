@@ -443,54 +443,11 @@ pub(super) async fn handle_notify_auth_changed(
 
         spawn_deferred_auth_refreshes(targets.deferred_agents);
 
-        // ── SAITEC MCP lifecycle sync ─────────────────────────────────────
-        // The TUI is a thin client — MCP tools execute in this server process
-        // (see `register_mcp_tools` in src/tool/mod.rs and `registry.execute`
-        // in src/server/client_actions.rs). When SAITEC credentials change,
-        // we must (a) reconnect/disconnect SAITEC-Skills on this process's
-        // SharedMcpPool and (b) unlock + (on logout) drop tools from every
-        // session agent so the next API request no longer offers them.
-        let has_saitec_key = crate::saitec::auth::load_session()
-            .ok()
-            .flatten()
-            .map(|s| !s.api_key.trim().is_empty())
-            .unwrap_or(false)
-            || crate::subscription_catalog::configured_api_key().is_some();
+        // ── SAITEC MCP lifecycle sync retired (stage 2D) ────────────────
+        // The baseline TUI no longer auto-reconnects SAITEC-Skills when
+        // credentials change — the MCP pool is user-configured and the
+        // src/saitec/ module is gone.
 
-        if has_saitec_key {
-            // Login / re-auth: rebuild MCP transport with the fresh API key
-            crate::saitec::mcp::reconnect_saitec_mcp().await;
-        } else {
-            // Logout: close the transport and drop tools from session registries
-            crate::saitec::mcp::disconnect_saitec_mcp().await;
-        }
-
-        // Update every session agent's registry + unlock so the LLM sees the
-        // change on the next request.
-        for sess_agent in &deferred_agents {
-            if let Ok(mut a) = sess_agent.try_lock() {
-                if !has_saitec_key {
-                    let removed = a.drop_tool_prefix("mcp__SAITEC-Skills__").await;
-                    if !removed.is_empty() {
-                        crate::logging::info(&format!(
-                            "SAITEC logout: dropped {} SAITEC-Skills tools from session agent",
-                            removed.len()
-                        ));
-                    }
-                }
-                a.unlock_tools();
-            }
-        }
-
-        // Also handle the primary agent passed in (may not be in deferred list)
-        {
-            if let Ok(mut a) = agent_clone.try_lock() {
-                if !has_saitec_key {
-                    a.drop_tool_prefix("mcp__SAITEC-Skills__").await;
-                }
-                a.unlock_tools();
-            }
-        }
         // ───────────────────────────────────────────────────────────────────
 
         // Hot-initializing providers is synchronous, while dynamic catalogs may

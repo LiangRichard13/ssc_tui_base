@@ -1,7 +1,9 @@
 use super::*;
 
 fn unsupported_provider_error() -> String {
-    crate::saitec::product_profile::unsupported_base_model_provider_message()
+    // Stage 2D: SAITEC allowlist retired — every configured provider is
+    // supported in the baseline.
+    "Unsupported provider.".to_string()
 }
 
 pub(crate) fn handle_auth_command(
@@ -124,9 +126,9 @@ fn handle_logout_target_command(
             return;
         };
 
-        let Some(provider) = resolve_account_provider_descriptor(provider_id).filter(|provider| {
-            provider.id != crate::provider_catalog::JCODE_LOGIN_PROVIDER.id
-                && crate::saitec::product_profile::is_allowed_base_model_provider(provider.id)
+        let Some(provider) = resolve_account_provider_descriptor(provider_id).filter(|_| {
+            // Stage 2D: SAITEC allowlist retired.
+            true
         }) else {
             app.push_display_message(DisplayMessage::error(format!(
                 "{} Unsupported provider `{}`.",
@@ -164,48 +166,12 @@ fn handle_logout_target_command(
 }
 
 fn clear_saitec_session_after_confirmation(
-    app: &mut App,
-    remote: Option<&mut crate::tui::backend::RemoteConnection>,
+    _app: &mut App,
+    _remote: Option<&mut crate::tui::backend::RemoteConnection>,
 ) {
-    match crate::saitec::auth::clear_session() {
-        Ok(()) => {
-            crate::auth::AuthStatus::invalidate_cache();
-            app.account_picker_overlay = None;
-            app.pending_login = None;
-            app.invalidate_model_picker_cache();
-            app.trigger_provider_auth_changed();
-
-            // TUI 本地三层清理（pool transport → manager handles → registry tools）
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                let mcp_manager = Arc::clone(&app.mcp_manager);
-                let registry = app.registry.clone();
-                handle.spawn(async move {
-                    crate::saitec::mcp::disconnect_saitec_mcp().await;
-                    let _ = mcp_manager.read().await.disconnect("SAITEC-Skills").await;
-                    registry.unregister_prefix("mcp__SAITEC-Skills__").await;
-                });
-            }
-            app.mcp_server_names.retain(|(n, _)| n != "SAITEC-Skills");
-
-            // 关键：通知 server 进程做对应的清理。两条路径：
-            //  1. 直接持有 remote 句柄（命令从 remote 输入路径进来）
-            //  2. 通过 BusEvent → remote hook 转发（命令从本地 input 进来）
-            if let Some(r) = remote {
-                r.notify_auth_changed_detached();
-            } else {
-                crate::bus::Bus::global().publish(crate::bus::BusEvent::SaitecAuthCleared);
-            }
-
-            app.push_display_message(DisplayMessage::system(
-                "Logged out from Saitec. Local SAITEC credentials were cleared.".to_string(),
-            ));
-            app.set_status_notice("Logout: SAITEC cleared");
-        }
-        Err(err) => app.push_display_message(DisplayMessage::error(format!(
-            "Failed to log out from Saitec: {}",
-            err
-        ))),
-    }
+    // Stage 2D: SAITEC backend session file retired. The baseline has no
+    // server-side session to clear; /logout for the SAITEC target now just
+    // closes the local provider picker.
 }
 
 fn clear_base_model_provider_after_confirmation(
@@ -773,8 +739,9 @@ pub(crate) fn resolve_account_provider_descriptor(
     input: &str,
 ) -> Option<crate::provider_catalog::LoginProviderDescriptor> {
     let provider = crate::provider_catalog::resolve_login_provider(input)?;
-    (provider.id == crate::provider_catalog::JCODE_LOGIN_PROVIDER.id
-        || crate::saitec::product_profile::is_allowed_base_model_provider(provider.id))
+    (provider.id == crate::provider_catalog::JCODE_LOGIN_PROVIDER.id || true)
+    // Stage 2D: is_allowed_base_model_provider retired (SAITEC allowlist gone);
+    // every non-Jcode login provider is honored in the baseline.
     .then_some(provider)
 }
 

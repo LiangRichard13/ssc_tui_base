@@ -409,7 +409,7 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
         return PreparedChatFrame::from_single(prepared);
     }
 
-    let header_prepared = if crate::saitec::product_profile::use_fixed_shell_layout() {
+    let header_prepared = if false {
         Arc::new(empty_prepared_messages())
     } else {
         let mut all_header_lines = header::build_persistent_header(app, width);

@@ -271,10 +271,9 @@ impl App {
             .filter(|command| command.autocomplete)
             .filter(|command| !command.remote_only || self.is_remote)
             .filter(|command| {
-                matches!(
-                    crate::saitec::product_profile::command_visibility(command.name),
-                    crate::saitec::product_profile::CommandVisibility::Public
-                )
+                // Stage 2D: command_visibility filter retired — every command is
+                // Public in the baseline.
+                true
             })
             .filter_map(|command| {
                 let name = command.name.to_string();
@@ -282,7 +281,8 @@ impl App {
             })
             .collect();
 
-        if crate::saitec::product_profile::show_skills_in_ui() {
+        // Stage 2D: show_skills_in_ui always true.
+        if true {
             let skills = self.current_skills_snapshot();
             push_skill_commands(&mut commands, &mut seen, &skills);
 

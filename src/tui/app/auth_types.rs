@@ -7,17 +7,52 @@ pub(crate) enum SaitecLoginField {
     Cancel,
 }
 
+// Stage 2D: SaitecPendingForm and PendingLogin::SaitecForm retired — the
+// SAITEC business login form is gone with src/saitec/.
+
 #[derive(Debug, Clone)]
 pub(crate) struct SaitecPendingForm {
-    pub form: crate::saitec::auth::SaitecLoginForm,
+    pub form: SaitecLoginForm,
     pub focus: SaitecLoginField,
     pub error: Option<String>,
     pub submitting: bool,
 }
 
+/// Stage 2D (chore/ssc-tui-baseline): the SAITEC backend login form shape is
+/// kept so the TUI's PendingLogin::SaitecForm plumbing compiles; the actual
+/// submission is a no-op because src/saitec/ was retired.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SaitecLoginForm {
+    pub email: String,
+    pub phone: String,
+    pub password: String,
+}
+
+impl SaitecLoginForm {
+    pub fn new(email: String, phone: String, password: String) -> Self {
+        Self {
+            email,
+            phone,
+            password,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.email.trim().is_empty() && self.phone.trim().is_empty() {
+            return Err("Enter an email or phone number.".to_string());
+        }
+        if self.password.is_empty() {
+            return Err("Enter your password.".to_string());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum PendingLogin {
-    /// Waiting for the user to fill in the SAITEC business-login form.
+    /// Stage 2D (chore/ssc-tui-baseline): kept as a plumbing stub — the SAITEC
+    /// backend login is retired but the form state type still exists so the
+    /// TUI input/overlay code compiles. Submitting always fails.
     SaitecForm { form: SaitecPendingForm },
     /// Waiting for user to paste Claude OAuth code for a specific stored account
     ClaudeAccount {

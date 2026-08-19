@@ -44,9 +44,6 @@ impl JcodeProvider {
     }
 
     fn openai_compatible_default_model_spec_for_profile(profile_id: &str) -> Option<String> {
-        if !crate::saitec::product_profile::is_allowed_openai_compatible_profile(&profile_id) {
-            return None;
-        }
         let profile = crate::provider_catalog::openai_compatible_profile_by_id(&profile_id)?;
         let resolved = crate::provider_catalog::resolve_openai_compatible_profile(profile);
         if resolved.requires_api_key

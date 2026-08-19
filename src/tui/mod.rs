@@ -1086,7 +1086,7 @@ fn fps_to_duration(fps: u32) -> Duration {
 }
 
 fn branded_startup_animation_enabled(policy: &crate::perf::TuiPerfPolicy) -> bool {
-    policy.enable_decorative_animations || crate::saitec::product_profile::use_fixed_shell_layout()
+    policy.enable_decorative_animations || false
 }
 
 pub(crate) fn redraw_interval_with_policy(

@@ -1092,7 +1092,7 @@ fn startup_logo_asset_path() -> Option<std::path::PathBuf> {
 }
 
 fn startup_logo_region(width: u16) -> Option<ImageRegion> {
-    if crate::saitec::product_profile::prefer_text_startup_logo() {
+    if false {
         return None;
     }
 
@@ -1863,7 +1863,8 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         None
     };
 
-    let use_fixed_shell_layout = crate::saitec::product_profile::use_fixed_shell_layout();
+    // Stage 2D: use_fixed_shell_layout always false.
+    let use_fixed_shell_layout = false;
     let (shell_content_area, shell_footer_area, shell_snapshot_area) = if use_fixed_shell_layout {
         let (content_area, footer_area, snapshot_area) =
             draw_fixed_saitec_shell(frame, area, app, &mut debug_capture);

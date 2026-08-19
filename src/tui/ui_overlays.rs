@@ -554,7 +554,8 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
     lines.push(Line::from(Span::styled("  MCP Status", section_style)));
     lines.push(Line::from(""));
     let mcps = app.mcp_servers();
-    if crate::saitec::product_profile::emphasize_mcp_status() {
+    // Stage 2D: emphasize_mcp_status always false.
+    if false {
         if mcps.is_empty() {
             lines.push(Line::from(vec![
                 Span::styled("    ", Style::default()),
