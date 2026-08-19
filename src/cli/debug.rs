@@ -31,7 +31,7 @@ pub async fn run_debug_command(
     if !crate::transport::is_socket_path(&debug_socket) {
         eprintln!("Debug socket not found at {:?}", debug_socket);
         eprintln!("\nMake sure:");
-        eprintln!("  1. A SAITEC-TUI server is running (jcode or jcode serve)");
+        eprintln!("  1. A SSC-TUI server is running (jcode or jcode serve)");
         eprintln!("  2. debug_socket is enabled in ~/.jcode/config.toml");
         eprintln!("     [display]");
         eprintln!("     debug_socket = true");
@@ -129,12 +129,12 @@ async fn debug_list_servers() -> Result<()> {
     }
 
     if servers.is_empty() {
-        println!("No running SAITEC-TUI servers found.");
+        println!("No running SSC-TUI servers found.");
         println!("\nStart one with: jcode debug start");
         return Ok(());
     }
 
-    println!("Running SAITEC-TUI servers:\n");
+    println!("Running SSC-TUI servers:\n");
 
     for socket_path in servers {
         let debug_socket = {
@@ -250,7 +250,7 @@ async fn debug_start_server(arg: &str, socket_path: Option<String>) -> Result<()
     };
     let _ = std::fs::remove_file(&debug_socket);
 
-    eprintln!("Starting SAITEC-TUI server...");
+    eprintln!("Starting SSC-TUI server...");
 
     let exe = std::env::current_exe()?;
     let mut cmd = std::process::Command::new(&exe);

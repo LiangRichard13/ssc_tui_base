@@ -70,7 +70,7 @@ pub fn jcode_dir() -> Result<PathBuf> {
     }
 
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home directory"))?;
-    Ok(home.join(".saitec_tui"))
+    Ok(home.join(".jcode"))
 }
 
 pub fn logs_dir() -> Result<PathBuf> {

@@ -10,11 +10,11 @@ impl Config {
             std::fs::create_dir_all(parent)?;
         }
 
-        let default_content = r#"# SAITEC-TUI configuration file
-# Location: ~/.saitec_tui/config.toml
+        let default_content = r#"# SSC-TUI configuration file
+# Location: ~/.jcode/config.toml
 #
 # Environment variables override these settings.
-# Run `/config` in SAITEC-TUI to see current settings.
+# Run `/config` in SSC-TUI to see current settings.
 
 [keybindings]
 # Scroll keys (vim-style by default)
@@ -69,7 +69,7 @@ session_picker_enter = "new-terminal"
 # command = "~/.local/bin/my-whisper-script --grammar-target code"
 command = ""
 
-# How to apply the transcript inside SAITEC-TUI: insert|append|replace|send
+# How to apply the transcript inside SSC-TUI: insert|append|replace|send
 mode = "send"
 
 # Optional in-app hotkey to trigger dictation. Set to "off" to disable.

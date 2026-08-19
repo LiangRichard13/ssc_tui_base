@@ -204,7 +204,7 @@ pub async fn ensure_browser_setup() -> Result<String> {
     }
 
     if initial_status.responding && !initial_status.compatible {
-        log.push_str("Browser bridge is connected, but the live Firefox extension is out of date for this SAITEC-TUI build. Attempting repair steps...\n");
+        log.push_str("Browser bridge is connected, but the live Firefox extension is out of date for this SSC-TUI build. Attempting repair steps...\n");
         if !initial_status.missing_actions.is_empty() {
             log.push_str(&format!(
                 "Missing actions: {}\n",
@@ -341,7 +341,7 @@ pub async fn ensure_browser_setup() -> Result<String> {
     if final_status.ready {
         log.push_str("\nSetup complete. Browser bridge is ready.\n");
     } else if final_status.responding && !final_status.compatible {
-        log.push_str("\nSetup is not complete yet. The Firefox extension is connected, but it is still missing required actions for this SAITEC-TUI build.\n");
+        log.push_str("\nSetup is not complete yet. The Firefox extension is connected, but it is still missing required actions for this SSC-TUI build.\n");
         if !final_status.missing_actions.is_empty() {
             log.push_str(&format!(
                 "Missing actions: {}\n",
@@ -561,7 +561,7 @@ fn install_native_host_manifest() -> Result<bool> {
 
     let manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
-        "description": "Native host for Firefox Agent Bridge (managed by SAITEC-TUI)",
+        "description": "Native host for Firefox Agent Bridge (managed by SSC-TUI)",
         "path": effective_host,
         "type": "stdio",
         "allowed_extensions": [

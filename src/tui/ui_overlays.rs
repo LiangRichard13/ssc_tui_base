@@ -545,7 +545,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, scroll: usize, ap
     lines.push(help_entry("/resume", "Browse and resume previous sessions"));
     lines.push(help_entry("/usage", "Show connected provider usage limits"));
     lines.push(help_entry("/version", "Show version and build details"));
-    lines.push(help_entry("/quit", "Exit SAITEC-TUI"));
+    lines.push(help_entry("/quit", "Exit SSC-TUI"));
 
     lines.push(Line::from(""));
     lines.push(separator());

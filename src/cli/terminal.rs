@@ -98,7 +98,7 @@ pub fn show_crash_resume_hint() {
 
 fn init_tui_terminal() -> Result<ratatui::DefaultTerminal> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
-        anyhow::bail!("SAITEC-TUI requires an interactive terminal (stdin/stdout must be a TTY)");
+        anyhow::bail!("SSC-TUI requires an interactive terminal (stdin/stdout must be a TTY)");
     }
     let is_resuming = std::env::var("JCODE_RESUMING").is_ok();
     if is_resuming {

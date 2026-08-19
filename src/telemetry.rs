@@ -1700,11 +1700,11 @@ pub fn current_provider_model() -> Option<(String, String)> {
 
 fn show_first_run_notice() {
     eprintln!("\x1b[90m");
-    eprintln!("  SAITEC-TUI collects anonymous usage statistics (install count, version, OS,");
+    eprintln!("  SSC-TUI collects anonymous usage statistics (install count, version, OS,");
     eprintln!("  session activity, tool counts, and crash/exit reasons). No code, filenames,");
     eprintln!("  prompts, or personal data is sent.");
     eprintln!("  To opt out: export JCODE_NO_TELEMETRY=1");
-    eprintln!("  Details: https://github.com/SAITEC-TEAM/SAITEC-TUI/blob/main/TELEMETRY.md");
+    eprintln!("  Details: https://github.com/SAITEC-TEAM/SSC-TUI/blob/main/TELEMETRY.md");
     eprintln!("\x1b[0m");
 }
 

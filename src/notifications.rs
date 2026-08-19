@@ -104,11 +104,11 @@ impl NotificationDispatcher {
 
     /// Send a permission request notification (high priority).
     pub fn dispatch_permission_request(&self, action: &str, description: &str, request_id: &str) {
-        let title = format!("SAITEC-TUI: permission needed ({})", action);
+        let title = format!("SSC-TUI: permission needed ({})", action);
         let safe_body =
-            "An ambient action needs your approval. Open SAITEC-TUI to review.".to_string();
+            "An ambient action needs your approval. Open SSC-TUI to review.".to_string();
         let detailed_body = format!(
-            "Action: {}\n{}\n\nRequest ID: {}\nReview in SAITEC-TUI to approve or deny.",
+            "Action: {}\n{}\n\nRequest ID: {}\nReview in SSC-TUI to approve or deny.",
             action, description, request_id
         );
 
@@ -117,7 +117,7 @@ impl NotificationDispatcher {
             .config
             .email_from
             .as_deref()
-            .unwrap_or("saitec-tui@localhost");
+            .unwrap_or("ssc-tui@localhost");
         let email_html = build_permission_email_html(action, description, request_id, reply_to);
 
         self.send_all_with_email_override(
@@ -278,7 +278,7 @@ async fn send_ntfy(
 
 fn send_desktop(title: &str, body: &str, urgency: &str) {
     let result = std::process::Command::new("notify-send")
-        .arg("--app-name=saitec-tui")
+        .arg("--app-name=ssc-tui")
         .arg(format!("--urgency={}", urgency))
         .arg("--icon=dialog-information")
         .arg(title)
@@ -421,7 +421,7 @@ fn format_cycle_body_safe(transcript: &AmbientTranscript) -> String {
         ));
     }
 
-    lines.push("Check SAITEC-TUI for full details.".to_string());
+    lines.push("Check SSC-TUI for full details.".to_string());
     lines.join("\n")
 }
 
@@ -452,7 +452,7 @@ fn format_cycle_body_detailed(transcript: &AmbientTranscript) -> String {
     if transcript.pending_permissions > 0 {
         lines.push(String::new());
         lines.push(format!(
-            "**⚠ {} permission request(s) pending** — review in SAITEC-TUI",
+            "**⚠ {} permission request(s) pending** — review in SSC-TUI",
             transcript.pending_permissions
         ));
     }
@@ -494,7 +494,7 @@ mod tests {
         let body = format_cycle_body_safe(&transcript);
         assert!(body.contains("Memories modified: 3"));
         assert!(body.contains("Compactions: 1"));
-        assert!(body.contains("Check SAITEC-TUI for full details"));
+        assert!(body.contains("Check SSC-TUI for full details"));
         // Safe body must NOT include model-generated summary
         assert!(!body.contains("Cleaned up"));
         assert!(!body.contains("permission"));
@@ -547,7 +547,7 @@ mod tests {
 
         let safe = format_cycle_body_safe(&transcript);
         assert!(safe.contains("2 permission request(s) pending"));
-        assert!(safe.contains("Check SAITEC-TUI for full details"));
+        assert!(safe.contains("Check SSC-TUI for full details"));
 
         let detailed = format_cycle_body_detailed(&transcript);
         assert!(detailed.contains("2 permission request(s) pending"));

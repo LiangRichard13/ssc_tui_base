@@ -443,7 +443,7 @@ pub fn upsert_account_from_tokens(
 fn load_jcode_credentials() -> Result<CodexCredentials> {
     let auth = load_auth_file()?;
     if auth.openai_accounts.is_empty() {
-        anyhow::bail!("No OpenAI accounts configured in SAITEC-TUI auth file")
+        anyhow::bail!("No OpenAI accounts configured in SSC-TUI auth file")
     }
 
     let active_label = get_active_account_override()

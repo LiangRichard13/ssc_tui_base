@@ -90,7 +90,7 @@ pub fn remember_last_focused_session(session_id: &str) -> Result<()> {
         crate::storage::ensure_dir(parent)?;
     }
     std::fs::write(&path, session_id)
-        .context("failed to persist last focused SAITEC-TUI session")?;
+        .context("failed to persist last focused SSC-TUI session")?;
 
     if let Ok(mut cache) = last_focused_session_write_cache().lock() {
         *cache = Some(session_id.to_string());
@@ -104,7 +104,7 @@ pub fn last_focused_session() -> Result<Option<String>> {
     let session_id = match std::fs::read_to_string(path) {
         Ok(text) => text.trim().to_string(),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(err).context("failed to read last focused SAITEC-TUI session"),
+        Err(err) => return Err(err).context("failed to read last focused SSC-TUI session"),
     };
     if session_id.is_empty() {
         return Ok(None);
@@ -216,7 +216,7 @@ fn resolve_session_from_window_title(title: &str) -> Option<String> {
 
 fn extract_session_short_name_from_window_title(title: &str) -> Option<String> {
     let (_, rest) = title
-        .split_once("saitec-tui/")
+        .split_once("ssc-tui/")
         .or_else(|| title.split_once("jcode/"))
         .or_else(|| title.split_once("jcode "))?;
     let candidate = rest.split('[').next().unwrap_or(rest).trim();

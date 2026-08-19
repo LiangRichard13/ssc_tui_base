@@ -34,7 +34,7 @@ pub fn diagnostics(
 
     match assessment.state {
         AuthState::NotConfigured => diagnostics.push(format!(
-            "{} is not configured for SAITEC-TUI yet.",
+            "{} is not configured for SSC-TUI yet.",
             provider.display_name
         )),
         AuthState::Expired => diagnostics.push(format!(
@@ -188,7 +188,7 @@ mod tests {
             state: AuthState::Available,
             method_detail: "OAuth".to_string(),
             credential_source: AuthCredentialSource::JcodeManagedFile,
-            credential_source_detail: "~/.saitec_tui/auth.json".to_string(),
+            credential_source_detail: "~/.jcode/auth.json".to_string(),
             expiry_confidence: AuthExpiryConfidence::Exact,
             refresh_support: AuthRefreshSupport::Automatic,
             validation_method: AuthValidationMethod::TimestampCheck,

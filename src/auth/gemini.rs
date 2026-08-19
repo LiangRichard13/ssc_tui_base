@@ -311,7 +311,7 @@ pub async fn login(no_browser: bool) -> Result<GeminiTokens> {
                 redirect_uri
             );
             eprintln!(
-                "If the page says sign-in succeeded but SAITEC-TUI does not continue within a few seconds, press Ctrl+C and retry with `--no-browser` to use the manual code flow."
+                "If the page says sign-in succeeded but SSC-TUI does not continue within a few seconds, press Ctrl+C and retry with `--no-browser` to use the manual code flow."
             );
             match tokio::time::timeout(
                 std::time::Duration::from_secs(300),

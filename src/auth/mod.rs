@@ -269,7 +269,7 @@ impl AuthStatus {
             }
             crate::provider_catalog::LoginProviderTarget::Jcode => {
                 if self.state_for_provider(provider) == AuthState::Available {
-                    "SAITEC API key for MCP permissions".to_string()
+                    "API key for MCP permissions".to_string()
                 } else {
                     "not configured".to_string()
                 }
@@ -420,7 +420,7 @@ impl AuthStatus {
                 AuthValidationMethod::TrustedImportScan,
             ),
             // Stage 2D: JcodeManagedFile credential source retired — the SAITEC
-    // backend session file (~/.saitec_tui/auth.json) is gone with the module.
+    // backend session file (~/.jcode/auth.json) is gone with the module.
     // The env-file / env-var sources for the jcode subscription are still
     // useful and remain.
     crate::provider_catalog::LoginProviderTarget::Jcode => {
@@ -429,7 +429,7 @@ impl AuthStatus {
             config_source(
                 crate::subscription_catalog::JCODE_API_KEY_ENV,
                 crate::subscription_catalog::JCODE_ENV_FILE,
-                "~/.saitec_tui/saitec.env",
+                "~/.jcode/jcode.env",
             ),
         ]);
         (

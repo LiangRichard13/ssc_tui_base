@@ -481,7 +481,7 @@ fn animated_brand_header_line_for(elapsed: f32, animated: bool) -> Line<'static>
     Line::from(vec![
         Span::styled("🍇", grape_style),
         Span::styled(" ", Style::default().fg(dim_color())),
-        Span::styled("SAITEC-TUI", label_style),
+        Span::styled("SSC-TUI", label_style),
     ])
     .alignment(Alignment::Center)
 }
@@ -1387,7 +1387,7 @@ mod tests {
             .map(|span| span.content.as_ref())
             .collect::<String>();
 
-        assert!(rendered.contains("🍇 SAITEC-TUI"), "rendered: {rendered}");
+        assert!(rendered.contains("🍇 SSC-TUI"), "rendered: {rendered}");
         assert!(!rendered.contains("JCode-TUI"), "rendered: {rendered}");
     }
 
@@ -1765,8 +1765,8 @@ mod tests {
             .map(|span| span.content.as_ref())
             .collect::<String>();
 
-        assert_eq!(early_text, "🍇 SAITEC-TUI");
-        assert_eq!(later_text, "🍇 SAITEC-TUI");
+        assert_eq!(early_text, "🍇 SSC-TUI");
+        assert_eq!(later_text, "🍇 SSC-TUI");
         assert_ne!(early.spans[0].style.fg, later.spans[0].style.fg);
     }
 }

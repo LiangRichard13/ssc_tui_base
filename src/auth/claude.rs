@@ -194,7 +194,7 @@ pub fn load_auth_file() -> Result<JcodeAuthFile> {
     crate::storage::harden_secret_file_permissions(&path);
 
     let mut auth: JcodeAuthFile = crate::storage::read_json(&path)
-        .with_context(|| format!("Could not read SAITEC-TUI credentials from {:?}", path))?;
+        .with_context(|| format!("Could not read SSC-TUI credentials from {:?}", path))?;
 
     if auth.anthropic_accounts.is_empty()
         && let Some(legacy) = auth.anthropic.take()
@@ -465,7 +465,7 @@ pub fn load_credentials() -> Result<ClaudeCredentials> {
         return Ok(creds);
     }
 
-    anyhow::bail!("No Claude OAuth credentials found (checked Claude Code, SAITEC-TUI, OpenCode)")
+    anyhow::bail!("No Claude OAuth credentials found (checked Claude Code, SSC-TUI, OpenCode)")
 }
 
 /// Load credentials for a specific jcode account by label.

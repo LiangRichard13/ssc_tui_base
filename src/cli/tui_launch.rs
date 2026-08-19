@@ -18,7 +18,7 @@ use super::terminal::{
     print_session_resume_hint, set_current_session, spawn_session_signal_watchers,
 };
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 pub(crate) fn resumed_window_title(session_id: &str) -> String {
     let session_label = crate::process_title::terminal_session_label_for_id(session_id);
@@ -62,7 +62,7 @@ pub async fn run_client() -> Result<()> {
         anyhow::bail!("Failed to ping server");
     }
 
-    println!("Connected to SAITEC-TUI server");
+    println!("Connected to SSC-TUI server");
     println!("Type your message, or 'quit' to exit.\n");
 
     loop {

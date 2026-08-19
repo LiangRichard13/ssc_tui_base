@@ -37,7 +37,7 @@ const OAUTH_BETA_HEADERS: &str = "oauth-2025-04-20,claude-code-20250219";
 
 /// Claude Code identity block required for OAuth direct API access
 const CLAUDE_CODE_IDENTITY: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
-const CLAUDE_CODE_JCODE_NOTICE: &str = "You are SAITEC-TUI, powered by Claude Code. You are a third-party CLI, not the official Claude Code CLI.";
+const CLAUDE_CODE_JCODE_NOTICE: &str = "You are SSC-TUI, powered by Claude Code. You are a third-party CLI, not the official Claude Code CLI.";
 
 /// Maximum tokens for sidecar responses (keep small for speed/cost)
 const DEFAULT_MAX_TOKENS: u32 = 1024;

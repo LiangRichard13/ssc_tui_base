@@ -1296,7 +1296,7 @@ fn test_login_openrouter_is_rejected_by_saitec_allowlist() {
     assert_eq!(last.role, "error");
     assert!(
         last.content
-            .contains("SAITEC-TUI only supports these base-model providers")
+            .contains("SSC-TUI only supports these base-model providers")
     );
 }
 
@@ -1906,7 +1906,7 @@ fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
     assert_eq!(last.role, "error");
     assert!(
         last.content
-            .contains("SAITEC-TUI only supports these base-model providers")
+            .contains("SSC-TUI only supports these base-model providers")
     );
 }
 
@@ -1920,7 +1920,7 @@ fn test_account_openrouter_settings_is_rejected_by_saitec_allowlist() {
     assert_eq!(last.role, "error");
     assert!(
         last.content
-            .contains("SAITEC-TUI only supports these base-model providers")
+            .contains("SSC-TUI only supports these base-model providers")
     );
 }
 

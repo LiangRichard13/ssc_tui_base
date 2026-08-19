@@ -87,7 +87,7 @@ fn ensure_claude_inference_scope(scopes: &[String], action: &str) -> Result<()> 
     }
 
     anyhow::bail!(
-        "Claude OAuth {} returned a token without the required user:inference scope (scopes: {}). Re-run `jcode login --provider claude` so SAITEC-TUI opens the Claude.ai OAuth flow, or import/use a fresh Claude Code login.",
+        "Claude OAuth {} returned a token without the required user:inference scope (scopes: {}). Re-run `jcode login --provider claude` so SSC-TUI opens the Claude.ai OAuth flow, or import/use a fresh Claude Code login.",
         action,
         scopes.join(" ")
     )
@@ -131,7 +131,7 @@ const CALLBACK_READ_TIMEOUT_SECS: u64 = 5;
 
 fn bad_request_response(message: &str) -> String {
     let body = format!(
-        "<html><body><h1>Authentication not completed</h1><p>{}</p><p>You can close this tab and return to SAITEC-TUI.</p></body></html>",
+        "<html><body><h1>Authentication not completed</h1><p>{}</p><p>You can close this tab and return to SSC-TUI.</p></body></html>",
         message
     );
     format!(
@@ -418,7 +418,7 @@ pub async fn wait_for_callback_async_on_listener(
             continue;
         }
 
-        let body = "<html><body><h1>Success!</h1><p>You can close this window and return to SAITEC-TUI.</p></body></html>";
+        let body = "<html><body><h1>Success!</h1><p>You can close this window and return to SSC-TUI.</p></body></html>";
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
             body.len(),
@@ -629,7 +629,7 @@ pub fn parse_callback_input_with_state(input: &str) -> Result<(String, String)> 
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "Please paste the full callback URL or query string so SAITEC-TUI can verify the login state."
+                "Please paste the full callback URL or query string so SSC-TUI can verify the login state."
             )
         })?;
     Ok((code, state))
@@ -696,7 +696,7 @@ async fn exchange_claude_code_at_url(
         let text = resp.text().await?;
         if status == reqwest::StatusCode::FORBIDDEN && looks_like_cloudflare_challenge(&text) {
             anyhow::bail!(
-                "Token exchange was blocked by Cloudflare before Anthropic returned OAuth tokens. SAITEC-TUI now matches Claude Code's JSON token exchange, but this network/IP is still being challenged. Switch VPN exit IP or network, then retry with `jcode login --provider claude --no-browser` and paste the callback URL."
+                "Token exchange was blocked by Cloudflare before Anthropic returned OAuth tokens. SSC-TUI now matches Claude Code's JSON token exchange, but this network/IP is still being challenged. Switch VPN exit IP or network, then retry with `jcode login --provider claude --no-browser` and paste the callback URL."
             );
         }
         anyhow::bail!("Token exchange failed (HTTP {}): {}", status, text);
@@ -1224,7 +1224,7 @@ async fn refresh_openai_tokens_inner(
             save_openai_tokens_for_account(&oauth_tokens, label)?;
         } else {
             crate::logging::info(
-                "Refreshed OpenAI/Codex tokens from an external source without storing them in SAITEC-TUI auth",
+                "Refreshed OpenAI/Codex tokens from an external source without storing them in SSC-TUI auth",
             );
         }
         Ok(oauth_tokens)

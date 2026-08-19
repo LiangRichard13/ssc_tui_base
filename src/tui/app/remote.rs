@@ -387,10 +387,6 @@ pub(super) async fn handle_bus_event(
                 remote.notify_auth_changed_detached();
             }
         }
-        Ok(BusEvent::SaitecAuthCleared) => {
-            // TUI 端 logout 时通过 Bus 发出的信号，转发到 server 让其清理 MCP。
-            remote.notify_auth_changed_detached();
-        }
         Ok(BusEvent::ProviderValidationCompleted(event)) => {
             if event.success {
                 remote.notify_auth_changed_detached();

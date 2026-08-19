@@ -176,7 +176,7 @@ async fn run_ambient_visible() -> Result<()> {
 
     let _ = crossterm::execute!(
         std::io::stdout(),
-        crossterm::terminal::SetTitle("🤖 saitec-tui ambient cycle")
+        crossterm::terminal::SetTitle("🤖 ssc-tui ambient cycle")
     );
 
     let result = app.run(terminal, &mut tui_runtime).await;
@@ -483,12 +483,12 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
 
     if !gw_config.enabled {
         eprintln!(
-            "\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.saitec_tui/config.toml:\n"
+            "\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.jcode/config.toml:\n"
         );
         eprintln!("    \x1b[2m[gateway]\x1b[0m");
         eprintln!("    \x1b[2menabled = true\x1b[0m");
         eprintln!("    \x1b[2mport = {}\x1b[0m\n", gw_config.port);
-        eprintln!("  Then restart the SAITEC-TUI server.\n");
+        eprintln!("  Then restart the SSC-TUI server.\n");
     }
 
     let code = registry.generate_pairing_code();
@@ -499,7 +499,7 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
     );
 
     eprintln!();
-    eprintln!("  \x1b[1mScan with the SAITEC-TUI iOS app:\x1b[0m\n");
+    eprintln!("  \x1b[1mScan with the SSC-TUI iOS app:\x1b[0m\n");
     match crate::login_qr::render_unicode_qr(&pair_uri) {
         Ok(qr) => {
             for line in qr.lines() {
@@ -644,7 +644,7 @@ pub async fn run_browser(action: &str) -> Result<()> {
                 println!("\nBuilt-in browser tool is ready.");
             } else if status.responding && !status.compatible {
                 println!(
-                    "\nThe browser bridge is connected, but the installed Firefox extension is out of date for this SAITEC-TUI build. Run `jcode browser setup` to repair or update it."
+                    "\nThe browser bridge is connected, but the installed Firefox extension is out of date for this SSC-TUI build. Run `jcode browser setup` to repair or update it."
                 );
             } else {
                 println!("\nRun `jcode browser setup` to install or repair it.");

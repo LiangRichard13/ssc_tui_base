@@ -1002,7 +1002,7 @@ impl AmbientRunnerHandle {
         let child = std::process::Command::new("kitty")
             .args([
                 "--title",
-                "🤖 saitec-tui ambient cycle",
+                "🤖 ssc-tui ambient cycle",
                 "-e",
                 &jcode_bin.to_string_lossy(),
                 "ambient",

@@ -7,7 +7,7 @@ pub fn selfdev_status_output() -> Result<ToolOutput> {
 
     status.push_str("## Current Version\n\n");
     status.push_str(&format!(
-        "**Running:** SAITEC-TUI {}\n",
+        "**Running:** SSC-TUI {}\n",
         env!("JCODE_VERSION")
     ));
 

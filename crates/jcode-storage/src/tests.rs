@@ -36,7 +36,7 @@ fn jcode_dir_defaults_to_saitec_home_directory() {
     let home = dirs::home_dir().expect("home dir");
     let actual = jcode_dir().expect("jcode dir");
 
-    assert_eq!(actual, home.join(".saitec_tui"));
+    assert_eq!(actual, home.join(".jcode"));
 }
 
 #[test]

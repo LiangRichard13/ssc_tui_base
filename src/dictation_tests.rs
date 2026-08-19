@@ -107,7 +107,7 @@ fn select_candidate_prefers_title_match() {
         },
     ];
 
-    let selected = select_candidate(&candidates, Some("🍇 saitec-tui/sleeping Crab [self-dev]"))
+    let selected = select_candidate(&candidates, Some("🍇 ssc-tui/sleeping Crab [self-dev]"))
         .expect("should select matching candidate");
     assert_eq!(selected.short_name, "crab");
 }
@@ -128,7 +128,7 @@ fn extract_session_short_name_from_jcode_window_title() {
         Some("fox".to_string())
     );
     assert_eq!(
-        extract_session_short_name_from_window_title("🍇 saitec-tui/cliff Swan [self-dev]"),
+        extract_session_short_name_from_window_title("🍇 ssc-tui/cliff Swan [self-dev]"),
         Some("swan".to_string())
     );
 }
@@ -185,7 +185,7 @@ fn focused_jcode_session_uses_niri_window_title_when_process_name_is_generic() {
     install_fake_niri(
         &bin_dir,
         focused_process.pid(),
-        "🍇 saitec-tui/cliff Swan [self-dev]",
+        "🍇 ssc-tui/cliff Swan [self-dev]",
     );
 
     let prev_path = std::env::var_os("PATH").unwrap_or_default();

@@ -1,7 +1,7 @@
 use super::*;
 use crate::tui::connection_type_icon;
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 fn runtime_window_title(
     _icon: &str,

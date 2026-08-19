@@ -49,9 +49,9 @@ pub(super) fn install_macos_app_launcher() -> Result<(PathBuf, MacTerminalKind)>
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>SAITEC-TUI</string>
+    <string>SSC-TUI</string>
     <key>CFBundleDisplayName</key>
-    <string>SAITEC-TUI</string>
+    <string>SSC-TUI</string>
     <key>CFBundleIdentifier</key>
     <string>com.jcode.launcher</string>
     <key>CFBundleVersion</key>
@@ -158,11 +158,11 @@ fn macos_launcher_script(terminal: MacTerminalKind, exe_path: &str, app_dir: &Pa
     let shell_command = paused_jcode_shell_command(exe_path);
     let launch_command = launch_command_for_macos_terminal(terminal, &shell_command);
     let missing_message = escape_applescript_text(&format!(
-        "SAITEC-TUI could not launch because the executable was not found.\n\nExpected path:\n{}\n\nTry reinstalling SAITEC-TUI or rerun:\njcode setup-launcher",
+        "SSC-TUI could not launch because the executable was not found.\n\nExpected path:\n{}\n\nTry reinstalling SSC-TUI or rerun:\njcode setup-launcher",
         exe_path
     ));
     let terminal_failure_message = escape_applescript_text(&format!(
-        "SAITEC-TUI could not open {}.\n\nTry rerunning:\njcode setup-launcher\n\nLauncher log:\n~/.jcode/launcher/macos-launcher.log",
+        "SSC-TUI could not open {}.\n\nTry rerunning:\njcode setup-launcher\n\nLauncher log:\n~/.jcode/launcher/macos-launcher.log",
         terminal.label()
     ));
 
@@ -177,13 +177,13 @@ mkdir -p "$LOG_DIR" >/dev/null 2>&1 || true
 
 show_missing_executable() {{
   /usr/bin/osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
-display alert "SAITEC-TUI launch failed" message "{missing_message}" as critical
+display alert "SSC-TUI launch failed" message "{missing_message}" as critical
 APPLESCRIPT
 }}
 
 show_terminal_launch_failure() {{
   /usr/bin/osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
-display alert "SAITEC-TUI launch failed" message "{terminal_failure_message}" as critical
+display alert "SSC-TUI launch failed" message "{terminal_failure_message}" as critical
 APPLESCRIPT
 }}
 

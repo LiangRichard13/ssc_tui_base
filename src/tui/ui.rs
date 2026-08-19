@@ -1050,7 +1050,7 @@ fn startup_logo_asset_path() -> Option<std::path::PathBuf> {
         EMBEDDED_STARTUP_LOGO_PATH
             .get_or_init(|| {
                 let path = std::env::temp_dir()
-                    .join("saitec-tui")
+                    .join("ssc-tui")
                     .join("SAITEC_logo.png");
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent).ok()?;

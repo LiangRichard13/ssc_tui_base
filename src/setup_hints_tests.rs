@@ -72,6 +72,6 @@ fn first_three_launches_can_include_hotkey_notice_too() {
 fn paused_jcode_shell_command_keeps_failures_visible() {
     let command = paused_jcode_shell_command("/tmp/jcode");
     assert!(command.contains("Press Enter to close"));
-    assert!(command.contains("SAITEC-TUI exited with status"));
-    assert!(command.contains("SAITEC-TUI executable not found"));
+    assert!(command.contains("SSC-TUI exited with status"));
+    assert!(command.contains("SSC-TUI executable not found"));
 }

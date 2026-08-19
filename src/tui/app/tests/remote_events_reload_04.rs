@@ -253,11 +253,11 @@ fn test_info_widget_data_includes_connection_type() {
 fn test_runtime_window_title_uses_saitec_branding_for_default_and_remote_server() {
     assert_eq!(
         runtime_window_title("\u{1F981}", "jcode", "parrot", ""),
-        "\u{1F347} saitec-tui/parrot"
+        "\u{1F347} ssc-tui/parrot"
     );
     assert_eq!(
         runtime_window_title("\u{1F981}", "blazing", "parrot", " [self-dev]"),
-        "\u{1F347} saitec-tui/blazing/parrot [self-dev]"
+        "\u{1F347} ssc-tui/blazing/parrot [self-dev]"
     );
 }
 

@@ -301,7 +301,7 @@ fn test_parse_heuristic_progress_handles_phase_output() {
     assert_eq!(progress.percent, None);
     assert_eq!(
         progress.message.as_deref(),
-        Some("Compiling SAITEC-TUI v0.10.2")
+        Some("Compiling SSC-TUI v0.10.2")
     );
     assert_eq!(progress.source, BackgroundTaskProgressSource::ParsedOutput);
 }

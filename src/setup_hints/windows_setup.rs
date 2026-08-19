@@ -167,7 +167,7 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut("{startup_dir}\jcode-hotkey.lnk")
 $shortcut.TargetPath = "wscript.exe"
 $shortcut.Arguments = '"{vbs_path}"'
-$shortcut.Description = "SAITEC-TUI Alt+; hotkey listener"
+$shortcut.Description = "SSC-TUI Alt+; hotkey listener"
 $shortcut.WindowStyle = 7
 $shortcut.Save()
 Write-Output "OK"
@@ -249,7 +249,7 @@ fn nudge_hotkey(state: &mut SetupHintsState) -> bool {
 
     eprintln!("\x1b[36m┌─────────────────────────────────────────────────────────────┐\x1b[0m");
     eprintln!(
-        "\x1b[36m│\x1b[0m \x1b[1m💡 Set up Alt+; to launch SAITEC-TUI from anywhere?\x1b[0m              \x1b[36m│\x1b[0m"
+        "\x1b[36m│\x1b[0m \x1b[1m💡 Set up Alt+; to launch SSC-TUI from anywhere?\x1b[0m              \x1b[36m│\x1b[0m"
     );
     eprintln!(
         "\x1b[36m│\x1b[0m                                                             \x1b[36m│\x1b[0m"
@@ -258,7 +258,7 @@ fn nudge_hotkey(state: &mut SetupHintsState) -> bool {
         "\x1b[36m│\x1b[0m    Creates a global hotkey - no extra software needed.       \x1b[36m│\x1b[0m"
     );
     eprintln!(
-        "\x1b[36m│\x1b[0m    Opens SAITEC-TUI in {:<39}    \x1b[36m│\x1b[0m",
+        "\x1b[36m│\x1b[0m    Opens SSC-TUI in {:<39}    \x1b[36m│\x1b[0m",
         format!("{}.", terminal_name)
     );
     eprintln!(
@@ -281,7 +281,7 @@ fn nudge_hotkey(state: &mut SetupHintsState) -> bool {
                     state.hotkey_configured = true;
                     let _ = state.save();
                     eprintln!(
-                        "  \x1b[32m✓\x1b[0m Created hotkey (\x1b[1mAlt+;\x1b[0m) → {} + SAITEC-TUI",
+                        "  \x1b[32m✓\x1b[0m Created hotkey (\x1b[1mAlt+;\x1b[0m) → {} + SSC-TUI",
                         terminal_name
                     );
                     eprintln!();
@@ -317,7 +317,7 @@ fn nudge_alacritty(state: &mut SetupHintsState) -> bool {
 
     eprintln!("\x1b[36m┌─────────────────────────────────────────────────────────────┐\x1b[0m");
     eprintln!(
-        "\x1b[36m│\x1b[0m \x1b[1m💡 Alacritty: the fastest terminal for SAITEC-TUI\x1b[0m               \x1b[36m│\x1b[0m"
+        "\x1b[36m│\x1b[0m \x1b[1m💡 Alacritty: the fastest terminal for SSC-TUI\x1b[0m               \x1b[36m│\x1b[0m"
     );
     eprintln!(
         "\x1b[36m│\x1b[0m                                                             \x1b[36m│\x1b[0m"
@@ -364,7 +364,7 @@ fn nudge_alacritty(state: &mut SetupHintsState) -> bool {
                         match create_hotkey_shortcut(true) {
                             Ok(()) => {
                                 eprintln!(
-                                    "  \x1b[32m✓\x1b[0m Hotkey updated: \x1b[1mAlt+;\x1b[0m → Alacritty + SAITEC-TUI"
+                                    "  \x1b[32m✓\x1b[0m Hotkey updated: \x1b[1mAlt+;\x1b[0m → Alacritty + SSC-TUI"
                                 );
                             }
                             Err(e) => {
@@ -401,7 +401,7 @@ fn prompt_try_it_out(installed_alacritty: bool) {
         "\x1b[32m│\x1b[0m                                                             \x1b[32m│\x1b[0m"
     );
     eprintln!(
-        "\x1b[32m│\x1b[0m    Press \x1b[1mAlt+;\x1b[0m from anywhere to launch SAITEC-TUI.                \x1b[32m│\x1b[0m"
+        "\x1b[32m│\x1b[0m    Press \x1b[1mAlt+;\x1b[0m from anywhere to launch SSC-TUI.                \x1b[32m│\x1b[0m"
     );
     if installed_alacritty {
         eprintln!(
@@ -412,7 +412,7 @@ fn prompt_try_it_out(installed_alacritty: bool) {
         "\x1b[32m│\x1b[0m                                                             \x1b[32m│\x1b[0m"
     );
     eprintln!(
-        "\x1b[32m│\x1b[0m    \x1b[90m(Starting SAITEC-TUI normally in 3 seconds...)\x1b[0m                 \x1b[32m│\x1b[0m"
+        "\x1b[32m│\x1b[0m    \x1b[90m(Starting SSC-TUI normally in 3 seconds...)\x1b[0m                 \x1b[32m│\x1b[0m"
     );
     eprintln!("\x1b[32m└─────────────────────────────────────────────────────────────┘\x1b[0m");
     eprintln!();
@@ -518,7 +518,7 @@ pub(super) fn run_setup_hotkey_windows() -> Result<()> {
     };
 
     eprintln!(
-        "  Setting up \x1b[1mAlt+;\x1b[0m → {} + SAITEC-TUI...",
+        "  Setting up \x1b[1mAlt+;\x1b[0m → {} + SSC-TUI...",
         terminal_name
     );
 
@@ -558,7 +558,7 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut("{shortcut_path}")
 $shortcut.TargetPath = "{target}"
 $shortcut.Arguments = '{args}'
-$shortcut.Description = "SAITEC-TUI - AI Evaluation & Detection Terminal"
+$shortcut.Description = "SSC-TUI - AI Evaluation & Detection Terminal"
 $shortcut.Save()
 Write-Output "OK"
 "#,

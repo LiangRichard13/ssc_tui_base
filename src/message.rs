@@ -27,7 +27,7 @@ fn compile_static_regex(pattern: &str) -> Option<Regex> {
     match Regex::new(pattern) {
         Ok(regex) => Some(regex),
         Err(err) => {
-            eprintln!("SAITEC-TUI: failed to compile static regex: {err}");
+            eprintln!("SSC-TUI: failed to compile static regex: {err}");
             None
         }
     }
@@ -244,7 +244,7 @@ pub fn generated_image_visual_context_blocks(
     let media_type = generated_image_media_type(path_ref, output_format).to_string();
     let data_b64 = base64::engine::general_purpose::STANDARD.encode(data);
     let mut reminder = format!(
-        "<system-reminder>\nA provider-native image generation call created `{}`. SAITEC-TUI attached the image pixels as visual context for future turns because the active provider supports image input and the file is under the safe {} MB limit.\nFormat: {}",
+        "<system-reminder>\nA provider-native image generation call created `{}`. SSC-TUI attached the image pixels as visual context for future turns because the active provider supports image input and the file is under the safe {} MB limit.\nFormat: {}",
         path,
         GENERATED_IMAGE_MAX_AUTO_VISION_BYTES / 1024 / 1024,
         output_format,

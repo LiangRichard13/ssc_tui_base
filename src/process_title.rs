@@ -1,7 +1,7 @@
 use crate::cli::args::{AmbientCommand, Args, Command};
 
 const LINUX_PROCESS_TITLE_LIMIT: usize = 15;
-const KILLALL_PROCESS_NAME: &str = "saitec-tui";
+const KILLALL_PROCESS_NAME: &str = "ssc-tui";
 
 fn compact_process_title(prefix: &str, name: Option<&str>) -> String {
     let mut title = prefix.to_string();
@@ -82,7 +82,7 @@ fn set_killall_process_name() {
 }
 
 pub(crate) fn set_server_title(server_name: &str) {
-    set_title(compact_process_title("saitec-tui:s:", Some(server_name)));
+    set_title(compact_process_title("ssc-tui:s:", Some(server_name)));
 }
 
 pub(crate) fn set_client_generic_title(is_selfdev: bool) {
@@ -118,43 +118,43 @@ pub(crate) fn set_client_remote_display_title(
 
 pub(crate) fn initial_title(args: &Args) -> String {
     match &args.command {
-        Some(Command::Serve { .. }) => "saitec-tui:server".to_string(),
-        Some(Command::Connect) => "saitec-tui:client".to_string(),
-        Some(Command::Run { .. }) => "saitec-tui run".to_string(),
-        Some(Command::Login { .. }) => "saitec-tui login".to_string(),
-        Some(Command::Repl) => "saitec-tui repl".to_string(),
-        Some(Command::Update) => "saitec-tui update".to_string(),
-        Some(Command::Version { .. }) => "saitec-tui version".to_string(),
-        Some(Command::Usage { .. }) => "saitec-tui usage".to_string(),
+        Some(Command::Serve { .. }) => "ssc-tui:server".to_string(),
+        Some(Command::Connect) => "ssc-tui:client".to_string(),
+        Some(Command::Run { .. }) => "ssc-tui run".to_string(),
+        Some(Command::Login { .. }) => "ssc-tui login".to_string(),
+        Some(Command::Repl) => "ssc-tui repl".to_string(),
+        Some(Command::Update) => "ssc-tui update".to_string(),
+        Some(Command::Version { .. }) => "ssc-tui version".to_string(),
+        Some(Command::Usage { .. }) => "ssc-tui usage".to_string(),
         Some(Command::SelfDev { .. }) => "stui:selfdev".to_string(),
-        Some(Command::Debug { .. }) => "saitec-tui debug".to_string(),
-        Some(Command::Auth(_)) => "saitec-tui auth".to_string(),
-        Some(Command::Provider(_)) => "saitec-tui provider".to_string(),
-        Some(Command::Memory(_)) => "saitec-tui memory".to_string(),
-        Some(Command::Session(_)) => "saitec-tui session".to_string(),
+        Some(Command::Debug { .. }) => "ssc-tui debug".to_string(),
+        Some(Command::Auth(_)) => "ssc-tui auth".to_string(),
+        Some(Command::Provider(_)) => "ssc-tui provider".to_string(),
+        Some(Command::Memory(_)) => "ssc-tui memory".to_string(),
+        Some(Command::Session(_)) => "ssc-tui session".to_string(),
         Some(Command::Ambient(subcommand)) => match subcommand {
-            AmbientCommand::RunVisible => "saitec-tui ambient visible".to_string(),
-            _ => "saitec-tui ambient".to_string(),
+            AmbientCommand::RunVisible => "ssc-tui ambient visible".to_string(),
+            _ => "ssc-tui ambient".to_string(),
         },
-        Some(Command::Pair { .. }) => "saitec-tui pair".to_string(),
-        Some(Command::Permissions) => "saitec-tui permissions".to_string(),
-        Some(Command::Transcript { .. }) => "saitec-tui transcript".to_string(),
-        Some(Command::Dictate { .. }) => "saitec-tui dictate".to_string(),
+        Some(Command::Pair { .. }) => "ssc-tui pair".to_string(),
+        Some(Command::Permissions) => "ssc-tui permissions".to_string(),
+        Some(Command::Transcript { .. }) => "ssc-tui transcript".to_string(),
+        Some(Command::Dictate { .. }) => "ssc-tui dictate".to_string(),
         Some(Command::SetupHotkey {
             listen_macos_hotkey,
         }) => {
             if *listen_macos_hotkey {
-                "saitec-tui hotkey listener".to_string()
+                "ssc-tui hotkey listener".to_string()
             } else {
-                "saitec-tui hotkey setup".to_string()
+                "ssc-tui hotkey setup".to_string()
             }
         }
-        Some(Command::Browser { .. }) => "saitec-tui browser".to_string(),
-        Some(Command::Replay { .. }) => "saitec-tui replay".to_string(),
-        Some(Command::Model(_)) => "saitec-tui model".to_string(),
-        Some(Command::AuthTest { .. }) => "saitec-tui auth-test".to_string(),
-        Some(Command::Restart { .. }) => "saitec-tui restart".to_string(),
-        Some(Command::SetupLauncher) => "saitec-tui setup-launcher".to_string(),
+        Some(Command::Browser { .. }) => "ssc-tui browser".to_string(),
+        Some(Command::Replay { .. }) => "ssc-tui replay".to_string(),
+        Some(Command::Model(_)) => "ssc-tui model".to_string(),
+        Some(Command::AuthTest { .. }) => "ssc-tui auth-test".to_string(),
+        Some(Command::Restart { .. }) => "ssc-tui restart".to_string(),
+        Some(Command::SetupLauncher) => "ssc-tui setup-launcher".to_string(),
         None => {
             if let Some(resume) = args.resume.as_deref().filter(|resume| !resume.is_empty()) {
                 let prefix = if crate::cli::selfdev::client_selfdev_requested() {
@@ -200,7 +200,7 @@ mod tests {
     fn initial_title_labels_server() {
         with_selfdev_env_removed(|| {
             let args = Args::parse_from(["jcode", "serve"]);
-            assert_eq!(initial_title(&args), "saitec-tui:server");
+            assert_eq!(initial_title(&args), "ssc-tui:server");
         });
     }
 

@@ -1,11 +1,11 @@
 use crate::provider_catalog;
 
-pub const JCODE_API_KEY_ENV: &str = "SAITEC_API_KEY";
-pub const JCODE_API_BASE_ENV: &str = "SAITEC_API_BASE";
-pub const JCODE_ENV_FILE: &str = "saitec.env";
+pub const JCODE_API_KEY_ENV: &str = "JCODE_API_KEY";
+pub const JCODE_API_BASE_ENV: &str = "JCODE_API_BASE";
+pub const JCODE_ENV_FILE: &str = "jcode.env";
 pub const JCODE_CACHE_NAMESPACE: &str = "jcode-subscription";
 pub const JCODE_SUBSCRIPTION_ACTIVE_ENV: &str = "JCODE_SUBSCRIPTION_ACTIVE";
-pub const DEFAULT_JCODE_API_BASE: &str = "https://api.saitec.local/v1";
+pub const DEFAULT_JCODE_API_BASE: &str = "https://openrouter.ai/api/v1";
 
 const HEALER_ALPHA_PROVIDERS: &[&str] = &["Stealth"];
 
@@ -134,10 +134,10 @@ pub fn is_curated_model(model: &str) -> bool {
 pub fn routing_policy_detail(model: &CuratedModel) -> String {
     match model.routing_policy {
         UpstreamRoutingPolicy::CacheCapableOnly => {
-            "SAITEC-TUI subscription routing · cache-capable upstreams only".to_string()
+            "SSC-TUI subscription routing · cache-capable upstreams only".to_string()
         }
         UpstreamRoutingPolicy::ProviderAllowlist(providers) => format!(
-            "SAITEC-TUI subscription routing · curated upstream: {}",
+            "SSC-TUI subscription routing · curated upstream: {}",
             providers.join(", ")
         ),
     }

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 saitec-tui";
+const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 static AMBIENT_INFO_CACHE: Mutex<
     Option<(std::time::Instant, bool, Option<AmbientWidgetData>, bool)>,

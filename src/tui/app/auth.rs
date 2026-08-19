@@ -288,7 +288,7 @@ impl App {
                 "logout-saitec",
                 "Log out SAITEC",
                 "Log out SAITEC",
-                "clear ~/.saitec_tui/auth.json and the stored SAITEC API key",
+                "clear ~/.jcode/auth.json and the stored SAITEC API key",
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(
                     "/logout jcode --confirm".to_string(),
                 ),
@@ -505,12 +505,12 @@ impl App {
             );
             if let Some(target) = callback_target {
                 notices.push(format!(
-                    "Local callback target `{}` is unavailable, so SAITEC-TUI is using manual-safe paste completion instead.",
+                    "Local callback target `{}` is unavailable, so SSC-TUI is using manual-safe paste completion instead.",
                     target
                 ));
             } else {
                 notices.push(
-                    "The local callback listener is unavailable, so SAITEC-TUI is using manual-safe paste completion instead."
+                    "The local callback listener is unavailable, so SSC-TUI is using manual-safe paste completion instead."
                         .to_string(),
                 );
             }
@@ -1421,7 +1421,7 @@ impl App {
             "**Cursor API Key**\n\n\
              Get your API key from: https://cursor.com/settings\n\
              (Dashboard > Integrations > User API Keys)\n\n\
-             SAITEC-TUI will save it securely and use the native Cursor HTTPS transport.\n\n\
+             SSC-TUI will save it securely and use the native Cursor HTTPS transport.\n\n\
              **Paste your API key below**, or use Up/Down to select Validate or Cancel."
                 .to_string(),
         ));
@@ -2120,10 +2120,10 @@ impl App {
                             )
                         } else if let Some(resolved) = resolved_openai_compatible.as_ref() {
                             if resolved.requires_api_key {
-                                "Fetching models now. SAITEC-TUI will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.".to_string()
+                                "Fetching models now. SSC-TUI will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.".to_string()
                             } else {
                                 format!(
-                                    "Local endpoint configured at `{}`. Fetching models now; SAITEC-TUI will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.",
+                                    "Local endpoint configured at `{}`. Fetching models now; SSC-TUI will switch to an accessible model in the background. If you want to browse models afterward, open `/model`. If the model list looks stale, run `/refresh-model-list`.",
                                     endpoint.as_deref().unwrap_or(resolved.api_base.as_str()),
                                 )
                             }
@@ -2262,7 +2262,7 @@ impl App {
                             success: true,
                             message: "**Cursor API key saved.**\n\n\
                              Stored at `~/.config/jcode/cursor.env`.\n\
-                             SAITEC-TUI will use it with the native Cursor HTTPS transport."
+                             SSC-TUI will use it with the native Cursor HTTPS transport."
                                 .to_string(),
                         }));
                     }
@@ -2503,7 +2503,7 @@ impl App {
                                             session_id,
                                             model: default_model.clone(),
                                             message: format!(
-                                                "**{} is ready.**\n\nThe live model catalog did not produce a selectable route yet, so SAITEC-TUI selected the documented default `{}`. Open `/model` if you want to inspect the current choices, or run `/refresh-model-list` later to retry live discovery.",
+                                                "**{} is ready.**\n\nThe live model catalog did not produce a selectable route yet, so SSC-TUI selected the documented default `{}`. Open `/model` if you want to inspect the current choices, or run `/refresh-model-list` later to retry live discovery.",
                                                 provider_label,
                                                 default_model
                                             ),
@@ -2674,7 +2674,7 @@ impl App {
                             SaitecLoginField::Password
                         };
                         form.error = Some(message);
-                        self.set_status_notice("Login: SAITEC-TUI failed");
+                        self.set_status_notice("Login: SSC-TUI failed");
                         self.stage_saitec_form(form);
                         self.sync_input_with_pending_saitec_form();
                     }

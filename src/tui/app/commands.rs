@@ -690,7 +690,7 @@ fn handle_subagent_model_command(app: &mut App, trimmed: &str) -> bool {
 
     if app.is_remote {
         app.push_display_message(DisplayMessage::error(
-            "`/subagent-model` requires a live SAITEC-TUI server connection in remote mode."
+            "`/subagent-model` requires a live SSC-TUI server connection in remote mode."
                 .to_string(),
         ));
         return true;
@@ -737,7 +737,7 @@ fn handle_subagent_command(app: &mut App, trimmed: &str) -> bool {
 
     if app.is_remote {
         app.push_display_message(DisplayMessage::error(
-            "`/subagent` requires a live SAITEC-TUI server connection in remote mode.".to_string(),
+            "`/subagent` requires a live SSC-TUI server connection in remote mode.".to_string(),
         ));
         return true;
     }
@@ -973,7 +973,7 @@ fn git_command_repo_dir(app: &App) -> Result<PathBuf, String> {
         }
 
         return Err(format!(
-            "Unable to run `/git`: session working directory `{}` is not accessible from this SAITEC-TUI client.",
+            "Unable to run `/git`: session working directory `{}` is not accessible from this SSC-TUI client.",
             path.display()
         ));
     }
@@ -1766,7 +1766,7 @@ fn handle_selfdev_command(app: &mut App, trimmed: &str) -> bool {
 
     if rest == "help" {
         app.push_display_message(DisplayMessage::system(
-            "`/selfdev`\nSpawn a new self-dev SAITEC-TUI session in a separate terminal.\n\n`/selfdev <prompt>`\nSpawn a new self-dev session and auto-deliver the prompt to it.\n\n`/selfdev status`\nShow current self-dev/build status."
+            "`/selfdev`\nSpawn a new self-dev SSC-TUI session in a separate terminal.\n\n`/selfdev <prompt>`\nSpawn a new self-dev session and auto-deliver the prompt to it.\n\n`/selfdev status`\nShow current self-dev/build status."
                 .to_string(),
         ));
         return true;
@@ -1974,7 +1974,7 @@ pub(super) fn handle_dictation_command(app: &mut App, trimmed: &str) -> bool {
 
     if trimmed.starts_with("/dictate ") || trimmed.starts_with("/dictation ") {
         app.push_display_message(DisplayMessage::error(
-            "Usage: `/dictate`\nConfigure `[dictation]` in `~/.saitec_tui/config.toml` to customize command, mode, hotkey, and timeout."
+            "Usage: `/dictate`\nConfigure `[dictation]` in `~/.jcode/config.toml` to customize command, mode, hotkey, and timeout."
                 .to_string(),
         ));
         return true;
@@ -2298,7 +2298,7 @@ pub(super) fn handle_config_command(app: &mut App, trimmed: &str) -> bool {
             app.push_display_message(DisplayMessage {
                 role: "system".to_string(),
                 content: format!(
-                    "Opening config in editor...\n`{} {}`\n\n*Restart SAITEC-TUI after editing for changes to take effect.*",
+                    "Opening config in editor...\n`{} {}`\n\n*Restart SSC-TUI after editing for changes to take effect.*",
                     editor,
                     path.display()
                 ),

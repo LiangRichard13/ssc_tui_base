@@ -1036,7 +1036,7 @@ fn test_saitec_model_command_rejects_generic_openrouter_model() {
         .last()
         .expect("missing error message");
     assert_eq!(last.role, "error");
-    assert!(last.content.contains("SAITEC-TUI"));
+    assert!(last.content.contains("SSC-TUI"));
 }
 
 #[test]
