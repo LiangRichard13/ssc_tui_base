@@ -164,45 +164,6 @@ impl Provider for CountingModelRoutesProvider {
 }
 
 #[test]
-fn test_logged_out_model_picker_filters_copilot_named_provider_after_logout() {
-    with_temp_jcode_home(|| {
-        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
-            auth_token: None,
-            api_key: "sk-test".to_string(),
-            token_type: "Bearer".to_string(),
-            user_id: Some("user-1".to_string()),
-            email: None,
-            phone: None,
-            display_name: None,
-            api_key_id: None,
-            api_key_name: None,
-            api_key_created_at: None,
-            api_key_expires_at: None,
-            last_validated_at: None,
-        })
-        .expect("save logged-in SAITEC session");
-        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
-
-        let provider: Arc<dyn Provider> =
-            Arc::new(UnfilteredSaitecModelProvider { name: "Copilot" });
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
-        let mut app = App::new_for_test_harness(provider, registry);
-        app.queue_mode = false;
-        app.diff_mode = crate::config::DiffDisplayMode::Inline;
-
-        app.open_model_picker();
-        wait_for_model_picker_load(&mut app);
-
-        assert!(
-            app.inline_interactive_state.is_none(),
-            "logged-out /model should hide unvalidated model routes"
-        );
-        assert_eq!(app.status_notice(), Some("No models available".to_string()));
-    });
-}
-
-#[test]
 fn test_subscription_model_provider_suggestions_hide_openrouter_pins() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::apply_runtime_env();
@@ -222,7 +183,6 @@ fn test_subscription_model_provider_suggestions_hide_openrouter_pins() {
 #[test]
 fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
     with_temp_jcode_home(|| {
-        save_test_saitec_session();
         crate::subscription_catalog::apply_runtime_env();
 
         let mut app = create_test_app();
@@ -288,7 +248,6 @@ fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
 fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_subscription_runtime()
 {
     with_temp_jcode_home(|| {
-        save_test_saitec_session();
         crate::subscription_catalog::clear_runtime_env();
         save_test_provider_validation("openai", &["gpt-5.5"]);
 
@@ -349,226 +308,6 @@ fn test_remote_model_picker_hides_openrouter_routed_provider_options_without_sub
             }),
             "non-subscription /model Provider column leaked OpenRouter-routed options: {route_text:?}"
         );
-    });
-}
-
-#[test]
-fn test_remote_logged_out_model_picker_filters_openrouter_catalog_after_logout() {
-    with_temp_jcode_home(|| {
-        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
-            auth_token: None,
-            api_key: "sk-test".to_string(),
-            token_type: "Bearer".to_string(),
-            user_id: Some("user-1".to_string()),
-            email: None,
-            phone: None,
-            display_name: None,
-            api_key_id: None,
-            api_key_name: None,
-            api_key_created_at: None,
-            api_key_expires_at: None,
-            last_validated_at: None,
-        })
-        .expect("save logged-in SAITEC session");
-        crate::auth::validation::save(
-            "kimi",
-            crate::auth::validation::ProviderValidationRecord {
-                checked_at_ms: chrono::Utc::now().timestamp_millis(),
-                success: true,
-                provider_smoke_ok: Some(true),
-                tool_smoke_ok: Some(true),
-                validated_models: vec!["kimi-for-coding".to_string()],
-                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
-            },
-        )
-        .expect("save previous Kimi validation");
-        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
-
-        let mut app = App::new_for_remote(Some("remote-session".to_string()));
-        app.remote_provider_name = Some("openrouter".to_string());
-        app.remote_provider_model = Some("openai/gpt-5.4".to_string());
-        app.remote_available_entries = vec![
-            "openai/gpt-5.4".to_string(),
-            "anthropic/claude-sonnet-4".to_string(),
-        ];
-        app.remote_model_options = vec![
-            crate::provider::ModelRoute {
-                model: "openai/gpt-5.4".to_string(),
-                provider: "OpenRouter".to_string(),
-                api_method: "openrouter".to_string(),
-                available: true,
-                detail: String::new(),
-                cheapness: None,
-            },
-            crate::provider::ModelRoute {
-                model: "kimi-for-coding".to_string(),
-                provider: "Kimi Code".to_string(),
-                api_method: "openai-compatible:kimi".to_string(),
-                available: true,
-                detail: String::new(),
-                cheapness: None,
-            },
-        ];
-
-        app.open_model_picker();
-
-        let picker = app
-            .inline_interactive_state
-            .as_ref()
-            .expect("model picker should be open");
-        let names: Vec<&str> = picker
-            .entries
-            .iter()
-            .map(|entry| entry.name.as_str())
-            .collect();
-
-        assert!(!names.contains(&"DeepSeek V4 Pro"));
-        assert!(!names.contains(&"Kimi K2.5"));
-        assert!(!names.contains(&"openai/gpt-5.4"));
-        assert!(!names.contains(&"anthropic/claude-sonnet-4"));
-        assert!(names.contains(&"kimi-for-coding"));
-        assert!(
-            names
-                .iter()
-                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
-            "remote logged-out /model leaked OpenRouter model names: {names:?}"
-        );
-        assert!(
-            names.iter().all(|name| *name == "kimi-for-coding"),
-            "remote logged-out /model should only show validated routes: {names:?}"
-        );
-    });
-}
-
-#[test]
-fn test_remote_logged_out_model_picker_filters_openai_compatible_catalog_after_logout() {
-    with_temp_jcode_home(|| {
-        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
-            auth_token: None,
-            api_key: "sk-test".to_string(),
-            token_type: "Bearer".to_string(),
-            user_id: Some("user-1".to_string()),
-            email: None,
-            phone: None,
-            display_name: None,
-            api_key_id: None,
-            api_key_name: None,
-            api_key_created_at: None,
-            api_key_expires_at: None,
-            last_validated_at: None,
-        })
-        .expect("save logged-in SAITEC session");
-        crate::auth::validation::save(
-            "kimi",
-            crate::auth::validation::ProviderValidationRecord {
-                checked_at_ms: chrono::Utc::now().timestamp_millis(),
-                success: true,
-                provider_smoke_ok: Some(true),
-                tool_smoke_ok: Some(true),
-                validated_models: vec!["kimi-for-coding".to_string()],
-                summary: "tool_smoke: AUTH_TEST_OK".to_string(),
-            },
-        )
-        .expect("save previous Kimi validation");
-        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
-
-        let mut app = App::new_for_remote(Some("remote-session".to_string()));
-        app.remote_provider_name = Some("OpenAI-compatible".to_string());
-        app.remote_provider_model = Some("openai/gpt-5.4".to_string());
-        app.remote_available_entries = vec![
-            "openai/gpt-5.4".to_string(),
-            "anthropic/claude-sonnet-4".to_string(),
-        ];
-        app.remote_model_options = vec![
-            crate::provider::ModelRoute {
-                model: "openai/gpt-5.4".to_string(),
-                provider: "OpenRouter".to_string(),
-                api_method: "openrouter".to_string(),
-                available: true,
-                detail: String::new(),
-                cheapness: None,
-            },
-            crate::provider::ModelRoute {
-                model: "kimi-for-coding".to_string(),
-                provider: "Kimi Code".to_string(),
-                api_method: "openai-compatible:kimi".to_string(),
-                available: true,
-                detail: String::new(),
-                cheapness: None,
-            },
-        ];
-
-        app.open_model_picker();
-
-        let picker = app
-            .inline_interactive_state
-            .as_ref()
-            .expect("model picker should be open");
-        let names: Vec<&str> = picker
-            .entries
-            .iter()
-            .map(|entry| entry.name.as_str())
-            .collect();
-
-        assert!(!names.contains(&"DeepSeek V4 Pro"));
-        assert!(!names.contains(&"Kimi K2.5"));
-        assert!(!names.contains(&"openai/gpt-5.4"));
-        assert!(!names.contains(&"anthropic/claude-sonnet-4"));
-        assert!(names.contains(&"kimi-for-coding"));
-        assert!(
-            names
-                .iter()
-                .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
-            "remote logged-out /model leaked OpenRouter model names: {names:?}"
-        );
-        assert!(
-            names.iter().all(|name| *name == "kimi-for-coding"),
-            "remote logged-out /model should only show validated routes: {names:?}"
-        );
-    });
-}
-
-#[test]
-fn test_logged_out_model_picker_hides_unvalidated_saitec_curated_models() {
-    with_temp_jcode_home(|| {
-        crate::saitec::auth::save_session(&crate::saitec::auth::SaitecSession {
-            auth_token: None,
-            api_key: "sk-test".to_string(),
-            token_type: "Bearer".to_string(),
-            user_id: Some("user-1".to_string()),
-            email: None,
-            phone: None,
-            display_name: None,
-            api_key_id: None,
-            api_key_name: None,
-            api_key_created_at: None,
-            api_key_expires_at: None,
-            last_validated_at: None,
-        })
-        .expect("save logged-in SAITEC session");
-        crate::saitec::auth::clear_session().expect("simulate SAITEC logout");
-
-        let provider: Arc<dyn Provider> =
-            Arc::new(UnfilteredSaitecModelProvider { name: "OpenAI" });
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let registry = rt.block_on(crate::tool::Registry::new(provider.clone()));
-        let mut app = App::new_for_test_harness(provider, registry);
-        app.queue_mode = false;
-        app.diff_mode = crate::config::DiffDisplayMode::Inline;
-
-        for c in "/model".chars() {
-            app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
-                .unwrap();
-        }
-        app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-            .unwrap();
-        wait_for_model_picker_load(&mut app);
-
-        assert!(
-            app.inline_interactive_state.is_none(),
-            "logged-out /model should not show unvalidated curated models"
-        );
-        assert_eq!(app.status_notice(), Some("No models available".to_string()));
     });
 }
 
@@ -822,7 +561,6 @@ fn test_login_completed_surfaces_new_provider_models_in_local_model_picker() {
 fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         app.open_model_picker();
@@ -849,7 +587,6 @@ fn test_local_model_picker_surfaces_antigravity_models_from_multiprovider() {
 fn test_local_antigravity_model_picker_selection_preserves_antigravity_provider() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         app.open_model_picker();
@@ -1143,7 +880,6 @@ fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
 fn test_saitec_model_picker_hides_generic_openrouter_routes() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("kimi", &["kimi-for-coding"]);
         let (mut app, _set_model_calls) = create_named_openrouter_spec_capture_test_app_with_routes(
             "OpenRouter",
@@ -1319,7 +1055,6 @@ fn test_agent_model_picker_hides_openrouter_bare_openai_route() {
 fn test_local_model_picker_render_shows_antigravity_models_exactly_as_user_sees_them() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("antigravity", &["claude-sonnet-4-6", "gpt-oss-120b-medium"]);
         let mut app = create_antigravity_picker_test_app();
         let text = render_model_picker_text(&mut app, 90, 24);

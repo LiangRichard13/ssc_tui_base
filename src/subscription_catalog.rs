@@ -201,24 +201,6 @@ pub fn clear_runtime_env() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::saitec::auth::SaitecSession;
-
-    fn sample_session(api_key: &str) -> SaitecSession {
-        SaitecSession {
-            auth_token: None,
-            api_key: api_key.to_string(),
-            token_type: "Bearer".to_string(),
-            user_id: Some("mock-user".to_string()),
-            email: None,
-            phone: None,
-            display_name: None,
-            api_key_id: None,
-            api_key_name: None,
-            api_key_created_at: None,
-            api_key_expires_at: None,
-            last_validated_at: None,
-        }
-    }
 
     #[test]
     fn curated_model_aliases_resolve_to_canonical_ids() {
@@ -274,65 +256,10 @@ mod tests {
         assert!(!is_runtime_mode_enabled());
     }
 
-    #[test]
-    fn configured_api_key_ignores_stored_session_when_env_bridge_missing() {
-        let _guard = crate::storage::lock_test_env();
-        let temp = tempfile::tempdir().expect("tempdir");
-        let previous_home = std::env::var_os("JCODE_HOME");
-        let previous_api_key = std::env::var_os(JCODE_API_KEY_ENV);
-
-        crate::env::set_var("JCODE_HOME", temp.path());
-        crate::env::remove_var(JCODE_API_KEY_ENV);
-
-        crate::saitec::auth::save_session(&sample_session("sk-session-only"))
-            .expect("save session");
-        crate::saitec::auth::clear_session().expect("clear session bridge state");
-        crate::storage::write_json_secret(
-            &crate::saitec::paths::auth_file().expect("auth path"),
-            &sample_session("sk-session-only"),
-        )
-        .expect("rewrite auth file without env bridge");
-
-        assert_eq!(configured_api_key(), None);
-
-        if let Some(previous_home) = previous_home {
-            crate::env::set_var("JCODE_HOME", previous_home);
-        } else {
-            crate::env::remove_var("JCODE_HOME");
-        }
-        if let Some(previous_api_key) = previous_api_key {
-            crate::env::set_var(JCODE_API_KEY_ENV, previous_api_key);
-        } else {
-            crate::env::remove_var(JCODE_API_KEY_ENV);
-        }
-    }
-
-    #[test]
-    fn configured_api_key_prefers_env_bridge_over_stale_session_file() {
-        let _guard = crate::storage::lock_test_env();
-        let temp = tempfile::tempdir().expect("tempdir");
-        let previous_home = std::env::var_os("JCODE_HOME");
-        let previous_api_key = std::env::var_os(JCODE_API_KEY_ENV);
-
-        crate::env::set_var("JCODE_HOME", temp.path());
-        crate::env::set_var(JCODE_API_KEY_ENV, "sk-env-override");
-        crate::storage::write_json_secret(
-            &crate::saitec::paths::auth_file().expect("auth path"),
-            &sample_session("sk-stale-session"),
-        )
-        .expect("write stale auth file");
-
-        assert_eq!(configured_api_key().as_deref(), Some("sk-env-override"));
-
-        if let Some(previous_home) = previous_home {
-            crate::env::set_var("JCODE_HOME", previous_home);
-        } else {
-            crate::env::remove_var("JCODE_HOME");
-        }
-        if let Some(previous_api_key) = previous_api_key {
-            crate::env::set_var(JCODE_API_KEY_ENV, previous_api_key);
-        } else {
-            crate::env::remove_var(JCODE_API_KEY_ENV);
-        }
-    }
+    // Stage 2D (chore/ssc-tui-baseline): the two SAITEC session-file bridge
+    // tests (configured_api_key_ignores_stored_session_when_env_bridge_missing
+    // and configured_api_key_prefers_env_bridge_over_stale_session_file) are
+    // removed along with src/saitec/ — there is no longer a session file to
+    // bridge against. configured_api_key() itself now only consults the env
+    // bridge and the env file.
 }

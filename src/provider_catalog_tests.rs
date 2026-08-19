@@ -151,29 +151,11 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
     assert!(resolve_login_selection("google", &providers).is_none());
 }
 
-#[test]
-fn baseline_provider_ids_include_canonical_base_models() {
-    // Stage 2B (chore/ssc-tui-baseline): the SAITEC-specific allowlist is
-    // gone; the catalog now exposes its full union. This test pins the
-    // canonical names that the basemodel picker and CLI login both depend
-    // on so any future regression surfaces here.
-    let ids = crate::saitec::product_profile::allowed_base_model_provider_ids();
-    for canonical in ["openai", "claude", "kimi"] {
-        assert!(
-            ids.contains(&canonical),
-            "canonical base-model provider `{canonical}` missing from product_profile::allowed_base_model_provider_ids()"
-        );
-    }
-}
-
-#[test]
-fn saitec_allowlist_accepts_aliases_through_catalog_resolution() {
-    let provider =
-        resolve_login_provider("bailian").expect("bailian alias should resolve through catalog");
-
-    assert_eq!(provider.id, "alibaba-coding-plan");
-    assert!(crate::saitec::product_profile::is_allowed_base_model_provider(provider.id));
-}
+// Stage 2D (chore/ssc-tui-baseline): the two tests that asserted the
+// SAITEC allowlist surface (baseline_provider_ids_include_canonical_base_models
+// and saitec_allowlist_accepts_aliases_through_catalog_resolution) are removed
+// with src/saitec/product_profile.rs. The catalog now has no allowlist to
+// check; the visible list test below still asserts the canonical names appear.
 
 #[test]
 fn baseline_visible_base_model_providers_include_canonical_entries() {

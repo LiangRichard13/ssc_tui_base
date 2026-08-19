@@ -715,7 +715,7 @@ fn saitec_login_overlay_renders_masked_password_over_startup_splash() {
         input: "secret".to_string(),
         cursor_pos: "secret".len(),
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "secret".to_string(),
@@ -752,7 +752,7 @@ fn saitec_login_overlay_hides_live_password_from_startup_prompt() {
         input: "secret-password".to_string(),
         cursor_pos: "secret-password".len(),
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "".to_string(),
@@ -785,7 +785,7 @@ fn saitec_login_overlay_uses_live_input_and_moves_cursor_into_overlay() {
         input: "13900139000".to_string(),
         cursor_pos: "13900139000".len(),
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "".to_string(),
@@ -825,7 +825,7 @@ fn saitec_login_overlay_does_not_render_placeholder_asterisk_for_empty_password(
         input: String::new(),
         cursor_pos: 0,
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "".to_string(),
@@ -861,7 +861,7 @@ fn saitec_login_overlay_wraps_long_error_messages() {
     let long_error = "Saitec login failed: Invalid credentials. Please verify whether the email or phone matches the account and try again with the correct password.".to_string();
     let state = TestState {
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "secret".to_string(),
@@ -908,7 +908,7 @@ fn saitec_login_overlay_stays_visible_after_chat_history_exists() {
     let state = TestState {
         display_messages: vec![DisplayMessage::user("hello")],
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "".to_string(),
@@ -941,7 +941,7 @@ fn saitec_login_overlay_hides_live_password_from_conversation_input() {
         cursor_pos: "secret-password".len(),
         display_messages: vec![DisplayMessage::user("hello")],
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
-            form: crate::saitec::auth::SaitecLoginForm::new(
+            form: crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "".to_string(),

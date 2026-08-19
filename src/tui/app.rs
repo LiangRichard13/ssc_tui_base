@@ -20,7 +20,7 @@ use crate::tool::selfdev::ReloadContext;
 use crate::tool::{Registry, ToolContext};
 use anyhow::Result;
 use auth::PendingLogin;
-pub(crate) use auth::{SaitecLoginField, SaitecPendingForm};
+pub(crate) use auth::{SaitecLoginField, SaitecLoginForm, SaitecPendingForm};
 use crossterm::event::{
     Event, EventStream, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
     MouseEventKind,

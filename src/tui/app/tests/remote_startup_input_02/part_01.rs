@@ -2,7 +2,6 @@
 fn test_model_picker_copilot_selection_prefixes_model() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("copilot", &["grok-code-fast-1"]);
         let mut app = create_test_app();
         configure_test_remote_models_with_copilot(&mut app);
@@ -52,7 +51,6 @@ fn test_model_picker_copilot_selection_prefixes_model() {
 fn test_model_picker_cursor_models_have_cursor_route() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation(
             "cursor",
             &["composer-2-fast", "composer-2", "composer-1.5"],
@@ -88,7 +86,6 @@ fn test_model_picker_cursor_models_have_cursor_route() {
 fn test_model_picker_cursor_selection_prefixes_model() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation(
             "cursor",
             &["composer-2-fast", "composer-2", "composer-1.5"],
@@ -132,7 +129,6 @@ fn test_model_picker_cursor_selection_prefixes_model() {
 fn test_model_picker_bedrock_selection_prefixes_model() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("bedrock", &["amazon.nova-pro-v1:0"]);
         let mut app = create_test_app();
         app.is_remote = true;
@@ -179,7 +175,6 @@ fn test_model_picker_bedrock_selection_prefixes_model() {
 fn test_model_picker_bedrock_arn_selection_prefixes_model() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         let mut app = create_test_app();
         app.is_remote = true;
         let model =
@@ -245,7 +240,6 @@ fn test_remote_fallback_bedrock_arn_does_not_create_openrouter_route() {
 fn test_model_picker_ctrl_d_bedrock_selection_saves_bedrock_default() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("bedrock", &["amazon.nova-pro-v1:0"]);
         let mut app = create_test_app();
         app.is_remote = true;

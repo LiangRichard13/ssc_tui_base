@@ -341,7 +341,7 @@ fn saitec_pending_login_renders_form_fields_and_masked_password() {
     let frame = {
         let mut app = create_test_app();
         app.set_pending_saitec_login_form_for_tests(
-            crate::saitec::auth::SaitecLoginForm::new(
+            crate::tui::app::SaitecLoginForm::new(
                 "user@example.com".to_string(),
                 "".to_string(),
                 "secret".to_string(),

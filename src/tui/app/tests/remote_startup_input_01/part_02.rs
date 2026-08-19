@@ -375,7 +375,6 @@ fn test_model_picker_page_keys_move_selection() {
 fn test_model_picker_copilot_models_have_copilot_route() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("copilot", &["grok-code-fast-1"]);
         let mut app = create_test_app();
         configure_test_remote_models_with_copilot(&mut app);

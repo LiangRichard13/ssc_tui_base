@@ -623,7 +623,6 @@ fn configure_test_remote_models_with_cursor(app: &mut App) {
 fn test_model_picker_includes_copilot_models_in_remote_mode() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("copilot", &["grok-code-fast-1"]);
         let mut app = create_test_app();
         configure_test_remote_models_with_copilot(&mut app);
@@ -656,7 +655,6 @@ fn test_model_picker_includes_copilot_models_in_remote_mode() {
 fn test_available_models_updated_event_surfaces_authed_provider_in_remote_model_picker() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
-        save_test_saitec_session();
         save_test_provider_validation("copilot", &["grok-code-fast-1"]);
         let mut app = create_test_app();
         let rt = tokio::runtime::Runtime::new().unwrap();

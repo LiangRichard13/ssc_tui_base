@@ -80,7 +80,7 @@ impl App {
     pub(crate) fn set_pending_saitec_login_for_tests(&mut self) {
         self.pending_login = Some(super::auth::PendingLogin::SaitecForm {
             form: super::auth::SaitecPendingForm {
-                form: crate::saitec::auth::SaitecLoginForm::new(
+                form: crate::tui::app::auth::SaitecLoginForm::new(
                     "".to_string(),
                     "".to_string(),
                     "".to_string(),
@@ -95,7 +95,7 @@ impl App {
     #[cfg(test)]
     pub(crate) fn set_pending_saitec_login_form_for_tests(
         &mut self,
-        form: crate::saitec::auth::SaitecLoginForm,
+        form: crate::tui::app::auth::SaitecLoginForm,
         focus: super::auth::SaitecLoginField,
         error: Option<String>,
         submitting: bool,

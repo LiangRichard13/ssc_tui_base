@@ -689,7 +689,7 @@ fn saitec_pending_login_tab_and_backtab_commit_and_restore_field_values() {
 fn saitec_pending_login_enter_uses_keyboard_submit_path() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_form_for_tests(
-        crate::saitec::auth::SaitecLoginForm::new(
+        crate::tui::app::auth::SaitecLoginForm::new(
             "user@example.com".to_string(),
             "".to_string(),
             "".to_string(),
@@ -743,7 +743,7 @@ fn saitec_pending_login_escape_closes_form() {
 fn saitec_pending_login_cancel_button_exits_form() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_form_for_tests(
-        crate::saitec::auth::SaitecLoginForm::new(
+        crate::tui::app::auth::SaitecLoginForm::new(
             "user@example.com".to_string(),
             "".to_string(),
             "secret-password".to_string(),
@@ -1155,7 +1155,7 @@ fn saitec_login_success_does_not_refresh_base_model_provider() {
 fn saitec_login_failure_keeps_form_editable_on_password_field() {
     let mut app = create_test_app();
     app.set_pending_saitec_login_form_for_tests(
-        crate::saitec::auth::SaitecLoginForm::new(
+        crate::tui::app::auth::SaitecLoginForm::new(
             "user@example.com".to_string(),
             "".to_string(),
             "secret-password".to_string(),
