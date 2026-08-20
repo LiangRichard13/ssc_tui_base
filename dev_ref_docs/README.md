@@ -1,6 +1,6 @@
-# doc_ref — SAITEC-TUI 架构参考文档
+# doc_ref — SSC-TUI 架构参考文档
 
-本目录是 SAITEC-TUI（根 crate `jcode`）的架构参考文档集，按子系统切分，**一个模块对应一个 md**。
+本目录是 SSC-TUI（根 crate `jcode`）的架构参考文档集，按子系统切分，**一个模块对应一个 md**。
 项目根的 `CLAUDE.md` 仅作目录与索引，引导到此处的各文档；细节描述都在这里。
 
 ## 阅读约定
@@ -23,7 +23,7 @@
 | 06 | [06-auth-login.md](06-auth-login.md) | 两层 Login 架构、OAuth PKCE、AuthStatus 缓存、StartupGuide |
 | 07 | [07-memory.md](07-memory.md) | 跨会话记忆、MemoryGraph、Sidecar、embedding |
 | 08 | [08-storage-session.md](08-storage-session.md) | JSON 持久化、snapshot+journal、崩溃恢复、PID 检测 |
-| 09 | [09-mcp-saitec.md](09-mcp-saitec.md) | MCP JSON-RPC、SharedMcpPool、SAITEC-Skills HTTP 集成 |
+| 09 | [09-mcp.md](09-mcp.md) | MCP JSON-RPC、SharedMcpPool、公共 HTTP transport（用户自配置 `$JCODE_HOME/mcp.json`） |
 | 10 | [10-gateway-transport.md](10-gateway-transport.md) | WebSocket Gateway、Unix socket / Windows Named Pipe 抽象 |
 | 11 | [11-bus-message-protocol.md](11-bus-message-protocol.md) | 事件总线、消息类型、wire protocol（NDJSON） |
 | 12 | [12-workspace-build-ci.md](12-workspace-build-ci.md) | 51-crate workspace、build.rs、CI、budget 脚本 |
@@ -45,7 +45,7 @@
 ## 跨文档线索（按关注点）
 
 - **想理解一个用户请求怎么流转**：01 (CLI 入口) → 04 (Server 分发) → 02 (Agent turn 循环) → 03 (Provider 调用) → 11 (事件回流) → 05 (TUI 渲染)
-- **想理解凭据与登录**：06 (Auth 全景) + 09 (SAITEC 凭据三件套) + 03 (Provider 凭据探测)
+- **想理解凭据与登录**：06 (Auth 全景) + 09 (MCP transport) + 03 (Provider 凭据探测)
 - **想理解持久化与崩溃恢复**：08 (Storage/Session) + 04 (Server durable_state / reload_recovery)
 - **想理解远程客户端（iOS/Web）**：10 (Gateway/Transport) + 11 (Protocol) + 04 (Server accept loop)
 - **想理解多 agent 协作**：04 (swarm*) + 02 (subagent Registry clone) + 11 (SwarmEvent)
