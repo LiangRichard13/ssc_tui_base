@@ -71,7 +71,7 @@ impl SkillRegistry {
     }
 
     /// Import skills from Claude Code and Codex CLI on first run.
-    /// Only runs if ~/.jcode/skills/ doesn't exist yet.
+    /// Only runs if ~/.ssc_tui/skills/ doesn't exist yet.
     fn import_from_external() {
         let jcode_skills = match crate::storage::jcode_dir() {
             Ok(dir) => dir.join("skills"),
@@ -211,7 +211,7 @@ impl SkillRegistry {
 
         let mut registry = Self::default();
 
-        // Load from ~/.jcode/skills/ (jcode's own global skills)
+        // Load from ~/.ssc_tui/skills/ (jcode's own global skills)
         if let Ok(jcode_dir) = crate::storage::jcode_dir() {
             let jcode_skills = jcode_dir.join("skills");
             if jcode_skills.exists() {
@@ -358,7 +358,7 @@ impl SkillRegistry {
 
         let mut count = 0;
 
-        // Load from ~/.jcode/skills/ (jcode's own global skills)
+        // Load from ~/.ssc_tui/skills/ (jcode's own global skills)
         if let Ok(jcode_dir) = crate::storage::jcode_dir() {
             let jcode_skills = jcode_dir.join("skills");
             if jcode_skills.exists() {

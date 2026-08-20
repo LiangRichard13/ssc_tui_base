@@ -99,7 +99,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("paths", nargs="*", help="Specific JSONL files or directories to analyze")
     parser.add_argument(
         "--log-dir",
-        help="Directory containing runtime memory JSONL logs (default: ~/.jcode/logs/memory or $JCODE_HOME/logs/memory)",
+        help="Directory containing runtime memory JSONL logs (default: ~/.ssc_tui/logs/memory or $JCODE_HOME/logs/memory)",
     )
     parser.add_argument("--days", type=int, default=None, help="Only include files from the last N daily logs")
     parser.add_argument("--top", type=int, default=DEFAULT_TOP_N, help="How many spikes/sessions/deltas to show")

@@ -70,7 +70,10 @@ pub fn jcode_dir() -> Result<PathBuf> {
     }
 
     let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("No home directory"))?;
-    Ok(home.join(".jcode"))
+    // Stage 4 (chore/ssc-tui-baseline): the storage root follows the brand,
+    // so ~/.saitec_tui became ~/.ssc_tui (was incorrectly flipped to
+    // ~/.jcode in stage 3).
+    Ok(home.join(".ssc_tui"))
 }
 
 pub fn logs_dir() -> Result<PathBuf> {

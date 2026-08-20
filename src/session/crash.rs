@@ -238,7 +238,7 @@ impl SessionHeader {
 
 /// Find recent crashed sessions for showing resume hints.
 ///
-/// Uses a fast O(n) scan of `~/.jcode/active_pids/` (typically 0-5 files)
+/// Uses a fast O(n) scan of `~/.ssc_tui/active_pids/` (typically 0-5 files)
 /// instead of scanning the full sessions directory (tens of thousands).
 /// Each file in active_pids/ contains a PID; if that PID is dead, the
 /// session crashed. We then load only those specific session files.
@@ -439,7 +439,7 @@ pub(super) fn is_pid_running(pid: u32) -> bool {
 // ---------------------------------------------------------------------------
 // Active PID tracking
 // ---------------------------------------------------------------------------
-// Lightweight files in ~/.jcode/active_pids/<session_id> containing the PID.
+// Lightweight files in ~/.ssc_tui/active_pids/<session_id> containing the PID.
 // Written on mark_active(), removed on mark_closed()/mark_crashed().
 // On startup we only need to scan this tiny directory (usually 0-5 files)
 // instead of the entire sessions/ directory (tens of thousands of files).

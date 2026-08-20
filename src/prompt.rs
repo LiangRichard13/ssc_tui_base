@@ -233,7 +233,7 @@ pub fn build_system_prompt_full(
     info.has_global_agents_md = md_info.has_global_agents_md;
     info.global_agents_md_chars = md_info.global_agents_md_chars;
 
-    // Add optional prompt overlays from ~/.jcode/ and ./.jcode/
+    // Add optional prompt overlays from ~/.ssc_tui/ and ./.jcode/
     let (overlay_content, overlay_chars) = load_prompt_overlay_files_from_dir(working_dir);
     if let Some(content) = overlay_content {
         info.prompt_overlay_chars = overlay_chars;
@@ -309,7 +309,7 @@ pub fn build_system_prompt_split(
     info.has_global_agents_md = md_info.has_global_agents_md;
     info.global_agents_md_chars = md_info.global_agents_md_chars;
 
-    // Add optional prompt overlays from ~/.jcode/ and ./.jcode/
+    // Add optional prompt overlays from ~/.ssc_tui/ and ./.jcode/
     let (overlay_content, overlay_chars) = load_prompt_overlay_files_from_dir(working_dir);
     if let Some(content) = overlay_content {
         info.prompt_overlay_chars = overlay_chars;
@@ -611,7 +611,7 @@ pub fn load_agents_md_files_from_dir(working_dir: Option<&Path>) -> (Option<Stri
     }
 }
 
-/// Load optional prompt overlay markdown from ~/.jcode/ and ./.jcode/
+/// Load optional prompt overlay markdown from ~/.ssc_tui/ and ./.jcode/
 fn load_prompt_overlay_files_from_dir(working_dir: Option<&Path>) -> (Option<String>, usize) {
     let mut contents = vec![];
     let mut total_chars = 0usize;
@@ -640,7 +640,7 @@ fn load_prompt_overlay_files_from_dir(working_dir: Option<&Path>) -> (Option<Str
     if let Ok(global_overlay) = crate::storage::jcode_dir().map(|dir| dir.join("prompt-overlay.md"))
         && let Some((content, size)) = load_file(
             &global_overlay,
-            "Global Prompt Overlay (~/.jcode/prompt-overlay.md)",
+            "Global Prompt Overlay (~/.ssc_tui/prompt-overlay.md)",
         )
     {
         total_chars += size;

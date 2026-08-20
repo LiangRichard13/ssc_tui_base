@@ -18,7 +18,7 @@ impl App {
     }
 
     fn failover_config_hint() -> &'static str {
-        "To turn this off, set `[provider].cross_provider_failover = \"manual\"` in `~/.jcode/config.toml` or export `JCODE_CROSS_PROVIDER_FAILOVER=manual`."
+        "To turn this off, set `[provider].cross_provider_failover = \"manual\"` in `~/.ssc_tui/config.toml` or export `JCODE_CROSS_PROVIDER_FAILOVER=manual`."
     }
 
     fn apply_provider_switch_for_failover(

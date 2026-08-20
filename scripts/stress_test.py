@@ -142,7 +142,7 @@ if not os.path.exists(MAIN_SOCK):
 
 if not os.path.exists(DEBUG_SOCK):
     print_err(f"No debug socket at {DEBUG_SOCK}")
-    print("  Enable with: touch ~/.jcode/debug_control")
+    print("  Enable with: touch ~/.ssc_tui/debug_control")
     sys.exit(1)
 
 # Test connectivity

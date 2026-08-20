@@ -162,7 +162,7 @@ fn macos_launcher_script(terminal: MacTerminalKind, exe_path: &str, app_dir: &Pa
         exe_path
     ));
     let terminal_failure_message = escape_applescript_text(&format!(
-        "SSC-TUI could not open {}.\n\nTry rerunning:\njcode setup-launcher\n\nLauncher log:\n~/.jcode/launcher/macos-launcher.log",
+        "SSC-TUI could not open {}.\n\nTry rerunning:\njcode setup-launcher\n\nLauncher log:\n~/.ssc_tui/launcher/macos-launcher.log",
         terminal.label()
     ));
 

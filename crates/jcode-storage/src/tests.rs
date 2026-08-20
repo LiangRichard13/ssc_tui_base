@@ -30,17 +30,17 @@ impl Drop for EnvVarGuard {
 }
 
 #[test]
-fn jcode_dir_defaults_to_saitec_home_directory() {
+fn jcode_dir_defaults_to_ssc_home_directory() {
     let _home = EnvVarGuard::unset("JCODE_HOME");
 
     let home = dirs::home_dir().expect("home dir");
     let actual = jcode_dir().expect("jcode dir");
 
-    assert_eq!(actual, home.join(".jcode"));
+    assert_eq!(actual, home.join(".ssc_tui"));
 }
 
 #[test]
-fn app_config_dir_is_sandboxed_under_saitec_home_when_jcode_home_is_set() {
+fn app_config_dir_is_sandboxed_under_ssc_home_when_jcode_home_is_set() {
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());
 

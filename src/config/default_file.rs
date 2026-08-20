@@ -11,7 +11,7 @@ impl Config {
         }
 
         let default_content = r#"# SSC-TUI configuration file
-# Location: ~/.jcode/config.toml
+# Location: ~/.ssc_tui/config.toml
 #
 # Environment variables override these settings.
 # Run `/config` in SSC-TUI to see current settings.

@@ -780,7 +780,7 @@ fn single_session_visual_state_smoke_covers_markdown_spinner_and_switcher() {
     assert_visual_text_contains(&switcher_key, "desktop session switcher");
     assert_visual_text_contains(
         &switcher_key,
-        "loading recent sessions from ~/.jcode/sessions...",
+        "loading recent sessions from ~/.ssc_tui/sessions...",
     );
 }
 

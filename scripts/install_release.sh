@@ -3,10 +3,10 @@
 # update the stable + current channel symlinks, and point the launcher at current.
 #
 # Paths after install:
-# - ~/.jcode/builds/versions/<hash>/jcode (immutable)
-# - ~/.jcode/builds/stable/jcode -> .../versions/<hash>/jcode
-# - ~/.jcode/builds/current/jcode -> .../versions/<hash>/jcode
-# - ~/.local/bin/jcode -> ~/.jcode/builds/current/jcode (launcher)
+# - ~/.ssc_tui/builds/versions/<hash>/jcode (immutable)
+# - ~/.ssc_tui/builds/stable/jcode -> .../versions/<hash>/jcode
+# - ~/.ssc_tui/builds/current/jcode -> .../versions/<hash>/jcode
+# - ~/.local/bin/jcode -> ~/.ssc_tui/builds/current/jcode (launcher)
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -57,7 +57,7 @@ if [[ -z "$hash" ]]; then
   hash="$(date +%Y%m%d%H%M%S)"
 fi
 
-# Install versioned binary into ~/.jcode/builds/versions/<hash>/
+# Install versioned binary into ~/.ssc_tui/builds/versions/<hash>/
 builds_dir="$HOME/.jcode/builds"
 version_dir="$builds_dir/versions/$hash"
 mkdir -p "$version_dir"

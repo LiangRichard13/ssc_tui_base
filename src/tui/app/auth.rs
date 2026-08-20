@@ -288,7 +288,7 @@ impl App {
                 "logout-saitec",
                 "Log out SAITEC",
                 "Log out SAITEC",
-                "clear ~/.jcode/auth.json and the stored SAITEC API key",
+                "clear ~/.ssc_tui/auth.json and the stored SAITEC API key",
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(
                     "/logout jcode --confirm".to_string(),
                 ),

@@ -1866,7 +1866,7 @@ fn session_switcher_styled_lines(
 
     if switcher.loading {
         lines.push(styled_line(
-            "loading recent sessions from ~/.jcode/sessions...",
+            "loading recent sessions from ~/.ssc_tui/sessions...",
             SingleSessionLineStyle::Status,
         ));
     }

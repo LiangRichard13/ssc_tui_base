@@ -1974,7 +1974,7 @@ pub(super) fn handle_dictation_command(app: &mut App, trimmed: &str) -> bool {
 
     if trimmed.starts_with("/dictate ") || trimmed.starts_with("/dictation ") {
         app.push_display_message(DisplayMessage::error(
-            "Usage: `/dictate`\nConfigure `[dictation]` in `~/.jcode/config.toml` to customize command, mode, hotkey, and timeout."
+            "Usage: `/dictate`\nConfigure `[dictation]` in `~/.ssc_tui/config.toml` to customize command, mode, hotkey, and timeout."
                 .to_string(),
         ));
         return true;

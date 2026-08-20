@@ -188,7 +188,7 @@ mod tests {
             state: AuthState::Available,
             method_detail: "OAuth".to_string(),
             credential_source: AuthCredentialSource::JcodeManagedFile,
-            credential_source_detail: "~/.jcode/auth.json".to_string(),
+            credential_source_detail: "~/.ssc_tui/auth.json".to_string(),
             expiry_confidence: AuthExpiryConfidence::Exact,
             refresh_support: AuthRefreshSupport::Automatic,
             validation_method: AuthValidationMethod::TimestampCheck,

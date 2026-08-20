@@ -31,7 +31,7 @@ use crate::storage;
 // ---------------------------------------------------------------------------
 
 /// Context passed from the ambient runner to a visible TUI cycle.
-/// Saved to `~/.jcode/ambient/visible_cycle.json`.
+/// Saved to `~/.ssc_tui/ambient/visible_cycle.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisibleCycleContext {
     pub system_prompt: String,

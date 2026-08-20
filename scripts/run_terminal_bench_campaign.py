@@ -75,7 +75,7 @@ def current_settings(root: Path, args: argparse.Namespace) -> dict[str, Any]:
     binary_path = ensure_binary(root, env)
     openai_auth = resolve_existing_file([
         env.get("JCODE_HARBOR_OPENAI_AUTH"),
-        "~/.jcode/openai-auth.json",
+        "~/.ssc_tui/openai-auth.json",
     ])
     if openai_auth is None:
         raise SystemExit("OpenAI OAuth file not found. Set JCODE_HARBOR_OPENAI_AUTH or log in first.")

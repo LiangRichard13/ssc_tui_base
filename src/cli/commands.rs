@@ -483,7 +483,7 @@ pub fn run_pair_command(list: bool, revoke: Option<String>) -> Result<()> {
 
     if !gw_config.enabled {
         eprintln!(
-            "\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.jcode/config.toml:\n"
+            "\x1b[33m⚠\x1b[0m  Gateway is disabled. Enable it in ~/.ssc_tui/config.toml:\n"
         );
         eprintln!("    \x1b[2m[gateway]\x1b[0m");
         eprintln!("    \x1b[2menabled = true\x1b[0m");

@@ -5,7 +5,7 @@
 //! - Linux: create a .desktop launcher file.
 //!
 //! Each nudge can be dismissed permanently with "Don't ask again".
-//! State is persisted in `~/.jcode/setup_hints.json`.
+//! State is persisted in `~/.ssc_tui/setup_hints.json`.
 
 use crate::storage;
 #[cfg(target_os = "macos")]
@@ -247,7 +247,7 @@ fn startup_hints_for_launch(state: &SetupHintsState) -> Option<StartupHints> {
     if state.launch_count <= 3 {
         let config_path = crate::config::Config::path()
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "~/.jcode/config.toml".to_string());
+            .unwrap_or_else(|| "~/.ssc_tui/config.toml".to_string());
 
         let mut message = format!(
             "You can hotswap text alignment with `Alt+C` (left-aligned ↔ centered).\n\nTo save it permanently, use `/alignment centered` or `/alignment left`. You can also change it in `{}` with `display.centered = true` or `display.centered = false`.\n\nLeft-aligned mode is the default for new configs.",

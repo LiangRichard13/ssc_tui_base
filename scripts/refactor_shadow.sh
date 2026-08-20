@@ -59,7 +59,7 @@ assert_safe_paths() {
   [[ "$ref_home" = /* ]] || die "JCODE_REF_HOME must be an absolute path: $ref_home"
   [[ "$ref_socket" = /* ]] || die "JCODE_REF_SOCKET must be an absolute path: $ref_socket"
 
-  local prod_home="${HOME}/.jcode"
+  local prod_home="${HOME}/.ssc_tui"
   if [[ "$ref_home" == "$prod_home" ]]; then
     die "refusing to run with production home ($prod_home); set JCODE_REF_HOME to an isolated path"
   fi

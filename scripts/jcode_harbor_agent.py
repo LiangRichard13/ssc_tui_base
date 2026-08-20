@@ -17,7 +17,7 @@ IN_CONTAINER_BINARY = "/usr/local/bin/jcode"
 IN_CONTAINER_LIB_DIR = f"{IN_CONTAINER_RUNTIME}/lib"
 IN_CONTAINER_CA_BUNDLE = f"{IN_CONTAINER_HOME}/ca-certificates.crt"
 DEFAULT_BINARY_PATH = "/tmp/jcode-compat-dist/jcode-linux-x86_64"
-DEFAULT_OPENAI_AUTH_PATH = "~/.jcode/openai-auth.json"
+DEFAULT_OPENAI_AUTH_PATH = "~/.ssc_tui/openai-auth.json"
 CA_BUNDLE_CANDIDATES = (
     os.environ.get("JCODE_HARBOR_CA_BUNDLE"),
     "/etc/ca-certificates/extracted/tls-ca-bundle.pem",

@@ -420,7 +420,7 @@ impl AuthStatus {
                 AuthValidationMethod::TrustedImportScan,
             ),
             // Stage 2D: JcodeManagedFile credential source retired — the SAITEC
-    // backend session file (~/.jcode/auth.json) is gone with the module.
+    // backend session file (~/.ssc_tui/auth.json) is gone with the module.
     // The env-file / env-var sources for the jcode subscription are still
     // useful and remain.
     crate::provider_catalog::LoginProviderTarget::Jcode => {
@@ -429,7 +429,7 @@ impl AuthStatus {
             config_source(
                 crate::subscription_catalog::JCODE_API_KEY_ENV,
                 crate::subscription_catalog::JCODE_ENV_FILE,
-                "~/.jcode/jcode.env",
+                "~/.ssc_tui/jcode.env",
             ),
         ]);
         (
@@ -1090,7 +1090,7 @@ fn anthropic_oauth_source(status: &AuthStatus) -> Option<(AuthCredentialSource, 
     {
         return Some((
             AuthCredentialSource::JcodeManagedFile,
-            "~/.jcode/auth.json".to_string(),
+            "~/.ssc_tui/auth.json".to_string(),
         ));
     }
     if let Some(source) = crate::auth::claude::preferred_external_auth_source()
@@ -1121,7 +1121,7 @@ fn openai_oauth_source(status: &AuthStatus) -> Option<(AuthCredentialSource, Str
     {
         return Some((
             AuthCredentialSource::JcodeManagedFile,
-            "~/.jcode/openai-auth.json".to_string(),
+            "~/.ssc_tui/openai-auth.json".to_string(),
         ));
     }
     if crate::auth::external::load_openai_oauth_tokens().is_some() {
