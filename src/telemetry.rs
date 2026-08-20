@@ -1704,7 +1704,7 @@ fn show_first_run_notice() {
     eprintln!("  session activity, tool counts, and crash/exit reasons). No code, filenames,");
     eprintln!("  prompts, or personal data is sent.");
     eprintln!("  To opt out: export JCODE_NO_TELEMETRY=1");
-    eprintln!("  Details: https://github.com/SAITEC-TEAM/SSC-TUI/blob/main/TELEMETRY.md");
+    eprintln!("  Details: https://github.com/LiangRichard13/ssc_tui_base/blob/main/TELEMETRY.md");
     eprintln!("\x1b[0m");
 }
 

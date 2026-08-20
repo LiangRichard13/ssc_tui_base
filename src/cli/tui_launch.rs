@@ -18,17 +18,17 @@ use super::terminal::{
     print_session_resume_hint, set_current_session, spawn_session_signal_watchers,
 };
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
+const SSC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 pub(crate) fn resumed_window_title(session_id: &str) -> String {
     let session_label = crate::process_title::terminal_session_label_for_id(session_id);
     if let Some(server_info) = crate::registry::find_server_by_socket_sync(&server::socket_path()) {
         format!(
-            "{SAITEC_WINDOW_TITLE}/{} {}",
+            "{SSC_WINDOW_TITLE}/{} {}",
             server_info.name, session_label
         )
     } else {
-        format!("{SAITEC_WINDOW_TITLE}/{}", session_label)
+        format!("{SSC_WINDOW_TITLE}/{}", session_label)
     }
 }
 
@@ -161,7 +161,7 @@ pub async fn run_tui_client(
         crate::process_title::set_client_generic_title(super::selfdev::client_selfdev_requested());
         let _ = crossterm::execute!(
             std::io::stdout(),
-            crossterm::terminal::SetTitle(SAITEC_WINDOW_TITLE)
+            crossterm::terminal::SetTitle(SSC_WINDOW_TITLE)
         );
     }
     startup_profile::mark("terminal_title");

@@ -50,14 +50,14 @@ fn test_display_alignment_defaults_to_left() {
 }
 
 #[test]
-fn test_display_animation_defaults_are_disabled_for_saitec_product_mode() {
+fn test_display_animation_defaults_are_disabled_in_product_mode() {
     let display = DisplayConfig::default();
     assert!(!display.idle_animation);
     assert!(!display.prompt_entry_animation);
 }
 
 #[test]
-fn test_generated_default_config_disables_decorative_animations_for_saitec_product_mode() {
+fn test_generated_default_config_disables_decorative_animations_in_product_mode() {
     let _guard = crate::storage::lock_test_env();
     let prev_home = std::env::var_os("JCODE_HOME");
     let dir = tempfile::TempDir::new().expect("tempdir");
