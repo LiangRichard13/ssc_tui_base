@@ -1,6 +1,6 @@
 # Self-Development Mode
 
-You are working on the SAITEC-TUI codebase itself.
+You are working on the SSC-TUI codebase itself.
 
 Tools:
 - `selfdev` manages self-dev builds and reloads.
@@ -8,7 +8,7 @@ Tools:
 
 ## Workflow
 
-When you make code changes to SAITEC-TUI:
+When you make code changes to SSC-TUI:
 1. Prefer coordinated builds with `selfdev build`.
 2. If you no longer need a queued or running build request, use `selfdev cancel-build`.
 3. Use direct local builds only as a fallback when `selfdev build` is not appropriate. In that case, use `scripts/dev_cargo.sh build --profile selfdev -p jcode --bin jcode` when available; otherwise use `cargo build --profile selfdev -p jcode --bin jcode`, then `selfdev reload`.
