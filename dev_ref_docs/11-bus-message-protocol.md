@@ -163,7 +163,7 @@ pub fn encode_event(event: &ServerEvent) -> String {
 
 ## 依赖关系
 
-- 被几乎所有子系统依赖：[02 Agent](02-agent-runtime.md)（ServerEvent/StreamEvent）、[04 Server](04-server.md)（Request/ServerEvent/Bus）、[05 TUI](05-tui.md)（RemoteConnection 解析 ServerEvent）、[07 Memory](07-memory.md)（MemoryInjected/MemoryActivity）、[09 MCP](09-mcp-saitec.md)（McpStatus）。
+- 被几乎所有子系统依赖：[02 Agent](02-agent-runtime.md)（ServerEvent/StreamEvent）、[04 Server](04-server.md)（Request/ServerEvent/Bus）、[05 TUI](05-tui.md)（RemoteConnection 解析 ServerEvent）、[07 Memory](07-memory.md)（MemoryInjected/MemoryActivity）、[09 MCP](09-mcp.md)（McpStatus）。
 - 依赖 [12 Workspace](12-workspace-build-ci.md)（`jcode-protocol`/`jcode-message-types`）。
 
 ## 陷阱与历史修复
@@ -182,7 +182,7 @@ debug_assert!(!json.contains('\n'), "...");
 - **无诊断信息**：`Unknown` 不携带任何数据（无原始 JSON、无 type 字符串），调试时无法追踪哪些事件被忽略。
 - **类型安全漏洞**：模式匹配 `ServerEvent` 时编译器无法提醒新 server 添加了需客户端处理的新事件类型。
 
-完整根因链（NDJSON 损坏 → reconnect storm → Unknown tool）见 [09-mcp-saitec.md](09-mcp-saitec.md)。
+完整根因链（NDJSON 损坏 → reconnect storm → Unknown tool）见 [09-mcp.md](09-mcp.md)。
 
 ### jcode_message_types::Role vs jcode_protocol::HistoryMessage.role 类型不一致
 
@@ -199,4 +199,4 @@ debug_assert!(!json.contains('\n'), "...");
 ## 回指
 
 - 谁发事件 / 谁订阅：[02-agent-runtime.md](02-agent-runtime.md)（SubagentStatus/ToolEvent）、[04-server.md](04-server.md)（Bus monitor/client forwarder/SwarmEvent）、[05-tui.md](05-tui.md)（next_event 解析 ServerEvent）
-- NDJSON 损坏根因链（Fix 3 的 `encode_event` debug_assert）：[09-mcp-saitec.md](09-mcp-saitec.md)
+- NDJSON 损坏根因链（Fix 3 的 `encode_event` debug_assert）：[09-mcp.md](09-mcp.md)

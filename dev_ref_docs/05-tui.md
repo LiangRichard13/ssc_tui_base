@@ -117,7 +117,7 @@ TUI 子系统是 jcode 的终端用户界面层：通过 ratatui + crossterm 实
 
 ### NDJSON 损坏 → reconnect storm → Unknown tool 链（fixed in `fix/mcp-notification-id`）
 
-涉及 backend.rs 的部分（**Fix 2**）：`RemoteConnection::next_event`（`src/tui/backend.rs:808-819`）原对 ANY JSON parse 失败立即断连 → reconnect storm。Fix：跳过坏 NDJSON 行直到连续 10 次错误才断开。完整根因链见 [09-mcp-saitec.md](09-mcp-saitec.md)。
+涉及 backend.rs 的部分（**Fix 2**）：`RemoteConnection::next_event`（`src/tui/backend.rs:808-819`）原对 ANY JSON parse 失败立即断连 → reconnect storm。Fix：跳过坏 NDJSON 行直到连续 10 次错误才断开。完整根因链见 [09-mcp.md](09-mcp.md)。
 
 ## 关联模块
 

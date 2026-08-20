@@ -252,7 +252,7 @@ spawned → ready → running → blocked → completed → [wait for new assign
 
 ## 依赖关系
 
-- 依赖 [02 Agent](02-agent-runtime.md)（`process_message_streaming_mpsc` 驱动 Agent）、[11 Bus/Protocol](11-bus-message-protocol.md)（事件分发 + NDJSON）、[10 Gateway/Transport](10-gateway-transport.md)（socket 抽象）、[09 MCP](09-mcp-saitec.md)（MCP pool 初始化）、[03 Provider](03-provider.md)（`provider_control`）、[08 Storage](08-storage-session.md)（durable_state / swarm_persistence / reload_recovery）。
+- 依赖 [02 Agent](02-agent-runtime.md)（`process_message_streaming_mpsc` 驱动 Agent）、[11 Bus/Protocol](11-bus-message-protocol.md)（事件分发 + NDJSON）、[10 Gateway/Transport](10-gateway-transport.md)（socket 抽象）、[09 MCP](09-mcp.md)（MCP pool 初始化）、[03 Provider](03-provider.md)（`provider_control`）、[08 Storage](08-storage-session.md)（durable_state / swarm_persistence / reload_recovery）。
 - 被 [01 CLI](01-cli.md) 的 `spawn_server` 孵化、`debug` 子命令连接。
 
 ## 陷阱与设计约束

@@ -362,10 +362,10 @@ jobs = 6
 
 | 修复 | 涉及 commit | 归档位置 |
 |---|---|---|
-| SAITEC-Skills HTTP transport（no local vendor） | — | [09-mcp-saitec.md](09-mcp-saitec.md) |
+| SAITEC-Skills HTTP transport（no local vendor） | — | [09-mcp.md](09-mcp.md) |
 | OpenAI-compatible: config vs credentials env hygiene | — | [03-provider.md](03-provider.md) |
 | AuthTest deadlock from stale `auth-validation.json` | `b18a4c17` | [01-cli.md](01-cli.md) + [06-auth-login.md](06-auth-login.md) |
-| MCP `notifications/initialized` 无 `id` + NDJSON reconnect storm + Unknown tool 链 | `fix/mcp-notification-id` | [09-mcp-saitec.md](09-mcp-saitec.md) + [05-tui.md](05-tui.md) + [11-bus-message-protocol.md](11-bus-message-protocol.md) |
+| MCP `notifications/initialized` 无 `id` + NDJSON reconnect storm + Unknown tool 链 | `fix/mcp-notification-id` | [09-mcp.md](09-mcp.md) + [05-tui.md](05-tui.md) + [11-bus-message-protocol.md](11-bus-message-protocol.md) |
 | OpenAI-compatible 200K / `anthropic/claude-sonnet-4` regression | `e05304a1` | [03-provider.md](03-provider.md) |
 | Config.toml named provider `JCODE_OPENROUTER_MODEL` symmetric cleanup | after `e05304a1` | [03-provider.md](03-provider.md) |
 | Restart endpoint reversion to localhost:11434 from stale Ollama marker | `dba79fc3` | [03-provider.md](03-provider.md) |

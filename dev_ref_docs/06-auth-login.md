@@ -117,7 +117,7 @@ Auth 子系统统一管理十余个 AI provider 的凭证生命周期（发现�
 ## 依赖关系
 
 - 被 [03 Provider](03-provider.md)（`MultiProvider::new_with_auth_status` 凭据探测）、[01 CLI](01-cli.md)（`login.rs` flow、`detect_bootstrap_credentials`）、[05 TUI](05-tui.md)（login picker / `/account`）依赖。
-- 依赖 [12 Workspace](12-workspace-build-ci.md)（`jcode-auth-types`/`jcode-azure-auth`）、[09 SAITEC](09-mcp-saitec.md)（SAITEC 凭据存储三件套、`subscription_catalog`）。
+- 依赖 [12 Workspace](12-workspace-build-ci.md)（`jcode-auth-types`/`jcode-azure-auth`）、[09 SAITEC](09-mcp.md)（SAITEC 凭据存储三件套、`subscription_catalog`）。
 
 ## 陷阱与历史修复
 
@@ -161,6 +161,6 @@ Auth 子系统统一管理十余个 AI provider 的凭证生命周期（发现�
 
 ## 回指
 
-- SAITEC 凭据三件套（auth.json/saitec.env/mcp.json）与 MCP lifecycle sync：[09-mcp-saitec.md](09-mcp-saitec.md)
+- SAITEC 凭据三件套（auth.json/saitec.env/mcp.json）与 MCP lifecycle sync：[09-mcp.md](09-mcp.md)
 - Provider 凭据探测与 failover：[03-provider.md](03-provider.md)
 - CLI login 入口与 auth_test 框架：[01-cli.md](01-cli.md)

@@ -102,7 +102,7 @@ Transport 层本身不感知协议内容——纯字节流传输。NDJSON 协议
 
 ## 依赖关系
 
-- 被 [04 Server](04-server.md)（accept loop / `handle_client` 经 `Stream`）、[09 MCP/SAITEC](09-mcp-saitec.md)（MCP transport 平台抽象）依赖。
+- 被 [04 Server](04-server.md)（accept loop / `handle_client` 经 `Stream`）、[09 MCP/SAITEC](09-mcp.md)（MCP transport 平台抽象）依赖。
 - 依赖 [11 Protocol](11-bus-message-protocol.md)（NDJSON wire 格式）、[08 Storage](08-storage-session.md)（`devices.json` 持久化、`jcode_dir`）、[12 Workspace](12-workspace-build-ci.md)（`jcode-gateway-types`）。
 
 ## 陷阱与设计约束
@@ -120,4 +120,4 @@ Transport 层本身不感知协议内容——纯字节流传输。NDJSON 协议
 
 - server 侧 accept loop 与 `handle_client`：[04-server.md](04-server.md)
 - NDJSON wire 格式（`encode_event`/`decode_request`/`ServerEvent`/`Request`）：[11-bus-message-protocol.md](11-bus-message-protocol.md)
-- MCP transport 平台抽象复用：[09-mcp-saitec.md](09-mcp-saitec.md)
+- MCP transport 平台抽象复用：[09-mcp.md](09-mcp.md)
