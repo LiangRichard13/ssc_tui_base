@@ -44,7 +44,7 @@ Mobile Client 是 jcode 在移动端的远程控制面，通过 Tailscale 加密
 │    - POST /pair → 6 位配对码换 auth token                        │
 │    - GET /health → server status                                 │
 │    - ws://host:7643/ws → WebSocket ↔ Unix socket bridge          │
-│    - 设备注册表: ~/.jcode/devices.json                           │
+│    - 设备注册表: ~/.ssc_tui/devices.json                           │
 │    - APNs push 发送器                                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -90,7 +90,7 @@ iPhone (Tailscale App)          Tailscale 网络 (WireGuard Mesh)      Laptop (t
 
 3. 所有后续 WebSocket 连接使用 Bearer token
    → Authorization: Bearer <64-char-hex-token>
-   → Server 验证: SHA256(token) 比对 ~/.jcode/devices.json 存储的哈希
+   → Server 验证: SHA256(token) 比对 ~/.ssc_tui/devices.json 存储的哈希
    → Token 本身不持久化，只存哈希值（安全设计）
 ```
 

@@ -15,7 +15,7 @@ Provider 子系统是 SAITEC-TUI 的多后端 LLM 调用抽象层：通过 `Mult
 |---|---|---|
 | **Claude (Anthropic)** | OAuth（Pro/Max 订阅）或直接 API key（`ANTHROPIC_API_KEY`） | 双实现：`ClaudeProvider`（deprecated CLI）+ `AnthropicProvider`（直接 API），优先后者 |
 | **OpenAI** | OAuth（ChatGPT Plus/Pro）或 API key | 支持 service tier、reasoning effort、transport 切换 |
-| **Copilot (GitHub)** | Device Code flow | 本地 usage tracking（`~/.jcode/copilot_usage.json`），premium mode 三级控制 |
+| **Copilot (GitHub)** | Device Code flow | 本地 usage tracking（`~/.ssc_tui/copilot_usage.json`），premium mode 三级控制 |
 | **Antigravity** | OAuth | Google Antigravity OAuth |
 | **Gemini (Google)** | OAuth（Gemini Code Assist） | Code Assist API（`cloudcode-pa.googleapis.com`），free/legacy tier |
 | **Cursor** | Hybrid（API key / CLI） | 浏览器登录或 API key |
@@ -166,7 +166,7 @@ jcode --model bedrock:us.anthropic.claude-3-5-sonnet-20241022-v2:0
 
 **切换流程**：`apply_openai_compatible_profile_env(Some(profile))` 先清空所有 runtime env vars，再从 profile static const 推导并 `set_var`。`clear_openai_compatible_runtime_env_keep_config` 清除 runtime env 但保留 env file 中 durable 配置（logout 场景）。
 
-**API key 加载优先级（`load_api_key_from_env_or_config`）**：进程 env var → env file（`~/.jcode/<file>`）→ 兼容旧名（ZAI_API_KEY → ZHIPU_API_KEY）→ external auth。
+**API key 加载优先级（`load_api_key_from_env_or_config`）**：进程 env var → env file（`~/.ssc_tui/<file>`）→ 兼容旧名（ZAI_API_KEY → ZHIPU_API_KEY）→ external auth。
 
 ## 与 crates/jcode-provider-* 的分层
 
@@ -290,7 +290,7 @@ Browser Provider 当前**不在** `ActiveProvider` enum（8 个 LLM provider）�
 **Credentials**（cleared on logout）：API key、ZAI/ZHIPU linked keys、`JCODE_OPENAI_COMPAT_LOCAL_ENABLED`。
 **Runtime**（process-env only）：所有 `JCODE_OPENROUTER_*` vars、named-profile guards、4 个 `JCODE_OPENAI_COMPAT_*` overrides。
 
-Env file：`AppData/Roaming/jcode/openai-compatible.env`（NOT `~/.jcode/` 或 `~/.saitec_tui/`）。其 `.bak` 是 pre-write snapshot——调试 config 丢失时比对 mtimes。
+Env file：`AppData/Roaming/jcode/openai-compatible.env`（NOT `~/.ssc_tui/` 或 `~/.saitec_tui/`）。其 `.bak` 是 pre-write snapshot——调试 config 丢失时比对 mtimes。
 
 **Anti-pattern**：never call `force_apply_openai_compatible_profile_env(None)` from logout/activation-rollback paths——它会 wipe env file 的 config。用 `clear_openai_compatible_runtime_env_keep_config()` 代替。
 
@@ -339,7 +339,7 @@ Env file：`AppData/Roaming/jcode/openai-compatible.env`（NOT `~/.jcode/` 或 `
 | 模块 | 路径 | 职责 | 规模 |
 |---|---|---|---|
 | `src/network_retry.rs` | 网络中断检测（连接重置、DNS 失败、超时）并生成等待策略；provider 流式传输中断时自动重连 | 169 行 |
-| `src/copilot_usage.rs` | 本地 Copilot 用量追踪（requests/tokens/premium 按天/月/全量），持久化 `~/.jcode/copilot_usage.json` | — |
+| `src/copilot_usage.rs` | 本地 Copilot 用量追踪（requests/tokens/premium 按天/月/全量），持久化 `~/.ssc_tui/copilot_usage.json` | — |
 
 ## 回指
 - Agent 如何调用 provider：[02-agent-runtime.md](02-agent-runtime.md)

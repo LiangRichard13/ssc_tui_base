@@ -55,7 +55,7 @@ ServerRuntime::spawn_gateway_accept_loop()
 
 **Query Param（已 deprecated，兼容浏览器客户端）**：`?token=<64-char-hex-token>` URI query parameter。若 Header 和 Query 同时存在但不一致，拒绝连接（401）。
 
-**Token 验证**：`DeviceRegistry::validate_token()` 将传入 token 做 SHA256 哈希，与 `~/.jcode/devices.json` 中存储的 `sha256:<hex>` 比对。token 本身不持久化，只存哈希值（安全设计）。
+**Token 验证**：`DeviceRegistry::validate_token()` 将传入 token 做 SHA256 哈希，与 `~/.ssc_tui/devices.json` 中存储的 `sha256:<hex>` 比对。token 本身不持久化，只存哈希值（安全设计）。
 
 **配对码**：6 位数字，5 分钟过期，存 `devices.json` 的 `pending_codes` 数组，验证后立即 consume。
 
@@ -79,7 +79,7 @@ ServerRuntime::spawn_gateway_accept_loop()
 |---|---|
 | `src/gateway.rs` | WebSocket gateway 入口：TCP accept、WebSocket upgrade、auth、Unix socket pair bridge、HTTP /health /pair 端点 |
 | `src/gateway/auth.rs` | WebSocket 握手认证：Bearer header / query param 提取、hex token 校验、错误响应 |
-| `src/gateway/registry.rs` | 设备注册表：配对码生成/验证、设备注册、token SHA256 验证、`~/.jcode/devices.json` 持久化 |
+| `src/gateway/registry.rs` | 设备注册表：配对码生成/验证、设备注册、token SHA256 验证、`~/.ssc_tui/devices.json` 持久化 |
 | `src/gateway_tests.rs` | Gateway 单元测试 |
 | `src/transport/mod.rs` | Transport 平台分发：cfg(unix)/cfg(windows) 条件编译入口 |
 | `src/transport/unix.rs` | Unix transport：re-export tokio UnixStream/UnixListener、stream_pair()、socket path 工具 |
@@ -110,7 +110,7 @@ Transport 层本身不感知协议内容——纯字节流传输。NDJSON 协议
 - **Windows `Stream::split()` 使用 unsafe raw pointer**（`src/transport/windows.rs:121-128`）：`&mut self` 转为两个独立 `SplitReadRef`/`SplitWriteRef` 绕过借用检查。同时两 task 中使用 borrowed split（而非 `into_split()`）会导致 UB。代码主要用 `into_split()`（`Arc<Mutex>` 版本），borrowed split 主要用于单 task 内。
 - **Windows `stream_pair()` 手动 poll 用 dummy waker**（`:148-168`）：构造 null pointer 的 `RawWaker`。首次 poll 即 Ready 场景下安全，但 Named Pipe 行为异常返回 Pending 时 dummy waker 不会唤醒 task——注释说「Should not happen」但仍是潜在风险。
 - **Query param auth 已 deprecated 但仍接受**：`auth.rs:180-185` 仅 log 警告不拒绝。安全敏感场景下，query param 中 token 会出现在 URL 日志、Referer header、浏览器历史中。
-- **DeviceRegistry 每次连接都从磁盘 reload**（`gateway.rs:189-191`）：`*reg = DeviceRegistry::load()` 在每个 WebSocket 连接时重新读 `~/.jcode/devices.json`。高频连接场景下可能成瓶颈。pair 请求同样 reload（`:438`）。
+- **DeviceRegistry 每次连接都从磁盘 reload**（`gateway.rs:189-191`）：`*reg = DeviceRegistry::load()` 在每个 WebSocket 连接时重新读 `~/.ssc_tui/devices.json`。高频连接场景下可能成瓶颈。pair 请求同样 reload（`:438`）。
 - **Token 验证非 constant-time 比较**（`registry.rs:120`）：`self.devices.iter().find(|d| d.token_hash == token_hash)` 普通字符串比较，理论上 timing attack 风险（实际场景中网络延迟基本不可利用）。
 - **Gateway 默认 disabled**：`GatewayConfig::default()` 中 `enabled: false`，需显式启用。可能导致用户配对后连接被拒（未意识到需手动开启 gateway）。
 - **`handle_http()` 手工拼 HTTP 响应**（`gateway.rs:323-328`）：`http_response()` 用 `format!()` 拼 HTTP 报文，无 HTTP 框架。简单但后续需支持 chunked encoding 或更复杂 HTTP 特性时难维护。

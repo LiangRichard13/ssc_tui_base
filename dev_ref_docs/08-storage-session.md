@@ -28,8 +28,8 @@
 | `PersistVectorMode` | `src/session/journal.rs:51` | 三态枚举 `Clean`/`Append`/`Full`，控制向量持久化策略 |
 | `detect_crashed_sessions` | `src/session/crash.rs:132` | 扫描 sessions 目录检测 `SessionStatus::Crashed`，排除已被 recovery 覆盖的，应用 60s crash window 过滤 |
 | `recover_crashed_sessions` | `src/session/crash.rs:12` | 对 crashed session 创建 `session_recovery_{id}` 新 session，只保留 Text block（丢弃 ToolUse/ToolResult/Image），复制元数据，设状态 Closed |
-| `find_recent_crashed_sessions` | `src/session/crash.rs:248` | 快速路径：扫 `~/.jcode/active_pids/` 查已死 PID 的 session（O(n) n 通常 0-5）；降级路径：全量扫描 sessions 目录 |
-| `register_active_pid` / `unregister_active_pid` | `src/session/active_pids.rs:7`/`:14` | 将 `{session_id}` 为文件名、PID 为内容写入/删除 `~/.jcode/active_pids/` |
+| `find_recent_crashed_sessions` | `src/session/crash.rs:248` | 快速路径：扫 `~/.ssc_tui/active_pids/` 查已死 PID 的 session（O(n) n 通常 0-5）；降级路径：全量扫描 sessions 目录 |
+| `register_active_pid` / `unregister_active_pid` | `src/session/active_pids.rs:7`/`:14` | 将 `{session_id}` 为文件名、PID 为内容写入/删除 `~/.ssc_tui/active_pids/` |
 | `Session::save` | `src/session/persistence.rs:170` | 核心保存：根据 `persist_state` 判断走 snapshot checkpoint 还是 journal append；journal 超 512KB 时自动触发 checkpoint |
 | `Session::load` / `load_from_path` | `src/session/persistence.rs:32,91` | 加载：先读 snapshot JSON，再逐行读 `.journal.jsonl` replay 合成最终状态 |
 | `RestartSnapshot` | `src/restart_snapshot.rs:9` | 重启快照：version + created_at + auto_restore_on_next_start + sessions 列表 |
@@ -60,7 +60,7 @@
 ## 崩溃检测与恢复流程
 
 **检测阶段**（`find_recent_crashed_sessions`）：
-1. 快速路径：遍历 `~/.jcode/active_pids/`（通常 0-5 文件），每文件内容为 PID。
+1. 快速路径：遍历 `~/.ssc_tui/active_pids/`（通常 0-5 文件），每文件内容为 PID。
 2. `is_pid_running(pid)` 检查进程存活。
 3. PID 已死则加载对应 session JSON，调 `session.mark_crashed(...)` 设 status 为 `Crashed`。
 4. 过滤 24h 内记录，按时间倒序返回。
@@ -73,7 +73,7 @@
 4. 为每个 crashed session 创建新 session（`session_recovery_{id}`），复制全部元数据，仅保留 Text content block（丢弃 tool use/result/image），设 status 为 Closed，附加 recovery header message。
 
 **主动 PID 注册**：
-- `Session::mark_active` 调 `register_active_pid`，在 `~/.jcode/active_pids/{session_id}` 写当前进程 PID。
+- `Session::mark_active` 调 `register_active_pid`，在 `~/.ssc_tui/active_pids/{session_id}` 写当前进程 PID。
 - `Session::mark_closed`/`mark_crashed` 调 `unregister_active_pid` 删文件。
 - 正常退出时 PID 文件清理，异常退出时残留供下次启动检测。
 
@@ -89,7 +89,7 @@ pub enum StorageRecoveryEvent<'a> {
 
 ## restart_snapshot 的角色
 
-`src/restart_snapshot.rs` 管理 `~/.jcode/restart-snapshot.json`：
+`src/restart_snapshot.rs` 管理 `~/.ssc_tui/restart-snapshot.json`：
 - `capture_current_snapshot`：遍历 `active_session_ids()`，过滤 Active 且未 crash 的 session 生成 `RestartSnapshot`。
 - `arm_auto_restore_from_recent_crashes`：扫近期 crashed session（24h 内）生成带 `auto_restore_on_next_start = true` 的快照，用于崩溃后自动恢复。
 - `restore_snapshot`：读快照，为每个 session spawn 新终端窗口恢复会话。

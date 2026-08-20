@@ -1119,7 +1119,7 @@ fn login_jcode_command_shows_visible_saitec_login_prompt_message() {
 
     let last = app.display_messages().last().expect("missing login prompt");
     assert_eq!(last.role, "system");
-    assert!(last.content.contains("Saitec Login"));
+    assert!(last.content.contains("Ssc Login"));
     assert!(last.content.contains("email or phone plus password"));
 }
 
@@ -1135,13 +1135,13 @@ fn saitec_login_success_does_not_refresh_base_model_provider() {
     app.handle_login_completed(crate::bus::LoginCompleted {
         provider: "jcode".to_string(),
         success: true,
-        message: "Saitec login successful.".to_string(),
+        message: "Ssc login successful.".to_string(),
     });
 
     assert_eq!(
         *calls.lock().expect("auth changed calls"),
         0,
-        "SAITEC login grants MCP permissions and must not mutate the base-model provider"
+        "SSC login grants MCP permissions and must not mutate the base-model provider"
     );
     assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
     assert!(std::env::var_os("JCODE_OPENROUTER_API_BASE").is_none());
@@ -1170,7 +1170,7 @@ fn saitec_login_failure_keeps_form_editable_on_password_field() {
     app.handle_login_completed(crate::bus::LoginCompleted {
         provider: "jcode".to_string(),
         success: false,
-        message: "Saitec login failed: Invalid credentials".to_string(),
+        message: "Ssc login failed: Invalid credentials".to_string(),
     });
 
     match app.pending_login {

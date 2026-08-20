@@ -92,13 +92,13 @@ Auth 子系统统一管理十余个 AI provider 的凭证生命周期（发现�
 
 逻辑：已有用户消息或正在 streaming 则不触发；调 `AuthStatus::check_fast()` 取最新状态；SAITEC 已登录则不做任何事；否则按 `has_any_base_model()` 决定 Setup 还是 Reminder mode。
 
-**`maybe_show_setup_hints`**（`src/setup_hints.rs`）：每次启动调用，递增 `launch_count`；每 3 次启动在 stderr 显示平台 specific nudge（Windows: Alt+; 热键 + Alacritty 安装；macOS: Ghostty 引导）；所有 nudge 支持「Don't ask again」永久跳过；状态持久化 `~/.jcode/setup_hints.json`。
+**`maybe_show_setup_hints`**（`src/setup_hints.rs`）：每次启动调用，递增 `launch_count`；每 3 次启动在 stderr 显示平台 specific nudge（Windows: Alt+; 热键 + Alacritty 安装；macOS: Ghostty 引导）；所有 nudge 支持「Don't ask again」永久跳过；状态持久化 `~/.ssc_tui/setup_hints.json`。
 
 ## 账号存储 / OAuth PKCE 流程
 
 **多账号存储格式**：
-- Claude: `~/.jcode/auth.json` → `JcodeAuthFile { anthropic_accounts: Vec<AnthropicAccount>, active_anthropic_account: Option<String> }`，每 account 含 `label`/`access`/`refresh`/`expires`/`email`/`subscription_type`/`scopes`；支持从旧单账号 `{"anthropic": {...}}` 自动迁移。
-- OpenAI: `~/.jcode/openai-auth.json` → `JcodeOpenAiAuthFile { openai_accounts, active_openai_account }`。
+- Claude: `~/.ssc_tui/auth.json` → `JcodeAuthFile { anthropic_accounts: Vec<AnthropicAccount>, active_anthropic_account: Option<String> }`，每 account 含 `label`/`access`/`refresh`/`expires`/`email`/`subscription_type`/`scopes`；支持从旧单账号 `{"anthropic": {...}}` 自动迁移。
+- OpenAI: `~/.ssc_tui/openai-auth.json` → `JcodeOpenAiAuthFile { openai_accounts, active_openai_account }`。
 - 活跃账号有 `ACTIVE_ACCOUNT_OVERRIDE: RwLock<Option<String>>` 运行时覆盖，允许 `/account switch` 不落盘立即生效。
 - 账号 label 自动编号 `{prefix}-1`/`{prefix}-2`，`relabel_accounts` 保证连续。
 

@@ -543,7 +543,7 @@ fn execute_account_command_local(app: &mut App, command: AccountCommand) {
             if provider_id == crate::provider_catalog::JCODE_LOGIN_PROVIDER.id {
                 if label.is_some() {
                     app.push_display_message(DisplayMessage::error(
-                        "Saitec login does not support named account labels. Use `/login` or `/login jcode`."
+                        "Ssc login does not support named account labels. Use `/login` or `/login jcode`."
                             .to_string(),
                     ));
                 } else {

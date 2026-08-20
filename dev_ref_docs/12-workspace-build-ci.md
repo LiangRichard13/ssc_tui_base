@@ -196,7 +196,7 @@ jcode-build-support # build command, source state, channel paths
 
 **Phase 5 — 减少失效压力**：收缩巨型热点文件；高 churn 代码远离稳定低层 crate；避免随改动共享广泛 fanout 类型。
 
-**Phase 6 — 减少重新编译需求**（Issue #32）：通过 config/hooks/skills/prompt overlays/routing/theme/data 扩展点替代源码修改。已落地：`~/.jcode/prompt-overlay.md` / `./.jcode/prompt-overlay.md` 系统 prompt 定制无需重编译。
+**Phase 6 — 减少重新编译需求**（Issue #32）：通过 config/hooks/skills/prompt overlays/routing/theme/data 扩展点替代源码修改。已落地：`~/.ssc_tui/prompt-overlay.md` / `./.jcode/prompt-overlay.md` 系统 prompt 定制无需重编译。
 
 ### 关键测量数据
 
@@ -335,7 +335,7 @@ jobs = 6
 
 | 模块 | 路径 | 职责 | 规模 |
 |---|---|---|---|
-| `src/logging.rs` | 结构化日志框架——写 `~/.jcode/logs/`、自动轮转、线程本地上下文（server/session/provider/model） | 319 行 |
+| `src/logging.rs` | 结构化日志框架——写 `~/.ssc_tui/logs/`、自动轮转、线程本地上下文（server/session/provider/model） | 319 行 |
 | `src/process_memory.rs` | 进程内存快照——RSS、虚拟内存、OS 层（PSS/swap）、allocator 统计（jemalloc + 系统）；历史采样 + profiling 开关 | 593 行 |
 | `src/startup_profile.rs` | 启动阶段耗时 mark 记录，生成冷启动时间报告 | 84 行 |
 | `src/bin/harness.rs` | 确定性 tool 烟雾测试 harness，不调 LLM | 216 行 |

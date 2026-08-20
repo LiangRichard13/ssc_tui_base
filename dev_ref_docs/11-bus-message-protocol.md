@@ -138,7 +138,7 @@ pub fn encode_event(event: &ServerEvent) -> String {
 
 `src/registry.rs` 是 **server 注册表**，用于多 server 架构下的 server 发现与管理（**不是** tools/skills registry）：
 - **`ServerInfo`**：运行中 server 信息（id/name/icon/socket path/debug socket/git_hash/version/pid/started_at/sessions）。
-- **`ServerRegistry`**：`HashMap<String, ServerInfo>` 包装，持久化到 `~/.jcode/servers.json`。
+- **`ServerRegistry`**：`HashMap<String, ServerInfo>` 包装，持久化到 `~/.ssc_tui/servers.json`。
 - 功能：`load()`/`save()`/`register()`/`unregister()`/`find_by_name()`/`servers_by_time()`/`cleanup_stale()`（检测死进程 + 同 socket 去重）/`add_session()`/`remove_session()`。
 - 辅助函数：`server_socket_path(name)`/`server_debug_socket_path(name)`/`list_servers()`/`find_server_by_socket_sync()`（同步查找，用于 client 端 window title 等非 async 场景）。
 
@@ -154,7 +154,7 @@ pub fn encode_event(event: &ServerEvent) -> String {
 | `src/message_notifications.rs` | 消息通知模块入口（re-export notifications 子模块） |
 | `src/protocol.rs` | 单行 re-export：`pub use jcode_protocol::*` |
 | `src/protocol/notifications.rs` | protocol 层 NotificationType + FeatureToggle（实际在 jcode-protocol crate 内） |
-| `src/registry.rs` | 多 server 架构的 server 注册表，`~/.jcode/servers.json` 持久化 |
+| `src/registry.rs` | 多 server 架构的 server 注册表，`~/.ssc_tui/servers.json` 持久化 |
 | `crates/jcode-message-types/src/lib.rs` | Message/Role/ContentBlock/ToolCall/ToolDefinition/StreamEvent 等核心消息类型 |
 | `crates/jcode-protocol/src/lib.rs` | wire protocol 全部定义：ServerEvent/Request/HistoryMessage/encode_event/decode_request + swarm 辅助格式化 |
 | `crates/jcode-protocol/src/notifications.rs` | NotificationType（FileConflict/SharedContext/Message）+ FeatureToggle |

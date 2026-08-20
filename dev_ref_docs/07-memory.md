@@ -11,9 +11,9 @@ Memory 子系统为 AI Agent 提供跨会话持久化记忆能力，通过 embed
 
 | Scope | 存储路径 | 说明 |
 |---|---|---|
-| **Project（per-workdir）** | `~/.jcode/memory/projects/{hash}.json`，hash 由工作目录路径经 `DefaultHasher` 计算 | 项目级记忆，绑定特定代码仓库 |
-| **Global（user-level）** | `~/.jcode/memory/global.json` | 用户级偏好、跨项目事实 |
-| **Test** | `~/.jcode/memory/test/test_project.json` / `test_global.json` | 测试隔离存储（`MemoryManager::new_test()`） |
+| **Project（per-workdir）** | `~/.ssc_tui/memory/projects/{hash}.json`，hash 由工作目录路径经 `DefaultHasher` 计算 | 项目级记忆，绑定特定代码仓库 |
+| **Global（user-level）** | `~/.ssc_tui/memory/global.json` | 用户级偏好、跨项目事实 |
+| **Test** | `~/.ssc_tui/memory/test/test_project.json` / `test_global.json` | 测试隔离存储（`MemoryManager::new_test()`） |
 
 两个 scope 均以 `MemoryGraph`（JSON）持久化，legacy `MemoryStore` 格式在加载时自动迁移为 graph 格式。
 
@@ -22,7 +22,7 @@ Memory 子系统为 AI Agent 提供跨会话持久化记忆能力，通过 embed
 > **来源**：原生 jcode 设计文档 `docs/MEMORY_ARCHITECTURE.md`。
 
 ```
-~/.jcode/memory/
+~/.ssc_tui/memory/
 ├── graph.json                    # 序列化 MemoryGraph（非 petgraph，用 HashMap 替代）
 ├── projects/
 │   └── <project_hash>.json       # 各工作目录项目记忆
@@ -47,7 +47,7 @@ Memory 子系统为 AI Agent 提供跨会话持久化记忆能力，通过 embed
 | `src/memory/pending.rs` | 异步记忆注入队列（per-session），含去重、抑制重入、过期淘汰 |
 | `src/memory_agent.rs` | 独立的 Haiku-powered Memory Agent，后台运行，topic change 检测、增量提取、图维护 |
 | `src/memory_graph.rs` | 兼容性 re-export，转发到 `memory_types` 中的 `MemoryGraph` |
-| `src/memory_log.rs` | 持久化 JSONL 事件日志（`~/.jcode/logs/memory-events-*.jsonl`），14 天保留 |
+| `src/memory_log.rs` | 持久化 JSONL 事件日志（`~/.ssc_tui/logs/memory-events-*.jsonl`），14 天保留 |
 | `src/memory_prompt.rs` | 对话消息格式化为 context 字符串，分 relevance 和 extraction 两种窗口 |
 | `src/memory_types.rs` | 核心类型：`MemoryEntry`/`MemoryCategory`/`MemoryScope`/`MemoryStore`/`MemoryActivity`/`PipelineState`/ranking |
 | `src/runtime_memory_log.rs` | 进程级运行时内存采样日志（PSS、JSON 字节、allocator 统计） |
@@ -237,8 +237,8 @@ pub struct Procedure {
 Global (user-level, permanent) → Project (codebase, 永久) → Session (会话内)
 ```
 
-- **Global**：用户级偏好、跨项目事实，存 `~/.jcode/memory/global.json`
-- **Project**：项目级知识，存 `~/.jcode/memory/projects/{hash}.json`
+- **Global**：用户级偏好、跨项目事实，存 `~/.ssc_tui/memory/global.json`
+- **Project**：项目级知识，存 `~/.ssc_tui/memory/projects/{hash}.json`
 - **Session**：当前对话上下文，不持久化跨会话
 
 ### 9. 隐私与安全

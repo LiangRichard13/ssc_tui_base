@@ -269,7 +269,7 @@ fn test_filtered_model_routes_hide_internal_openrouter_provider_in_subscription_
 
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].model, "DeepSeek V4 Pro");
-    assert_eq!(filtered[0].provider, "Saitec Subscription");
+    assert_eq!(filtered[0].provider, "Ssc Subscription");
     assert_eq!(filtered[0].api_method, "saitec");
     assert!(
         !filtered[0]

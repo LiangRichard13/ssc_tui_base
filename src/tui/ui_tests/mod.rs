@@ -733,7 +733,7 @@ fn saitec_login_overlay_renders_masked_password_over_startup_splash() {
         .expect("saitec login overlay draw should succeed");
 
     let rendered = buffer_to_text(&terminal).join("\n");
-    assert!(rendered.contains("Saitec Login"), "rendered: {rendered}");
+    assert!(rendered.contains("Ssc Login"), "rendered: {rendered}");
     assert!(rendered.contains("Email"), "rendered: {rendered}");
     assert!(rendered.contains("Phone"), "rendered: {rendered}");
     assert!(rendered.contains("Password"), "rendered: {rendered}");
@@ -858,7 +858,7 @@ fn saitec_login_overlay_does_not_render_placeholder_asterisk_for_empty_password(
 fn saitec_login_overlay_wraps_long_error_messages() {
     let backend = ratatui::backend::TestBackend::new(72, 24);
     let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
-    let long_error = "Saitec login failed: Invalid credentials. Please verify whether the email or phone matches the account and try again with the correct password.".to_string();
+    let long_error = "Ssc login failed: Invalid credentials. Please verify whether the email or phone matches the account and try again with the correct password.".to_string();
     let state = TestState {
         pending_saitec_login_form: Some(crate::tui::app::SaitecPendingForm {
             form: crate::tui::app::SaitecLoginForm::new(
@@ -882,7 +882,7 @@ fn saitec_login_overlay_wraps_long_error_messages() {
     assert!(
         lines
             .iter()
-            .any(|line| line.contains("Saitec login failed:")),
+            .any(|line| line.contains("Ssc login failed:")),
         "rendered output should include the beginning of the long login error: {}",
         lines.join("\n")
     );
@@ -926,7 +926,7 @@ fn saitec_login_overlay_stays_visible_after_chat_history_exists() {
         .expect("saitec login overlay draw should succeed");
 
     let rendered = buffer_to_text(&terminal).join("\n");
-    assert!(rendered.contains("Saitec Login"), "rendered: {rendered}");
+    assert!(rendered.contains("Ssc Login"), "rendered: {rendered}");
     assert!(rendered.contains("Email"), "rendered: {rendered}");
     assert!(rendered.contains("[ Submit ]"), "rendered: {rendered}");
     assert!(rendered.contains("[ Cancel ]"), "rendered: {rendered}");

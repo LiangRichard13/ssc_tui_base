@@ -21,7 +21,7 @@ SERVER = Adjective/Verb modifier          SESSIONS = Animal nouns
 ```
 
 - Server 启动时随机取一个形容词/动词（如"blazing"），每个 session 取一个动物名词（如"fox"），组合为 `"🔥 blazing 🦊 fox"` 显示在 UI。
-- Server name 跨 reload 持久化（通过 `~/.jcode/servers.json` registry）。
+- Server name 跨 reload 持久化（通过 `~/.ssc_tui/servers.json` registry）。
 - 当 server exec 到新 binary（`/reload`），新进程用新名字注册，旧 entry 自动清理。
 - **SAITEC-TUI 差异**：SAITEC-TUI 可能未实现此命名系统，而是使用简单的 session ID 或用户自定义名。
 

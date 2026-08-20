@@ -173,7 +173,7 @@ quiet_end = "07:00"
 ### Review Queue 存储
 
 ```
-~/.jcode/safety/
+~/.ssc_tui/safety/
 ├── queue.json              # Pending permission requests
 ├── history.json            # Past decisions (for learning patterns)
 └── config.json             # Cached safety configuration

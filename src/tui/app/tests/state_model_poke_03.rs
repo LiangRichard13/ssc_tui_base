@@ -236,7 +236,7 @@ fn test_subscription_remote_model_picker_hides_openrouter_provider_options() {
         assert!(
             route_text
                 .iter()
-                .all(|route| route.contains("Saitec Subscription|saitec")),
+                .all(|route| route.contains("Ssc Subscription|saitec")),
             "subscription Provider column should only expose Saitec routes: {route_text:?}"
         );
 
@@ -832,12 +832,12 @@ fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
 
         let mut app = create_test_app();
         app.is_remote = true;
-        app.remote_provider_name = Some("SAITEC".to_string());
+        app.remote_provider_name = Some("SSC".to_string());
         app.remote_provider_model = Some("mcp-only".to_string());
         let routes = app.filter_saitec_model_routes_for_picker(vec![
             crate::provider::ModelRoute {
                 model: "mcp-only".to_string(),
-                provider: "SAITEC".to_string(),
+                provider: "SSC".to_string(),
                 api_method: "current".to_string(),
                 available: true,
                 detail: "MCPOnly".to_string(),
@@ -865,7 +865,7 @@ fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
             .collect::<Vec<_>>();
         assert!(
             leaked_routes.is_empty(),
-            "SAITEC MCP-only routes must not appear in /model: {:?}",
+            "SSC MCP-only routes must not appear in /model: {:?}",
             leaked_routes
         );
         assert!(
@@ -933,7 +933,7 @@ fn test_saitec_model_picker_hides_generic_openrouter_routes() {
                 .iter()
                 .flat_map(|entry| entry.options.iter())
                 .all(|route| route.api_method != "openrouter"),
-            "SAITEC model picker leaked OpenRouter routes: {:?}",
+            "SSC model picker leaked OpenRouter routes: {:?}",
             picker.entries
         );
     });
@@ -1276,7 +1276,7 @@ fn test_login_picker_preview_stays_open_and_updates_filter() {
         picker
             .filtered
             .iter()
-            .any(|&i| picker.entries[i].name == "SAITEC")
+            .any(|&i| picker.entries[i].name == "SSC")
     );
     assert_eq!(app.input(), "/login jc");
 }

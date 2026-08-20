@@ -92,7 +92,7 @@ fn initial_empty_screen_uses_minimal_saitec_splash_layout() {
     let working_dir = super::header::abbreviate_home(&temp.path().display().to_string());
 
     assert!(
-        rendered.contains("SAITEC") || rendered.contains(semver()),
+        rendered.contains("SSC") || rendered.contains(semver()),
         "startup splash should use a pixel-style logo: {rendered}"
     );
     assert!(
@@ -139,7 +139,7 @@ fn initial_empty_screen_registers_image_logo_when_asset_exists() {
     let prev_cwd = std::env::current_dir().expect("current dir");
     std::env::set_current_dir(temp.path()).expect("set current dir");
 
-    let logo_path = temp.path().join("SAITEC_logo.png");
+    let logo_path = temp.path().join("SSC_logo.png");
     let image = image::RgbaImage::from_fn(48, 16, |_x, _y| image::Rgba([0x77, 0x38, 0xaa, 0xff]));
     image.save(&logo_path).expect("write logo asset");
 
@@ -193,7 +193,7 @@ fn remote_startup_screen_hides_runtime_header_noise_even_when_processing() {
             "anthropic",
             "claude-opus-4-5-20251010",
         );
-        app.set_mcp_server_names_for_tests(vec![("SAITEC-Skills".to_string(), 0)]);
+        app.set_mcp_server_names_for_tests(vec![("SSC-Skills".to_string(), 0)]);
         app.set_processing_state_for_tests(crate::tui::ProcessingStatus::Sending);
         app.clear_remote_startup_phase();
         app.clear_display_messages_for_tests();
@@ -221,7 +221,7 @@ fn remote_startup_screen_hides_runtime_header_noise_even_when_processing() {
         .expect("missing footer line");
 
     assert!(
-        rendered.contains("SAITEC") || rendered.contains(semver()),
+        rendered.contains("SSC") || rendered.contains(semver()),
         "rendered: {rendered}"
     );
     assert!(!rendered.contains("server:"), "rendered: {rendered}");
@@ -256,7 +256,7 @@ fn remote_startup_screen_still_uses_splash_with_only_system_placeholder_messages
             "anthropic",
             "claude-opus-4-5-20251010",
         );
-        app.set_mcp_server_names_for_tests(vec![("SAITEC-Skills".to_string(), 0)]);
+        app.set_mcp_server_names_for_tests(vec![("SSC-Skills".to_string(), 0)]);
         app.clear_remote_startup_phase();
         app.set_display_messages_for_tests(vec![DisplayMessage::system(
             "Reload complete — checking restored history.".to_string(),
@@ -281,7 +281,7 @@ fn remote_startup_screen_still_uses_splash_with_only_system_placeholder_messages
     let rendered = lines.join("\n");
 
     assert!(
-        rendered.contains("SAITEC") || rendered.contains(semver()),
+        rendered.contains("SSC") || rendered.contains(semver()),
         "rendered: {rendered}"
     );
     assert!(!rendered.contains("server:"), "rendered: {rendered}");
@@ -305,7 +305,7 @@ fn saitec_pending_login_keeps_startup_splash_after_system_waiting_message() {
         let mut app = create_test_app();
         app.set_pending_saitec_login_for_tests();
         app.set_display_messages_for_tests(vec![DisplayMessage::system(
-            "Saitec login form is open.".to_string(),
+            "Ssc login form is open.".to_string(),
         )]);
 
         assert_eq!(app.display_user_message_count(), 0);
@@ -318,7 +318,7 @@ fn saitec_pending_login_keeps_startup_splash_after_system_waiting_message() {
     let rendered = lines.join("\n");
 
     assert!(
-        rendered.contains("SAITEC") || rendered.contains(semver()),
+        rendered.contains("SSC") || rendered.contains(semver()),
         "pending saitec login should keep the branded splash: {rendered}"
     );
     assert!(
@@ -360,7 +360,7 @@ fn saitec_pending_login_renders_form_fields_and_masked_password() {
     let rendered = lines.join("\n");
 
     assert!(
-        rendered.contains("SAITEC") || rendered.contains(semver()),
+        rendered.contains("SSC") || rendered.contains(semver()),
         "rendered: {rendered}"
     );
     assert!(

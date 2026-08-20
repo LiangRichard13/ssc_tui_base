@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::sync::{Arc, RwLock};
 
 const MCP_ONLY_MODEL: &str = "mcp-only";
-const MCP_ONLY_ERROR: &str = "SAITEC login only grants permission for SAITEC MCP tools. It is not a base-model provider and does not expose an OpenAI-compatible chat endpoint. Configure a base model with `/login base-models` before sending normal chat prompts.";
+const MCP_ONLY_ERROR: &str = "SSC login only grants permission for SAITEC MCP tools. It is not a base-model provider and does not expose an OpenAI-compatible chat endpoint. Configure a base model with `/login base-models` before sending normal chat prompts.";
 
 pub struct JcodeProvider {
     base_model_provider: RwLock<Option<Arc<MultiProvider>>>,
@@ -208,7 +208,7 @@ impl Provider for JcodeProvider {
         self.base_model_provider()
             .as_deref()
             .map(Self::delegated_provider_name)
-            .unwrap_or("SAITEC")
+            .unwrap_or("SSC")
     }
 
     fn model(&self) -> String {
@@ -534,7 +534,7 @@ mod tests {
 
         let provider = JcodeProvider::new();
 
-        assert_eq!(provider.name(), "SAITEC");
+        assert_eq!(provider.name(), "SSC");
         assert_eq!(provider.model(), "mcp-only");
         assert!(!crate::subscription_catalog::is_curated_model(
             &provider.model()
@@ -548,7 +548,7 @@ mod tests {
 
         let provider = JcodeProvider::new();
 
-        assert_eq!(provider.name(), "SAITEC");
+        assert_eq!(provider.name(), "SSC");
         assert_eq!(provider.model(), "mcp-only");
         assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
         assert!(std::env::var_os("JCODE_OPENROUTER_MODEL").is_none());
@@ -565,7 +565,7 @@ mod tests {
         let provider = JcodeProvider::new();
         let error = match provider.complete(&[], &[], "", None).await {
             Ok(_) => {
-                panic!("SAITEC provider must not send chat without an explicit base model");
+                panic!("SSC provider must not send chat without an explicit base model");
             }
             Err(error) => error,
         };

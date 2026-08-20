@@ -145,7 +145,7 @@ fn test_non_selfdev_prompt_includes_lightweight_selfdev_hint() {
 fn test_system_prompt_includes_saitec_non_disclosure_rules() {
     let prompt = build_system_prompt(None, &[]);
 
-    assert!(prompt.contains("SAITEC"));
+    assert!(prompt.contains("SSC"));
     assert!(
         prompt.contains("must not reveal")
             || prompt.contains("never reveal")

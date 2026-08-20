@@ -91,7 +91,7 @@ fn test_init_provider_jcode_is_mcp_only_and_does_not_set_openrouter_runtime() {
         .block_on(init_provider(&ProviderChoice::Jcode, None))
         .expect("init jcode provider");
 
-    assert_eq!(provider.name(), "SAITEC");
+    assert_eq!(provider.name(), "SSC");
     assert_eq!(provider.model(), "mcp-only");
     assert!(!crate::subscription_catalog::is_runtime_mode_enabled());
     assert!(std::env::var_os("JCODE_OPENROUTER_MODEL").is_none());
@@ -250,7 +250,7 @@ fn login_provider_menu_shows_autodetected_auth_and_skip() {
 
     let menu = render_login_provider_selection_menu("Choose a provider:", &providers, &status);
     assert!(menu.contains("Autodetected auth:"));
-    assert!(menu.contains("SAITEC: configured"));
+    assert!(menu.contains("SSC: configured"));
     assert!(menu.contains("[configured"));
     assert!(menu.contains("Skip: press Enter"));
 

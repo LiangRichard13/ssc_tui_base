@@ -333,7 +333,7 @@ fn startup_logo_text_lines(width: usize) -> Vec<String> {
         return compact;
     }
 
-    vec!["SAITEC".to_string()]
+    vec!["SSC".to_string()]
 }
 
 pub(crate) fn startup_logo_lines(width: usize) -> Vec<String> {
@@ -1341,7 +1341,7 @@ mod tests {
     fn build_header_lines_show_saitec_mcp_status_and_tool_count() {
         let mut app = create_test_app();
         app.set_mcp_server_names_for_tests(vec![
-            ("SAITEC-Skills".to_string(), 0),
+            ("SSC-Skills".to_string(), 0),
             ("helper".to_string(), 3),
         ]);
 
@@ -1353,7 +1353,7 @@ mod tests {
             .collect::<String>();
 
         assert!(rendered.contains("mcp:"));
-        assert!(rendered.contains("SAITEC-Skills"));
+        assert!(rendered.contains("SSC-Skills"));
         assert!(rendered.contains("helper (3 tools)") || rendered.contains("helper(3)"));
     }
 
@@ -1453,7 +1453,7 @@ mod tests {
         std::env::set_current_dir(temp.path()).expect("set current dir");
 
         let mut app = create_test_app();
-        app.set_mcp_server_names_for_tests(vec![("SAITEC-Skills".to_string(), 8)]);
+        app.set_mcp_server_names_for_tests(vec![("SSC-Skills".to_string(), 8)]);
         let lines = build_startup_header(&app, 80);
 
         std::env::set_current_dir(prev_cwd).expect("restore current dir");

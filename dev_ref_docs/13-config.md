@@ -1,11 +1,11 @@
 # 13 · Configuration
 
-> 子系统：全局配置加载（`~/.jcode/config.toml`）、`OnceLock` 单例、环境变量逐字段覆盖、外部 auth trust 管理。
+> 子系统：全局配置加载（`~/.ssc_tui/config.toml`）、`OnceLock` 单例、环境变量逐字段覆盖、外部 auth trust 管理。
 > 回指：[CLAUDE.md](../CLAUDE.md) · [doc_ref README](README.md)
 
 ## 职责一句话
 
-从 `~/.jcode/config.toml`（或 `$JCODE_HOME/config.toml`）加载全局配置，通过 `OnceLock` 单例暴露，支持 80+ 个 `JCODE_*` 环境变量逐字段覆盖文件值，覆盖 keybinding/display/feature/provider/auth/safety/ambient/gateway/compaction 等全部用户可调参数。
+从 `~/.ssc_tui/config.toml`（或 `$JCODE_HOME/config.toml`）加载全局配置，通过 `OnceLock` 单例暴露，支持 80+ 个 `JCODE_*` 环境变量逐字段覆盖文件值，覆盖 keybinding/display/feature/provider/auth/safety/ambient/gateway/compaction 等全部用户可调参数。
 
 ## 关键文件清单
 

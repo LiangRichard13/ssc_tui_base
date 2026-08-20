@@ -74,7 +74,7 @@ fn subscription_visible_route(mut route: ModelRoute) -> ModelRoute {
     if let Some(curated) = crate::subscription_catalog::find_curated_model(&route.model) {
         route.model = curated.display_name.to_string();
     }
-    route.provider = "Saitec Subscription".to_string();
+    route.provider = "Ssc Subscription".to_string();
     route.api_method = "saitec".to_string();
     route.detail.clear();
     route

@@ -453,7 +453,7 @@ impl App {
             {
                 routes.push(crate::provider::ModelRoute {
                     model,
-                    provider: "Saitec Subscription".to_string(),
+                    provider: "Ssc Subscription".to_string(),
                     api_method: "saitec".to_string(),
                     available: true,
                     detail: String::new(),

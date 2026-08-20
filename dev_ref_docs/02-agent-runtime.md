@@ -363,8 +363,8 @@ Agent 执行编辑
 | `src/prompt.rs` + `src/prompt/` | 系统提示词组装、`DEFAULT_SYSTEM_PROMPT`(编译时嵌入 `system_prompt.md`)、selfdev 模式提示、SAITEC MCP 安全提示、`SplitSystemPrompt`(static+dynamic 分离)、`ContextInfo`(token 估算) | ~925 行 |
 | `src/background.rs` + `src/background/` | 后台任务执行管理器——tool 在后台运行，完成后通知 agent；文件存储崩溃恢复 + event channel 实时通知；`BusEvent::BackgroundTaskCompleted`/`Progress` | ~1676 行 |
 | `src/usage.rs` + `src/usage/` | Anthropic OAuth / OpenAI ChatGPT 订阅用量拉取、缓存、多账户管理（TUI info widget / `/usage` 数据源） | ~3136 行 |
-| `src/todo.rs` | 会话级 Todo 列表持久化到 `~/.jcode/todos/{session_id}.json`；`BusEvent::TodoUpdated` | 23 行 |
-| `src/soft_interrupt_store.rs` | 软中断消息持久化到 `~/.jcode/pending-soft-interrupts/`（User/System/BackgroundTask 三源）；支撑 `src/agent/interrupts.rs` | 121 行 |
+| `src/todo.rs` | 会话级 Todo 列表持久化到 `~/.ssc_tui/todos/{session_id}.json`；`BusEvent::TodoUpdated` | 23 行 |
+| `src/soft_interrupt_store.rs` | 软中断消息持久化到 `~/.ssc_tui/pending-soft-interrupts/`（User/System/BackgroundTask 三源）；支撑 `src/agent/interrupts.rs` | 121 行 |
 | `src/cache_tracker.rs` | 客户端侧 prompt 缓存违规追踪——provider 不报 cache token 时自追踪 message prefix hash 检测缓存被破坏 | 397 行 |
 
 **Note**：`src/prompt.rs` 与 `src/agent/prompting.rs` 不同——前者管理 prompt 组装和大小追踪，后者管理 agent 运行时 prompt 注入逻辑。

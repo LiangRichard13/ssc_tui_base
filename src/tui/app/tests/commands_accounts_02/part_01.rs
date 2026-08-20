@@ -558,7 +558,7 @@ fn test_login_mode_selector_uses_simple_two_option_dialog() {
         .expect("login selector draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("SAITEC"), "rendered selector:\n{text}");
+    assert!(text.contains("SSC"), "rendered selector:\n{text}");
     assert!(text.contains("Base models"), "rendered selector:\n{text}");
     assert!(
         text.contains("sign in to SAITEC and unlock the TUI"),
@@ -1319,7 +1319,7 @@ fn test_inline_login_provider_picker_hides_openrouter() {
         names
             .iter()
             .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
-        "SAITEC Provider picker leaked OpenRouter: {names:?}"
+        "SSC Provider picker leaked OpenRouter: {names:?}"
     );
 }
 
@@ -2045,7 +2045,7 @@ fn test_login_command_after_prior_message_renders_login_selector_without_provide
         .expect("login overlay draw should succeed");
     let text = buffer_to_text(&terminal);
 
-    assert!(text.contains("SAITEC"), "rendered:\n{text}");
+    assert!(text.contains("SSC"), "rendered:\n{text}");
     assert!(text.contains("Base models"), "rendered:\n{text}");
     assert!(!text.contains("PROVIDER"), "rendered:\n{text}");
     assert!(!text.contains("ITEM"), "rendered:\n{text}");

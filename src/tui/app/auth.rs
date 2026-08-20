@@ -207,7 +207,7 @@ impl App {
         let items = vec![
             AccountPickerItem::action(
                 "saitec-login",
-                "SAITEC",
+                "SSC",
                 "Business account",
                 "sign in to SAITEC and unlock the TUI",
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(
@@ -251,8 +251,8 @@ impl App {
             ),
             AccountPickerItem::action(
                 "jcode",
-                "SAITEC",
-                "SAITEC",
+                "SSC",
+                "SSC",
                 "requires confirmation before clearing SAITEC API credentials",
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(
                     "/logout jcode".to_string(),
@@ -474,7 +474,7 @@ impl App {
             message,
         }));
         self.push_display_message(DisplayMessage::system(
-            "SAITEC login unavailable in baseline.".to_string(),
+            "SSC login unavailable in baseline.".to_string(),
         ));
     }
 
@@ -1727,7 +1727,7 @@ impl App {
                     "Auto import is waiting for your selection. Reply with `a` to approve all, `1,3` to approve specific sources, or `/cancel` to abort.".to_string()
                 }
                 PendingLogin::SaitecForm { .. } => {
-                    "Saitec login form is open. Fill in email or phone plus password, then submit. Type `/cancel` to abort.".to_string()
+                    "Ssc login form is open. Fill in email or phone plus password, then submit. Type `/cancel` to abort.".to_string()
                 }
                 _ => "Login still in progress. Complete it in your browser, or paste the callback URL / authorization code here. Type `/cancel` to abort.".to_string(),
             };
@@ -2115,7 +2115,7 @@ impl App {
                         let guidance = if key_name == crate::subscription_catalog::JCODE_API_KEY_ENV
                         {
                             format!(
-                                "SAITEC credentials are saved for MCP permissions only. They do not configure or switch a base model. Use `/login base-models` to configure model providers.\nDocs: {}",
+                                "SSC credentials are saved for MCP permissions only. They do not configure or switch a base model. Use `/login base-models` to configure model providers.\nDocs: {}",
                                 docs_url
                             )
                         } else if let Some(resolved) = resolved_openai_compatible.as_ref() {
