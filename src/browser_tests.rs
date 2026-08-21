@@ -24,7 +24,7 @@ fn test_rewrite_command_with_full_path() {
     // If binary exists, it rewrites; if not, returns unchanged
     if browser_binary_path().exists() {
         assert!(result.contains("ping"));
-        assert!(result.contains(".jcode/browser"));
+        assert!(result.contains(".ssc_tui/browser"));
     } else {
         assert_eq!(result, cmd);
     }
@@ -33,7 +33,7 @@ fn test_rewrite_command_with_full_path() {
 #[test]
 fn test_paths() {
     let bdir = browser_dir();
-    assert!(bdir.to_string_lossy().contains(".jcode"));
+    assert!(bdir.to_string_lossy().contains(".ssc_tui"));
     assert!(bdir.to_string_lossy().ends_with("browser"));
 
     let bin = browser_binary_path();

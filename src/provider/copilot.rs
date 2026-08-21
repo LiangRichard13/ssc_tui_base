@@ -199,9 +199,8 @@ impl CopilotApiProvider {
     }
 
     fn get_or_create_machine_id() -> String {
-        let machine_id_path = dirs::home_dir()
+        let machine_id_path = crate::storage::jcode_dir()
             .unwrap_or_default()
-            .join(".jcode")
             .join("machine_id");
         if let Ok(id) = std::fs::read_to_string(&machine_id_path) {
             let id = id.trim().to_string();

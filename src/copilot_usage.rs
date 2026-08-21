@@ -11,7 +11,7 @@ static TRACKER: Mutex<Option<CopilotUsageTracker>> = Mutex::new(None);
 
 fn usage_path() -> PathBuf {
     crate::storage::jcode_dir()
-        .unwrap_or_else(|_| PathBuf::from(".").join(".jcode"))
+        .unwrap_or_else(|_| PathBuf::from(".").join(".ssc_tui"))
         .join("copilot_usage.json")
 }
 

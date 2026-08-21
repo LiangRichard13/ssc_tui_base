@@ -171,7 +171,7 @@ fn macos_launcher_script(terminal: MacTerminalKind, exe_path: &str, app_dir: &Pa
 set -u
 
 PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-LOG_DIR="$HOME/.jcode/launcher"
+LOG_DIR="$HOME/.ssc_tui/launcher"
 LOG_FILE="$LOG_DIR/macos-launcher.log"
 mkdir -p "$LOG_DIR" >/dev/null 2>&1 || true
 

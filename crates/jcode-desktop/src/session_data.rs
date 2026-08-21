@@ -131,7 +131,7 @@ fn jcode_sessions_dir() -> Result<PathBuf> {
         None => std::env::var_os("HOME")
             .map(PathBuf::from)
             .context("HOME is not set")?
-            .join(".jcode"),
+            .join(".ssc_tui"),
     };
     Ok(jcode_home.join("sessions"))
 }
