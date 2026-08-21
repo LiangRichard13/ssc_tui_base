@@ -1136,7 +1136,7 @@ async fn init_provider_with_options(
 
     let provider: Arc<dyn provider::Provider> = match choice {
         ProviderChoice::Jcode => {
-            init_notice("Using SAITEC MCP permission provider (no base model configured)");
+            init_notice("Using the SSC MCP permission provider (no base model configured)");
             Arc::new(provider::jcode::JcodeProvider::new())
         }
         ProviderChoice::Claude => {

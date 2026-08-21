@@ -47,8 +47,6 @@ impl App {
         self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
     }
 
-    /// After a login picker close (Esc/cancel), check if we should reopen the
-    /// startup guide because the user was in the middle of first-run setup.
     pub(crate) fn open_base_model_login_picker(&mut self) {
         use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
 
@@ -348,7 +346,7 @@ impl App {
         let configured_key = crate::subscription_catalog::configured_api_key().is_some();
         // Stage 2D: SAITEC backend core-api base retired.
         let core_api_base = "unavailable (baseline)".to_string();
-        let mut message = String::from("**SAITEC MCP Status**\n\n");
+        let mut message = String::from("**SSC MCP Status**\n\n");
         message.push_str(&format!(
             "- Platform credentials: {}\n",
             if configured_key {
@@ -358,9 +356,9 @@ impl App {
             }
         ));
         message.push_str(&format!("- Core API base: `{}`\n", core_api_base));
-        message.push_str("- MCP server: `SAITEC-Skills`\n");
+        message.push_str("- MCP server: `SSC-Skills`\n");
         message.push_str(
-            "\nSAITEC login grants platform API permission to MCP tools. It does not configure or switch a base model. Use `/login base-models` for model providers.",
+            "\nSSC login grants platform API permission to MCP tools. It does not configure or switch a base model. Use `/login base-models` for model providers.",
         );
         self.push_display_message(DisplayMessage::system(message));
     }

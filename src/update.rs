@@ -902,9 +902,9 @@ pub fn download_and_install_blocking_with_progress(
 }
 
 // `check_and_maybe_update` 之前是 TUI 自动检查 + 自动 install GitHub Release 的入口。
-// 现在 TUI 启动后台任务改成调 `crate::saitec::tui_update::check_tui_update`（SAITEC 后端通道）。
-// hot_exec / `jcode update` CLI 子命令走的是不同代码路径，不需要此函数。
-// function removed — 见 dev_ref_docs/15-update.md 的拆分。
+// TUI 启动时的后端推送更新检查已随 SAITEC 后端通道退役（stage 2C）；release 构建
+// 的热更新走 SessionUpdateStatus + hot_exec 路径。`jcode update` CLI 子命令另走
+// 独立代码路径，不需要此函数。function removed — 见 dev_ref_docs/15-update.md 的拆分。
 
 #[cfg(test)]
 mod tests {

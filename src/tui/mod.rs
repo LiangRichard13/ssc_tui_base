@@ -196,10 +196,6 @@ pub trait TuiState {
     fn preserve_branded_startup_surface(&self) -> bool {
         false
     }
-    /// Whether the startup welcome guide overlay is active.
-    fn pending_startup_guide(&self) -> bool {
-        false
-    }
     /// Pending text-entry login flow (API key, API base, etc.) rendered as a modal overlay.
     fn pending_text_entry_overlay(&self) -> Option<PendingTextEntryOverlay> {
         None

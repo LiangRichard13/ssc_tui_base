@@ -21,7 +21,7 @@ pub(crate) async fn auth_test_choice_plan(
 ) -> Result<AuthTestChoicePlan> {
     if matches!(choice, super::provider_init::ProviderChoice::Jcode) {
         return Ok(AuthTestChoicePlan::Skip(
-            "Skipped: SAITEC login is MCP permission only; configure a base-model provider with `/login base-models` for model smoke tests.".to_string(),
+            "Skipped: the jcode platform login is MCP permission only; configure a base-model provider with `/login base-models` for model smoke tests.".to_string(),
         ));
     }
 

@@ -135,7 +135,7 @@ impl App {
                     provider.id,
                     provider.display_name,
                     "Logout",
-                    "clear SAITEC credentials after confirmation",
+                    "clear SSC credentials after confirmation",
                     AccountPickerCommand::SubmitInput("/logout jcode".to_string()),
                 ));
             }

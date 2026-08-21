@@ -121,12 +121,6 @@ impl App {
             super::handterm_native_scroll::HandtermNativeScrollClient::connect_from_env();
         let mut remote_state = remote::RemoteRunState::default();
 
-        // Startup guide check for remote mode — same logic as App::run()
-        if !self.is_replay && self.display_messages.is_empty() {
-            // Login gate removed in chore/ssc-tui-baseline: previously a SAITEC
-            // startup guide was triggered here too. See stage 2 subtask B-3.
-        }
-
         'outer: loop {
             if self.display_messages.is_empty() {
                 if self.server_spawning {

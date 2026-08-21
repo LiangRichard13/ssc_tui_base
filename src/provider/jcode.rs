@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use std::sync::{Arc, RwLock};
 
 const MCP_ONLY_MODEL: &str = "mcp-only";
-const MCP_ONLY_ERROR: &str = "SSC login only grants permission for SAITEC MCP tools. It is not a base-model provider and does not expose an OpenAI-compatible chat endpoint. Configure a base model with `/login base-models` before sending normal chat prompts.";
+const MCP_ONLY_ERROR: &str = "SSC login only grants permission for SSC MCP tools. It is not a base-model provider and does not expose an OpenAI-compatible chat endpoint. Configure a base model with `/login base-models` before sending normal chat prompts.";
 
 pub struct JcodeProvider {
     base_model_provider: RwLock<Option<Arc<MultiProvider>>>,
@@ -136,7 +136,7 @@ impl JcodeProvider {
             }
             Err(error) => {
                 crate::logging::warn(&format!(
-                    "Failed to activate configured SAITEC base model `{}`: {}",
+                    "Failed to activate configured base model `{}`: {}",
                     model_spec, error
                 ));
                 // Roll back the *runtime* env vars only — leave the env file's

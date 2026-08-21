@@ -41,9 +41,8 @@ pub(crate) async fn get_shared_mcp_pool(
     let pool = cell
         .get_or_init(|| async {
             let pool = Arc::new(crate::mcp::SharedMcpPool::from_default_config());
-            // Sync to the global static so free functions like
-            // reconnect_saitec_mcp() / disconnect_saitec_mcp() operate
-            // on the same pool that the server actually uses.
+            // Sync to the global static so callers that fetch the shared pool
+            // always observe the same instance the server actually uses.
             let _ = crate::mcp::pool::init_shared_pool_with(pool.clone());
             pool
         })

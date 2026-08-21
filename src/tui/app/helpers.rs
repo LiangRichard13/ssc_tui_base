@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
+const SSC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 static AMBIENT_INFO_CACHE: Mutex<
     Option<(std::time::Instant, bool, Option<AmbientWidgetData>, bool)>,
@@ -48,9 +48,9 @@ pub(super) fn runtime_window_title(
     suffix: &str,
 ) -> String {
     let brand_label = if server_name.eq_ignore_ascii_case("jcode") {
-        SAITEC_WINDOW_TITLE.to_string()
+        SSC_WINDOW_TITLE.to_string()
     } else {
-        format!("{SAITEC_WINDOW_TITLE}/{}", server_name.to_lowercase())
+        format!("{SSC_WINDOW_TITLE}/{}", server_name.to_lowercase())
     };
     format!("{brand_label}/{session_label}{suffix}")
 }
@@ -484,11 +484,11 @@ fn resumed_window_title(session_id: &str) -> String {
         crate::registry::find_server_by_socket_sync(&crate::server::socket_path())
     {
         format!(
-            "{SAITEC_WINDOW_TITLE}/{} {}",
+            "{SSC_WINDOW_TITLE}/{} {}",
             server_info.name, session_label
         )
     } else {
-        format!("{SAITEC_WINDOW_TITLE}/{}", session_label)
+        format!("{SSC_WINDOW_TITLE}/{}", session_label)
     }
 }
 

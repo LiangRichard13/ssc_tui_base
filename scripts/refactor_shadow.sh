@@ -38,7 +38,7 @@ Usage:
 What it does:
   - Runs jcode in an isolated refactor environment
   - Uses separate JCODE_HOME and JCODE_SOCKET
-  - Refuses to run against ~/.jcode to protect live sessions
+  - Refuses to run against ~/.ssc_tui to protect live sessions
 
 Environment overrides:
   JCODE_REF_HOME      Isolated home dir (default: ~/.jcode-refactor)

@@ -1,7 +1,7 @@
 use super::*;
 use crate::tui::connection_type_icon;
 
-const SAITEC_WINDOW_TITLE: &str = "🍇 ssc-tui";
+const SSC_WINDOW_TITLE: &str = "🍇 ssc-tui";
 
 fn runtime_window_title(
     _icon: &str,
@@ -10,9 +10,9 @@ fn runtime_window_title(
     suffix: &str,
 ) -> String {
     let brand_label = if server_name.eq_ignore_ascii_case("jcode") {
-        SAITEC_WINDOW_TITLE.to_string()
+        SSC_WINDOW_TITLE.to_string()
     } else {
-        format!("{SAITEC_WINDOW_TITLE}/{}", server_name.to_lowercase())
+        format!("{SSC_WINDOW_TITLE}/{}", server_name.to_lowercase())
     };
     format!("{brand_label}/{session_label}{suffix}")
 }

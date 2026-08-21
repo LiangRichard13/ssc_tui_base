@@ -540,7 +540,7 @@ pub const JCODE_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDescripto
         "subscription",
         "jcode-subscription",
     ],
-    menu_detail: "platform login for SAITEC MCP permissions",
+    menu_detail: "platform login for SSC MCP permissions",
     recommended: false,
     target: LoginProviderTarget::Jcode,
     order: LoginProviderSurfaceOrder::new(Some(3), Some(3), Some(3), Some(3), Some(3)),
