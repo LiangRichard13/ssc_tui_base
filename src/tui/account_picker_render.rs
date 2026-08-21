@@ -157,7 +157,7 @@ pub(super) fn action_kind_help(command: &AccountPickerCommand) -> &'static str {
             "Removes saved credentials for the selected account. Use this when an account is stale or should no longer be available in SSC-TUI."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" login") => {
-            "Starts Saitec login for this build."
+            "Starts the jcode provider login flow."
         }
         AccountPickerCommand::SubmitInput(input) if input.contains(" add") => {
             "Adds a saved account entry."

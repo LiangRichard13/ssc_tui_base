@@ -448,7 +448,7 @@ pub(super) async fn run_usage_command(emit_json: bool) -> Result<()> {
         println!("No connected providers");
         println!();
         println!("Next steps:");
-        println!("- Use `jcode login --provider jcode` or `/login` to connect Saitec.");
+        println!("- Use `jcode login --provider jcode` or `/login` to connect the jcode platform login.");
         println!("- Use `/account` to review provider-specific auth and settings.");
         return Ok(());
     }

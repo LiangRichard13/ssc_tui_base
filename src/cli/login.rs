@@ -159,7 +159,7 @@ pub async fn run_login(
 ) -> Result<()> {
     if !matches!(choice, ProviderChoice::Jcode | ProviderChoice::Auto) {
         anyhow::bail!(
-            "Only Saitec login is available right now. Use `jcode login --provider jcode` or `jcode login`."
+            "Only the jcode provider login is available right now. Use `jcode login --provider jcode` or `jcode login`."
         );
     }
 

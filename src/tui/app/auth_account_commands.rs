@@ -315,7 +315,7 @@ fn parse_account_command(trimmed: &str) -> Option<Result<AccountCommand, String>
         "add" | "login" => {
             if !remainder.is_empty() {
                 return Some(Err(
-                    "Only Saitec login is available. Use `/login` or `/login jcode`.".to_string(),
+                    "Only the jcode provider login is available. Use `/login` or `/login jcode`.".to_string(),
                 ));
             }
             return Some(Ok(AccountCommand::Login {
@@ -1050,8 +1050,8 @@ fn render_provider_settings_markdown(app: &App, provider_id: &str) -> String {
     if provider.id == "jcode" {
         lines.push("- Login command: `/login` or `/login jcode`".to_string());
     } else {
-        lines.push("- Login command: unavailable in this Saitec-only build".to_string());
-        lines.push("- Saitec access: `/login` or `/login jcode`".to_string());
+        lines.push("- Login command: unavailable in this jcode-only build".to_string());
+        lines.push("- jcode access: `/login` or `/login jcode`".to_string());
     }
     lines.push(format!(
         "- Doctor command: `/account {} doctor`",

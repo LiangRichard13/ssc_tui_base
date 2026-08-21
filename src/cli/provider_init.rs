@@ -621,7 +621,7 @@ fn ensure_openai_auth_allowed_for_explicit_choice() -> Result<()> {
     }
 
     anyhow::bail!(
-        "Skipped importing existing ~/.codex/auth.json credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
+        "Skipped importing existing ~/.codex/auth.json credentials. Run `jcode login --provider jcode` to authenticate through the jcode platform login."
     )
 }
 
@@ -703,7 +703,7 @@ fn ensure_claude_auth_allowed_for_explicit_choice() -> Result<()> {
         return Ok(());
     }
     anyhow::bail!(
-        "Skipped trusting external Claude credentials. Run `jcode login --provider jcode` to authenticate through Saitec."
+        "Skipped trusting external Claude credentials. Run `jcode login --provider jcode` to authenticate through the jcode platform login."
     )
 }
 

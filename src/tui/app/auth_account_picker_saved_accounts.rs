@@ -44,7 +44,7 @@ impl App {
 
         if accounts.is_empty() {
             return "**OpenAI Accounts:** none configured\n\n\
-                 Use `/account openai settings` to review this provider, or `/login` to access Saitec."
+                 Use `/account openai settings` to review this provider, or `/login` to access the jcode platform login."
                 .to_string();
         }
 
@@ -88,7 +88,7 @@ impl App {
 
         if accounts.is_empty() {
             return "**Anthropic Accounts:** none configured\n\n\
-                 Use `/account claude settings` to review this provider, or `/login` to access Saitec."
+                 Use `/account claude settings` to review this provider, or `/login` to access the jcode platform login."
                 .to_string();
         }
 
