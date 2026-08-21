@@ -560,7 +560,7 @@ fn test_refresh_model_list_command_suggestions() {
 }
 
 #[test]
-fn test_registered_command_suggestions_match_saitec_public_surface() {
+fn test_registered_command_suggestions_match_public_surface() {
     let app = create_test_app();
     let suggestions = app.get_suggestions_for("/");
     let commands: Vec<&str> = suggestions.iter().map(|(cmd, _)| cmd.as_str()).collect();

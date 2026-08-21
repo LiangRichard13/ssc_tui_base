@@ -340,12 +340,12 @@ mod tests {
     }
 
     #[test]
-    fn test_saitec_login_overlay_keeps_mouse_capture_enabled_when_configured() {
+    fn test_login_overlay_mouse_capture_keeps_enabled_when_configured() {
         assert!(should_enable_mouse_capture(true, true));
     }
 
     #[test]
-    fn test_mouse_capture_stays_enabled_without_saitec_login_overlay() {
+    fn test_mouse_capture_stays_enabled_without_login_overlay() {
         assert!(should_enable_mouse_capture(true, false));
     }
 

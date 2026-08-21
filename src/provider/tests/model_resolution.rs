@@ -521,7 +521,7 @@ fn test_validated_direct_compatible_models_are_merged_into_model_routes() {
 }
 
 #[test]
-fn test_saitec_startup_does_not_activate_generic_openrouter_credentials() {
+fn test_startup_does_not_activate_generic_openrouter_credentials() {
     with_clean_provider_test_env(|| {
         with_env_var("OPENROUTER_API_KEY", "test-openrouter-key", || {
             let provider = MultiProvider::new_fast();

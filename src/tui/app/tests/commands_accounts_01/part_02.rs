@@ -143,7 +143,7 @@ fn test_usage_report_shows_no_connected_providers_when_results_empty() {
 }
 
 #[test]
-fn test_regular_prompt_is_blocked_when_saitec_login_missing() {
+fn test_regular_prompt_is_blocked_when_login_missing() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let prev_home = std::env::var_os("JCODE_HOME");
@@ -165,7 +165,7 @@ fn test_regular_prompt_is_blocked_when_saitec_login_missing() {
 }
 
 #[test]
-fn test_subscription_command_shows_saitec_status_scaffold() {
+fn test_subscription_command_shows_subscription_status() {
     let _guard = crate::storage::lock_test_env();
     crate::subscription_catalog::clear_runtime_env();
     crate::env::remove_var(crate::subscription_catalog::JCODE_API_KEY_ENV);

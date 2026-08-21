@@ -69,12 +69,12 @@ struct CountingModelRoutesProvider {
 }
 
 #[derive(Clone)]
-struct UnfilteredSaitecModelProvider {
+struct UnfilteredSubscriptionModelProvider {
     name: &'static str,
 }
 
 #[async_trait::async_trait]
-impl Provider for UnfilteredSaitecModelProvider {
+impl Provider for UnfilteredSubscriptionModelProvider {
     async fn complete(
         &self,
         _messages: &[Message],
@@ -82,7 +82,7 @@ impl Provider for UnfilteredSaitecModelProvider {
         _system: &str,
         _resume_session_id: Option<&str>,
     ) -> Result<crate::provider::EventStream> {
-        unimplemented!("UnfilteredSaitecModelProvider")
+        unimplemented!("UnfilteredSubscriptionModelProvider")
     }
 
     fn name(&self) -> &str {
@@ -827,7 +827,7 @@ fn test_remote_model_picker_shows_validated_current_kimi_model_name() {
 
 
 #[test]
-fn test_saitec_model_picker_hides_generic_openrouter_routes() {
+fn test_subscription_model_picker_hides_generic_openrouter_routes() {
     with_temp_jcode_home(|| {
         crate::subscription_catalog::clear_runtime_env();
         save_test_provider_validation("kimi", &["kimi-for-coding"]);
@@ -890,9 +890,9 @@ fn test_saitec_model_picker_hides_generic_openrouter_routes() {
 }
 
 #[test]
-fn test_saitec_model_picker_hides_unconfigured_anthropic_routes_when_kimi_available() {
+fn test_subscription_model_picker_hides_unconfigured_anthropic_routes_when_kimi_available() {
     with_temp_jcode_home(|| {
-        let prev_saitec_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
+        let prev_sub_key = std::env::var_os(crate::subscription_catalog::JCODE_API_KEY_ENV);
         crate::env::set_var(
             crate::subscription_catalog::JCODE_API_KEY_ENV,
             "sk-test-saitec",
@@ -934,7 +934,7 @@ fn test_saitec_model_picker_hides_unconfigured_anthropic_routes_when_kimi_availa
         app.open_model_picker();
         wait_for_model_picker_load(&mut app);
 
-        match prev_saitec_key {
+        match prev_sub_key {
             Some(value) => {
                 crate::env::set_var(crate::subscription_catalog::JCODE_API_KEY_ENV, value)
             }
@@ -961,7 +961,7 @@ fn test_saitec_model_picker_hides_unconfigured_anthropic_routes_when_kimi_availa
 }
 
 #[test]
-fn test_saitec_model_command_rejects_generic_openrouter_model() {
+fn test_subscription_model_command_rejects_generic_openrouter_model() {
     let (mut app, set_model_calls) = create_named_openrouter_spec_capture_test_app_with_routes(
         "OpenRouter",
         vec![crate::provider::ModelRoute {

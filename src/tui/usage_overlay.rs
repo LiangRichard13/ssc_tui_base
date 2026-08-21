@@ -111,7 +111,7 @@ impl UsageOverlay {
                 vec![
                     "## No usage sources found".to_string(),
                     "• No providers with OAuth credentials were found.".to_string(),
-                    "• Use `/login` to connect Saitec, or `/account` to review provider-specific auth.".to_string(),
+                    "• Use `/login` to connect the jcode platform login, or `/account` to review provider-specific auth.".to_string(),
                     "• Then run `/usage` again.".to_string(),
                 ],
             ));

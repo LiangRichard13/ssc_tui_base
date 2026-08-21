@@ -590,7 +590,7 @@ fn remote_openai_compatible_post_login_activation_queues_documented_default_mode
 }
 
 #[test]
-fn saitec_provider_openai_compatible_post_login_activation_selects_kimi_default() {
+fn openai_compatible_post_login_activation_selects_kimi_default() {
     let _lock = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let _home = EnvVarGuard::set_path("JCODE_HOME", temp.path());

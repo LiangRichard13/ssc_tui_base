@@ -106,7 +106,7 @@ const REGISTERED_COMMANDS: &[RegisteredCommand] = &[
     RegisteredCommand::public("/workspace", "Niri-style session workspace"),
     RegisteredCommand::public("/quit", "Exit SSC-TUI"),
     RegisteredCommand::public("/login", "Choose SAITEC login or base-model configuration"),
-    RegisteredCommand::public("/logout", "Logout from Saitec and clear local auth"),
+    RegisteredCommand::public("/logout", "Logout and clear local auth and clear local auth"),
     RegisteredCommand::public("/account", "Open the combined account picker"),
     RegisteredCommand::public("/accounts", "Alias for /account"),
     RegisteredCommand::public("/cache", "Show cache stats or set cache TTL"),
@@ -772,7 +772,7 @@ impl App {
                     "Start or refresh login for this provider",
                 ));
             }
-            suggestions.push(("/account jcode login".into(), "Start the Saitec login flow"));
+            suggestions.push(("/account jcode login".into(), "Start the jcode platform login flow"));
             suggestions.push((
                 "/account openai transport".into(),
                 "Set OpenAI transport preference",

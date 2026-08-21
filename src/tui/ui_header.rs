@@ -1338,7 +1338,7 @@ mod tests {
     }
 
     #[test]
-    fn build_header_lines_show_saitec_mcp_status_and_tool_count() {
+    fn build_header_lines_show_mcp_status_and_tool_count() {
         let mut app = create_test_app();
         app.set_mcp_server_names_for_tests(vec![
             ("SSC-Skills".to_string(), 0),
@@ -1377,7 +1377,7 @@ mod tests {
     }
 
     #[test]
-    fn build_persistent_header_shows_saitec_brand_when_session_name_missing() {
+    fn build_persistent_header_shows_brand_when_session_name_missing() {
         let mut app = crate::tui::app::App::new_for_remote(None);
         app.set_remote_startup_phase(crate::tui::app::RemoteStartupPhase::LoadingSession);
         let lines = build_persistent_header(&app, 80);
@@ -1410,7 +1410,7 @@ mod tests {
     }
 
     #[test]
-    fn build_header_lines_hides_skills_line_in_saitec_product_mode() {
+    fn build_header_lines_hides_skills_line_in_product_mode() {
         let _guard = crate::storage::lock_test_env();
         let temp = tempfile::tempdir().expect("tempdir");
         let jcode_home = temp.path().join("jcode-home");
