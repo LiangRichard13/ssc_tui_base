@@ -825,56 +825,6 @@ fn test_remote_model_picker_shows_validated_current_kimi_model_name() {
     });
 }
 
-#[test]
-fn test_remote_model_picker_hides_saitec_mcp_only_routes() {
-    with_temp_jcode_home(|| {
-        save_test_provider_validation("kimi", &["kimi-for-coding"]);
-
-        let mut app = create_test_app();
-        app.is_remote = true;
-        app.remote_provider_name = Some("SSC".to_string());
-        app.remote_provider_model = Some("mcp-only".to_string());
-        let routes = app.filter_saitec_model_routes_for_picker(vec![
-            crate::provider::ModelRoute {
-                model: "mcp-only".to_string(),
-                provider: "SSC".to_string(),
-                api_method: "current".to_string(),
-                available: true,
-                detail: "MCPOnly".to_string(),
-                cheapness: None,
-            },
-            crate::provider::ModelRoute {
-                model: "kimi-for-coding".to_string(),
-                provider: "Kimi Code".to_string(),
-                api_method: "openai-compatible:kimi".to_string(),
-                available: true,
-                detail: "validated Kimi route".to_string(),
-                cheapness: None,
-            },
-        ]);
-
-        let leaked_routes = routes
-            .iter()
-            .filter(|route| {
-                route.model.eq_ignore_ascii_case("saitec")
-                    || route.model.eq_ignore_ascii_case("mcp-only")
-                    || route.provider.eq_ignore_ascii_case("saitec")
-                    || route.api_method.eq_ignore_ascii_case("saitec")
-                    || route.detail.to_ascii_lowercase().contains("mcponly")
-            })
-            .collect::<Vec<_>>();
-        assert!(
-            leaked_routes.is_empty(),
-            "SSC MCP-only routes must not appear in /model: {:?}",
-            leaked_routes
-        );
-        assert!(
-            routes.iter().any(|route| route.model == "kimi-for-coding"),
-            "validated Kimi route should remain available: {:?}",
-            routes
-        );
-    });
-}
 
 #[test]
 fn test_saitec_model_picker_hides_generic_openrouter_routes() {

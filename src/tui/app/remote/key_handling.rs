@@ -932,18 +932,11 @@ async fn handle_remote_key_internal(
                     let model_name = model_name.trim();
                     if model_name.is_empty() {
                         app.push_display_message(DisplayMessage::error("Usage: /model <name>"));
+                        app.set_status_notice("Model switch failed");
                         return Ok(());
                     }
-                    let model_spec = match app.resolve_saitec_model_switch_spec(model_name) {
-                        Ok(model_spec) => model_spec,
-                        Err(message) => {
-                            app.push_display_message(DisplayMessage::error(message));
-                            app.set_status_notice("Model switch failed");
-                            return Ok(());
-                        }
-                    };
                     app.upstream_provider = None;
-                    remote.set_model(&model_spec).await?;
+                    remote.set_model(model_name).await?;
                     return Ok(());
                 }
 

@@ -116,24 +116,13 @@ impl App {
         .any(|value| value.to_ascii_lowercase().contains("openrouter"))
     }
 
-    // Stage 2B (chore/ssc-tui-baseline): the SAITEC-specific "MCP-only" route
-    // detector is retired — every route is now permitted through the picker.
-    fn model_picker_route_is_saitec_mcp_only(_route: &crate::provider::ModelRoute) -> bool {
-        false
-    }
 
-    fn filter_saitec_model_picker_routes(
-        routes: Vec<crate::provider::ModelRoute>,
-    ) -> Vec<crate::provider::ModelRoute> {
-        routes
-    }
 
     pub(super) fn model_picker_display_routes(
         routes: Vec<crate::provider::ModelRoute>,
         require_validation_for_unmapped_routes: bool,
     ) -> Vec<crate::provider::ModelRoute> {
         let routes = crate::provider::models::filtered_model_routes(routes);
-        let routes = Self::filter_saitec_model_picker_routes(routes);
         Self::apply_model_picker_runtime_validation(routes, require_validation_for_unmapped_routes)
     }
 
@@ -262,7 +251,7 @@ impl App {
                     | "claude"
                     | "anthropic"
                     | "openrouter"
-                    | "saitec subscription"
+                    | "ssc subscription"
                     | "copilot"
                     | "antigravity"
                     | "gemini"
@@ -276,149 +265,6 @@ impl App {
         can_leak_static_catalog
             && (!self.is_remote || remote_has_catalog)
     }
-
-    fn saitec_model_route_filter_provider_name(&self) -> Option<&str> {
-        if self.is_remote {
-            self.remote_provider_name.as_deref()
-        } else {
-            Some(self.provider.name())
-        }
-    }
-
-    // Stage 2B: label is no longer SAITEC-specific; we keep the trimming
-    // (sane in any case) but drop the lowercasing / separator-stripping so
-    // that preserved callers can compare against the unmodified provider label.
-    fn normalized_saitec_provider_label(value: &str) -> String {
-        value.trim().to_string()
-    }
-
-    // Stage 2B: base-model route filtering is no longer applied. The picker
-    // shows every route that the upstream catalog surfaces.
-    pub(super) fn should_filter_saitec_base_model_routes(&self) -> bool {
-        false
-    }
-
-    pub(super) fn filter_saitec_model_routes_for_picker(
-        &self,
-        routes: Vec<crate::provider::ModelRoute>,
-    ) -> Vec<crate::provider::ModelRoute> {
-        routes
-    }
-
-    fn remote_saitec_model_route_is_allowed(route: &crate::provider::ModelRoute) -> bool {
-        if route.api_method == "openrouter" {
-            return false;
-        }
-
-        let profile_id = route
-            .api_method
-            .split_once(':')
-            .and_then(|(kind, profile_id)| {
-                if kind != "openai-compatible" {
-                    return None;
-                }
-                let profile_id = profile_id.trim();
-                (!profile_id.is_empty()).then_some(profile_id)
-            })
-            .or_else(|| {
-                (route.api_method == "openai-compatible")
-                    .then(|| {
-                        crate::provider_catalog::openai_compatible_profile_id_for_display_name(
-                            &route.provider,
-                        )
-                    })
-                    .flatten()
-            });
-
-        // Stage 2D: is_allowed_openai_compatible_profile / is_allowed_base_model_route
-        // retired — every openai-compatible route is honored.
-        let _ = profile_id;
-        true
-    }
-
-    fn is_saitec_unconfigured_base_route(route: &crate::provider::ModelRoute) -> bool {
-        !route.available && route.detail.trim().eq_ignore_ascii_case("no credentials")
-    }
-
-    pub(super) fn saitec_model_switch_spec_for_route(
-        route: &crate::provider::ModelRoute,
-    ) -> String {
-        if let Some(("openai-compatible", profile_id)) = route.api_method.split_once(':') {
-            let profile_id = profile_id.trim();
-            if !profile_id.is_empty() {
-                return format!("{}:{}", profile_id, route.model);
-            }
-        }
-
-        if route.api_method == "openai-compatible"
-            && let Some(profile_id) =
-                crate::provider_catalog::openai_compatible_profile_id_for_display_name(
-                    &route.provider,
-                )
-        {
-            return format!("{}:{}", profile_id, route.model);
-        }
-
-        if route.api_method == "openrouter" && route.provider != "auto" {
-            return format!(
-                "{}@{}",
-                crate::provider::openrouter_catalog_model_id(&route.model)
-                    .unwrap_or_else(|| route.model.clone()),
-                route.provider
-            );
-        }
-
-        route.model.clone()
-    }
-
-    pub(super) fn resolve_saitec_model_switch_spec(
-        &self,
-        input: &str,
-    ) -> std::result::Result<String, String> {
-        let requested = input.trim();
-        if requested.is_empty() {
-            return Err("Usage: /model <name>".to_string());
-        }
-
-        if !self.should_filter_saitec_base_model_routes() {
-            return Ok(requested.to_string());
-        }
-
-        let routes = if self.is_remote {
-            self.remote_model_routes_for_picker()
-        } else {
-            self.provider.model_routes()
-        };
-        let routes = self.filter_saitec_model_routes_for_picker(routes);
-        let requested_lower = requested.to_ascii_lowercase();
-        let matching_route = routes.into_iter().find(|route| {
-            if route.model.eq_ignore_ascii_case(requested) {
-                return true;
-            }
-            Self::saitec_model_switch_spec_for_route(route).to_ascii_lowercase() == requested_lower
-        });
-
-        let Some(route) = matching_route else {
-            return Err(
-                // Stage 2D: unsupported_base_model_route_message retired.
-            format!("Model `{requested}` is not available."),
-            );
-        };
-
-        if !route.available {
-            return Err(
-                crate::tui::app::model_context::unavailable_model_route_message(
-                    &route.model,
-                    &route.provider,
-                    &route.detail,
-                    self.is_remote,
-                ),
-            );
-        }
-
-        Ok(Self::saitec_model_switch_spec_for_route(&route))
-    }
-
     fn bedrock_picker_availability(model: &str, has_credentials: bool) -> (bool, String) {
         if !has_credentials {
             return (
@@ -621,10 +467,8 @@ impl App {
             return;
         }
 
-        let needs_saitec_full_routes =
-            !self.is_remote && self.should_filter_saitec_base_model_routes();
         if !self.is_remote
-            && (!crate::perf::tui_policy().simplified_model_picker || needs_saitec_full_routes)
+            && !crate::perf::tui_policy().simplified_model_picker
         {
             self.open_loading_model_picker(&current_model);
             self.start_model_picker_route_load(cache_signature, picker_started);
@@ -843,7 +687,6 @@ impl App {
         } else {
             routes
         };
-        let routes = self.filter_saitec_model_routes_for_picker(routes);
         let routes = Self::model_picker_display_routes(
             routes,
             self.requires_strict_model_picker_validation(),
