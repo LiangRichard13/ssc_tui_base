@@ -77,40 +77,6 @@ impl App {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_pending_saitec_login_for_tests(&mut self) {
-        self.pending_login = Some(super::auth::PendingLogin::SaitecForm {
-            form: super::auth::SaitecPendingForm {
-                form: crate::tui::app::auth::SaitecLoginForm::new(
-                    "".to_string(),
-                    "".to_string(),
-                    "".to_string(),
-                ),
-                focus: super::auth::SaitecLoginField::Email,
-                error: None,
-                submitting: false,
-            },
-        });
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_pending_saitec_login_form_for_tests(
-        &mut self,
-        form: crate::tui::app::auth::SaitecLoginForm,
-        focus: super::auth::SaitecLoginField,
-        error: Option<String>,
-        submitting: bool,
-    ) {
-        self.pending_login = Some(super::auth::PendingLogin::SaitecForm {
-            form: super::auth::SaitecPendingForm {
-                form,
-                focus,
-                error,
-                submitting,
-            },
-        });
-    }
-
-    #[cfg(test)]
     pub(crate) fn set_pending_api_key_login_for_tests(
         &mut self,
         provider_id: &str,

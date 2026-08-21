@@ -508,7 +508,7 @@ pub(crate) fn startup_login_status_label(auth: &AuthStatus) -> &'static str {
 }
 
 pub(crate) fn startup_model_login_state(auth: &AuthStatus) -> AuthState {
-    crate::provider_catalog::saitec_visible_base_model_providers()
+    crate::provider_catalog::visible_base_model_providers()
         .into_iter()
         .map(|provider| auth.state_for_provider(provider))
         .fold(AuthState::NotConfigured, combine_startup_auth_state)

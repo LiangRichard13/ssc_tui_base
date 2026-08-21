@@ -541,7 +541,7 @@ fn test_login_command_opens_login_mode_selector_overlay() {
     );
     assert!(
         app.pending_login.is_none(),
-        "/login should no longer jump directly into the Saitec form"
+        "/login should not jump directly into a login form"
     );
 }
 
@@ -623,118 +623,9 @@ fn test_exact_login_typing_keeps_inline_login_preview_closed() {
 }
 
 #[test]
-fn test_login_mode_selector_enter_defaults_to_saitec_form() {
-    let mut app = create_test_app();
-    app.open_login_mode_selector();
-
-    assert!(app.account_picker_overlay.is_some());
-
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("enter should activate the default login mode");
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!("unexpected pending login state after Enter on selector: {other:?}"),
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
-
 #[test]
-fn test_login_mode_selector_clears_stale_saitec_form_before_entering_saitec_branch() {
-    let mut app = create_test_app();
-    app.set_pending_saitec_login_for_tests();
-    app.open_login_mode_selector();
-
-    assert!(
-        app.pending_login.is_none(),
-        "opening the top-level login selector should dismiss the stale pending login form"
-    );
-    assert!(app.account_picker_overlay.is_some());
-
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("enter should activate the default login mode");
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!(
-            "unexpected pending login state after Enter on selector with stale form: {other:?}"
-        ),
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
-
 #[test]
-fn test_login_mode_selector_up_after_down_returns_to_saitec_without_closing_selector() {
-    let mut app = create_test_app();
-    app.open_login_mode_selector();
-
-    assert!(app.account_picker_overlay.is_some());
-
-    app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("down should move the selector to Base models");
-    app.handle_key(KeyCode::Up, KeyModifiers::empty())
-        .expect("up should move back to SAITEC inside the selector");
-
-    assert!(
-        app.account_picker_overlay.is_some(),
-        "up navigation should keep the login mode selector open"
-    );
-    assert!(app.pending_login.is_none());
-    assert_eq!(app.input(), "");
-    assert_eq!(app.cursor_pos, 0);
-
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("enter should activate SAITEC after navigating back up");
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => {
-            panic!("unexpected pending login state after selector up/down navigation: {other:?}")
-        }
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
-
 #[test]
-fn test_login_mode_selector_mouse_click_opens_saitec_form() {
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-
-    let mut app = create_test_app();
-    app.open_login_mode_selector();
-
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
-    terminal
-        .draw(|frame| crate::tui::ui::draw(frame, &app))
-        .expect("login selector draw should succeed");
-
-    let click_row = 15;
-    let click_col = 32;
-    let handled = app.handle_mouse_event(MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: click_col,
-        row: click_row,
-        modifiers: KeyModifiers::empty(),
-    });
-
-    assert!(!handled, "clicks should request an immediate redraw");
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => {
-            panic!("unexpected pending login state after mouse click on SAITEC: {other:?}")
-        }
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
-
 #[test]
 fn test_login_mode_selector_mouse_click_opens_base_models_picker() {
     use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
@@ -820,66 +711,8 @@ fn test_login_mode_selector_click_does_not_immediately_activate_base_model_provi
 }
 
 #[test]
-fn test_login_mode_selector_mouse_up_opens_saitec_form() {
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-
-    let mut app = create_test_app();
-    app.open_login_mode_selector();
-
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
-    terminal
-        .draw(|frame| crate::tui::ui::draw(frame, &app))
-        .expect("login selector draw should succeed");
-
-    let handled = app.handle_mouse_event(MouseEvent {
-        kind: MouseEventKind::Up(MouseButton::Left),
-        column: 32,
-        row: 15,
-        modifiers: KeyModifiers::empty(),
-    });
-
-    assert!(!handled, "clicks should request an immediate redraw");
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!("unexpected pending login state after mouse up on SAITEC: {other:?}"),
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
 
 #[test]
-fn test_login_mode_selector_mouse_click_on_blank_separator_still_opens_saitec_form() {
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-
-    let mut app = create_test_app();
-    app.open_login_mode_selector();
-
-    let backend = ratatui::backend::TestBackend::new(120, 40);
-    let mut terminal = ratatui::Terminal::new(backend).expect("failed to create test terminal");
-    terminal
-        .draw(|frame| crate::tui::ui::draw(frame, &app))
-        .expect("login selector draw should succeed");
-
-    let handled = app.handle_mouse_event(MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: 32,
-        row: 17,
-        modifiers: KeyModifiers::empty(),
-    });
-
-    assert!(!handled, "clicks should request an immediate redraw");
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!(
-            "unexpected pending login state after blank-separator click on SAITEC: {other:?}"
-        ),
-    }
-    assert!(app.account_picker_overlay.is_none());
-}
 
 #[test]
 fn test_login_mode_selector_routes_base_models_to_filtered_login_picker() {
@@ -904,29 +737,7 @@ fn test_login_mode_selector_routes_base_models_to_filtered_login_picker() {
 }
 
 #[test]
-fn test_login_mode_selector_clears_stale_saitec_form_before_entering_base_models_branch() {
-    let mut app = create_test_app();
-    app.set_pending_saitec_login_for_tests();
-    app.open_login_mode_selector();
-
-    assert!(app.pending_login.is_none());
-    assert!(app.account_picker_overlay.is_some());
-
-    app.handle_key(KeyCode::Down, KeyModifiers::empty())
-        .expect("down should move login mode selection");
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .expect("enter should activate the selected login mode");
-
-    assert!(
-        app.login_picker_overlay.is_some(),
-        "base-model branch should open the login picker overlay even if a stale saitec form existed"
-    );
-    assert!(app.pending_login.is_none());
-    assert!(app.account_picker_overlay.is_none());
-}
-
-#[test]
-fn test_filtered_login_picker_contains_only_saitec_allowlisted_providers() {
+fn test_filtered_login_picker_lists_supported_base_model_providers() {
     let mut app = create_test_app();
     app.input = "/login base-models".to_string();
     app.submit_input();
@@ -1286,7 +1097,7 @@ fn test_login_openai_starts_allowed_base_model_login() {
 }
 
 #[test]
-fn test_login_openrouter_is_rejected_by_saitec_allowlist() {
+fn test_login_openrouter_is_rejected_by_tui_provider_picker() {
     let mut app = create_test_app();
     app.input = "/login openrouter".to_string();
     app.submit_input();
@@ -1321,22 +1132,6 @@ fn test_inline_login_provider_picker_hides_openrouter() {
             .all(|name| !name.to_ascii_lowercase().contains("openrouter")),
         "SSC Provider picker leaked OpenRouter: {names:?}"
     );
-}
-
-#[test]
-fn test_set_pending_saitec_login_for_tests_uses_form_variant() {
-    let mut app = create_test_app();
-    app.set_pending_saitec_login_for_tests();
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.form.email, "");
-            assert_eq!(form.form.phone, "");
-            assert_eq!(form.form.password, "");
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!("unexpected pending login state: {other:?}"),
-    }
 }
 fn capture_and_clear_custom_provider_env_state() -> Vec<ScopedTestEnvVar> {
     let resolved = crate::provider_catalog::resolve_openai_compatible_profile(
@@ -1481,7 +1276,7 @@ fn test_logout_base_model_picker_selection_opens_provider_confirmation() {
     app.input = "/logout base-models".to_string();
     app.submit_input();
     let first_provider_name =
-        crate::provider_catalog::saitec_visible_base_model_providers()[0].display_name;
+        crate::provider_catalog::visible_base_model_providers()[0].display_name;
 
     app.handle_key(KeyCode::Enter, KeyModifiers::empty())
         .expect("select provider from logout picker");
@@ -1511,58 +1306,6 @@ fn test_logout_base_model_picker_selection_opens_provider_confirmation() {
         "rendered confirmation:\n{text}"
     );
     assert!(text.contains("Cancel"), "rendered confirmation:\n{text}");
-}
-
-#[test]
-fn test_pending_saitec_form_empty_submit_sets_validation_error() {
-    let mut app = create_test_app();
-    app.set_pending_saitec_login_for_tests();
-
-    app.submit_input();
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            let error = form.error.as_deref().expect("validation error");
-            assert!(error.contains("password"), "unexpected error: {error}");
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Submit);
-            assert!(!form.submitting);
-        }
-        ref other => panic!("login form should stay pending on validation failure: {other:?}"),
-    }
-}
-
-#[test]
-fn test_start_jcode_login_uses_saitec_pending_state() {
-    let mut app = create_test_app();
-    app.input = "/login jcode".to_string();
-    app.submit_input();
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.form.email, "");
-            assert_eq!(form.form.phone, "");
-            assert_eq!(form.form.password, "");
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!("unexpected pending login state: {other:?}"),
-    }
-}
-
-#[test]
-fn test_account_jcode_login_uses_saitec_pending_state() {
-    let mut app = create_test_app();
-    app.input = "/account jcode login".to_string();
-    app.submit_input();
-
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { ref form }) => {
-            assert_eq!(form.form.email, "");
-            assert_eq!(form.form.phone, "");
-            assert_eq!(form.form.password, "");
-            assert_eq!(form.focus, crate::tui::app::auth::SaitecLoginField::Email);
-        }
-        ref other => panic!("unexpected pending login state: {other:?}"),
-    }
 }
 
 #[test]
@@ -1896,7 +1639,7 @@ fn test_api_key_login_overlay_mouse_up_validate_submits() {
 }
 
 #[test]
-fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
+fn test_account_openrouter_add_is_blocked_by_tui_provider_picker() {
     let mut app = create_test_app();
     app.input = "/account openrouter add".to_string();
     app.submit_input();
@@ -1911,7 +1654,7 @@ fn test_account_openrouter_add_is_blocked_by_saitec_allowlist() {
 }
 
 #[test]
-fn test_account_openrouter_settings_is_rejected_by_saitec_allowlist() {
+fn test_account_openrouter_settings_is_rejected_by_tui_provider_picker() {
     let mut app = create_test_app();
     app.input = "/account openrouter settings".to_string();
     app.submit_input();
@@ -1962,7 +1705,7 @@ fn test_commands_alias_shows_help() {
 }
 
 #[test]
-fn test_help_overlay_hides_git_and_skills_in_saitec_product_mode() {
+fn test_help_overlay_hides_git_and_skills_in_product_mode() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let jcode_home = temp.path().join("jcode-home");

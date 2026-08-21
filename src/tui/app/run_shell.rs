@@ -34,7 +34,7 @@ impl App {
             if needs_redraw {
                 crate::cli::terminal::sync_tui_runtime_mouse_capture(
                     tui_runtime,
-                    self.pending_saitec_login_form().is_some(),
+                    self.pending_text_entry_overlay().is_some(),
                 )?;
                 if self.force_full_redraw {
                     terminal.clear()?;
@@ -138,7 +138,7 @@ impl App {
             if needs_redraw {
                 crate::cli::terminal::sync_tui_runtime_mouse_capture(
                     tui_runtime,
-                    self.pending_saitec_login_form().is_some(),
+                    self.pending_text_entry_overlay().is_some(),
                 )?;
                 if self.force_full_redraw {
                     terminal.clear()?;
@@ -190,7 +190,7 @@ impl App {
                 if needs_redraw {
                     crate::cli::terminal::sync_tui_runtime_mouse_capture(
                         tui_runtime,
-                        self.pending_saitec_login_form().is_some(),
+                        self.pending_text_entry_overlay().is_some(),
                     )?;
                     if self.force_full_redraw {
                         terminal.clear()?;

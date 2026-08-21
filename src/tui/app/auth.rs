@@ -8,10 +8,7 @@ pub(crate) use self::auth_account_commands::{
     handle_account_command_remote, handle_auth_command, resolve_account_provider_descriptor,
     save_openai_fast_setting_local,
 };
-pub(crate) use self::auth_types::{
-    AccountCommand, PendingAccountInput, PendingLogin, SaitecLoginField, SaitecLoginForm,
-    SaitecPendingForm,
-};
+pub(crate) use self::auth_types::{AccountCommand, PendingAccountInput, PendingLogin};
 
 use super::*;
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -52,12 +49,12 @@ impl App {
 
     /// After a login picker close (Esc/cancel), check if we should reopen the
     /// startup guide because the user was in the middle of first-run setup.
-    pub(crate) fn open_saitec_base_model_login_picker(&mut self) {
+    pub(crate) fn open_base_model_login_picker(&mut self) {
         use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
 
         let status = crate::auth::AuthStatus::check_fast();
         let validation = crate::auth::validation::load_all();
-        let providers = crate::provider_catalog::saitec_visible_base_model_providers();
+        let providers = crate::provider_catalog::visible_base_model_providers();
         let mut summary = LoginPickerSummary::default();
         let items = providers
             .into_iter()
@@ -98,12 +95,12 @@ impl App {
         self.set_status_notice("Login: choose a base-model provider");
     }
 
-    pub(crate) fn open_saitec_base_model_logout_picker(&mut self) {
+    pub(crate) fn open_base_model_logout_picker(&mut self) {
         use crate::tui::login_picker::{LoginPicker, LoginPickerItem, LoginPickerSummary};
 
         let status = crate::auth::AuthStatus::check_fast();
         let validation = crate::auth::validation::load_all();
-        let providers = crate::provider_catalog::saitec_visible_base_model_providers();
+        let providers = crate::provider_catalog::visible_base_model_providers();
         let mut summary = LoginPickerSummary::default();
         let items = providers
             .into_iter()
@@ -154,9 +151,9 @@ impl App {
         picker_cell.borrow().title().trim() == "Base-model Logout"
     }
 
-    pub(crate) fn refresh_open_saitec_base_model_login_picker(&mut self) {
+    pub(crate) fn refresh_open_base_model_login_picker(&mut self) {
         let snapshot = self.base_model_picker_selection_snapshot();
-        self.open_saitec_base_model_login_picker();
+        self.open_base_model_login_picker();
         if let Some(snapshot) = snapshot
             && let Some(picker_cell) = self.login_picker_overlay.as_ref()
         {
@@ -206,19 +203,10 @@ impl App {
 
         let items = vec![
             AccountPickerItem::action(
-                "saitec-login",
-                "SSC",
-                "Business account",
-                "sign in to SAITEC and unlock the TUI",
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
-                    "/login jcode".to_string(),
-                ),
-            ),
-            AccountPickerItem::action(
                 "model-config",
                 "Base models",
                 "OpenAI / Claude / Z.AI / Kimi / Alibaba",
-                "open the filtered base-model login picker",
+                "open the base-model login picker",
                 crate::tui::account_picker::AccountPickerCommand::SubmitInput(
                     "/login base-models".to_string(),
                 ),
@@ -233,7 +221,7 @@ impl App {
         self.inline_interactive_state = None;
         self.input.clear();
         self.cursor_pos = 0;
-        self.set_status_notice("Login: choose SAITEC or base models");
+        self.set_status_notice("Login: choose a base-model provider");
     }
 
     pub(crate) fn open_logout_mode_selector(&mut self) {
@@ -249,15 +237,6 @@ impl App {
                     "/logout base-models".to_string(),
                 ),
             ),
-            AccountPickerItem::action(
-                "jcode",
-                "SSC",
-                "SSC",
-                "requires confirmation before clearing SAITEC API credentials",
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
-                    "/logout jcode".to_string(),
-                ),
-            ),
         ];
 
         self.abandon_pending_login_for_new_flow();
@@ -268,43 +247,7 @@ impl App {
         self.inline_interactive_state = None;
         self.input.clear();
         self.cursor_pos = 0;
-        self.set_status_notice("Logout: choose target");
-    }
-
-    pub(crate) fn open_saitec_logout_confirmation(&mut self) {
-        use crate::tui::account_picker::{AccountPicker, AccountPickerItem};
-
-        let items = vec![
-            AccountPickerItem::action(
-                "logout-cancel",
-                "Cancel",
-                "Cancel",
-                "keep SAITEC credentials",
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
-                    "/logout cancel".to_string(),
-                ),
-            ),
-            AccountPickerItem::action(
-                "logout-saitec",
-                "Log out SAITEC",
-                "Log out SAITEC",
-                "clear ~/.ssc_tui/auth.json and the stored SAITEC API key",
-                crate::tui::account_picker::AccountPickerCommand::SubmitInput(
-                    "/logout jcode --confirm".to_string(),
-                ),
-            ),
-        ];
-
-        self.abandon_pending_login_for_new_flow();
-        self.account_picker_overlay = Some(std::cell::RefCell::new(AccountPicker::simple(
-            " Confirm Logout ",
-            items,
-        )));
-        self.login_picker_overlay = None;
-        self.inline_interactive_state = None;
-        self.input.clear();
-        self.cursor_pos = 0;
-        self.set_status_notice("Logout: confirm SAITEC");
+        self.set_status_notice("Logout: choose a base-model provider");
     }
 
     pub(crate) fn open_base_model_logout_confirmation(
@@ -353,129 +296,6 @@ impl App {
         };
         let picker = picker_cell.borrow();
         picker.is_simple_mode() && picker.title().trim() == "Login"
-    }
-
-    pub(crate) fn next_saitec_focus(current: SaitecLoginField, reverse: bool) -> SaitecLoginField {
-        match (current, reverse) {
-            (SaitecLoginField::Email, false) => SaitecLoginField::Phone,
-            (SaitecLoginField::Phone, false) => SaitecLoginField::Password,
-            (SaitecLoginField::Password, false) => SaitecLoginField::Submit,
-            (SaitecLoginField::Submit, false) => SaitecLoginField::Cancel,
-            (SaitecLoginField::Cancel, false) => SaitecLoginField::Email,
-            (SaitecLoginField::Email, true) => SaitecLoginField::Cancel,
-            (SaitecLoginField::Phone, true) => SaitecLoginField::Email,
-            (SaitecLoginField::Password, true) => SaitecLoginField::Phone,
-            (SaitecLoginField::Submit, true) => SaitecLoginField::Password,
-            (SaitecLoginField::Cancel, true) => SaitecLoginField::Submit,
-        }
-    }
-
-    pub(crate) fn stage_saitec_form(&mut self, form: SaitecPendingForm) {
-        self.pending_login = Some(PendingLogin::SaitecForm { form });
-    }
-
-    pub(crate) fn sync_input_with_pending_saitec_form(&mut self) {
-        if let Some(PendingLogin::SaitecForm { form }) = self.pending_login.as_ref() {
-            self.input = match form.focus {
-                SaitecLoginField::Email => form.form.email.clone(),
-                SaitecLoginField::Phone => form.form.phone.clone(),
-                SaitecLoginField::Password => form.form.password.clone(),
-                SaitecLoginField::Submit | SaitecLoginField::Cancel => String::new(),
-            };
-            self.cursor_pos = self.input.len();
-            self.clear_input_undo_history();
-        }
-    }
-
-    pub(crate) fn advance_saitec_focus(&mut self, form: &mut SaitecPendingForm, reverse: bool) {
-        form.focus = Self::next_saitec_focus(form.focus, reverse);
-    }
-
-    pub(crate) fn commit_input_to_pending_saitec_form(&mut self) -> bool {
-        let Some(PendingLogin::SaitecForm { form }) = self.pending_login.as_mut() else {
-            return false;
-        };
-        if form.submitting {
-            return true;
-        }
-
-        match form.focus {
-            SaitecLoginField::Email => {
-                form.form.email = self.input.trim().to_string();
-            }
-            SaitecLoginField::Phone => {
-                form.form.phone = self.input.trim().to_string();
-            }
-            SaitecLoginField::Password => {
-                form.form.password = self.input.clone();
-            }
-            SaitecLoginField::Submit | SaitecLoginField::Cancel => {}
-        }
-        true
-    }
-
-    pub(crate) fn cancel_pending_saitec_form(&mut self) {
-        if let Some((provider, method)) = self
-            .pending_login
-            .as_ref()
-            .and_then(PendingLogin::telemetry_context)
-        {
-            crate::telemetry::record_auth_cancelled(&provider, &method);
-        }
-        self.pending_login = None;
-        self.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
-        self.input.clear();
-        self.cursor_pos = 0;
-        self.clear_input_undo_history();
-        self.follow_chat_bottom();
-        self.push_display_message(DisplayMessage::system("Login cancelled.".to_string()));
-        self.set_status_notice("Login cancelled");
-    }
-
-    pub(crate) fn handle_saitec_form_submit(&mut self, mut form: SaitecPendingForm) {
-        match form.focus {
-            SaitecLoginField::Email => form.form.email = self.input.trim().to_string(),
-            SaitecLoginField::Phone => form.form.phone = self.input.trim().to_string(),
-            SaitecLoginField::Password => form.form.password = self.input.clone(),
-            SaitecLoginField::Submit => {}
-            SaitecLoginField::Cancel => {
-                self.pending_login = Some(PendingLogin::SaitecForm { form });
-                self.cancel_pending_saitec_form();
-                return;
-            }
-        }
-
-        if let Err(err) = form.form.validate() {
-            form.error = Some(err.to_string());
-            form.focus = SaitecLoginField::Submit;
-            form.submitting = false;
-            self.set_status_notice("Login: validation failed");
-            self.stage_saitec_form(form);
-            self.sync_input_with_pending_saitec_form();
-            return;
-        }
-
-        form.error = None;
-        form.focus = SaitecLoginField::Submit;
-        form.submitting = true;
-        self.set_status_notice("Login [saitec]: submitting...");
-        let _login_form = form.form.clone();
-        self.stage_saitec_form(form);
-        self.sync_input_with_pending_saitec_form();
-        // Stage 2D (chore/ssc-tui-baseline): the SAITEC backend login flow is
-        // retired. Submission always fails with an explicit message so users
-        // are not left hanging on a form that can no longer complete.
-        let message = "The SAITEC backend login is not available in the baseline. \
-                       Configure providers via their own env files or `/account` flows."
-            .to_string();
-        Bus::global().publish(BusEvent::LoginCompleted(LoginCompleted {
-            provider: "jcode".to_string(),
-            success: false,
-            message,
-        }));
-        self.push_display_message(DisplayMessage::system(
-            "SSC login unavailable in baseline.".to_string(),
-        ));
     }
 
     fn open_auth_browser(url: &str) -> bool {
@@ -699,30 +519,14 @@ impl App {
     }
 
     pub(super) fn start_jcode_login(&mut self) {
-        crate::logging::info("login-debug: start_jcode_login opened Saitec form");
-        self.abandon_pending_login_for_new_flow();
-        self.login_picker_overlay = None;
-        self.account_picker_overlay = None;
-        self.inline_interactive_state = None;
-        self.input.clear();
-        self.cursor_pos = 0;
-        self.clear_input_undo_history();
-        self.push_display_message(DisplayMessage::system(
-            "**Saitec Login**\n\nEnter your email or phone plus password to continue.".to_string(),
+        // Tier 3 (方案 A): SAITEC/jcode 平台登录已彻底移除。
+        // 此入口现在直接失败，引导用户配置标准 provider。
+        self.push_display_message(DisplayMessage::error(
+            "SSC platform login is not available in the baseline. \
+             Configure providers via `/login base-models` or their specific env files."
+                .to_string(),
         ));
-        self.set_status_notice("Login: credentials required");
-        self.begin_pending_login(PendingLogin::SaitecForm {
-            form: SaitecPendingForm {
-                form: SaitecLoginForm::new(
-                    "".to_string(),
-                    "".to_string(),
-                    "".to_string(),
-                ),
-                focus: SaitecLoginField::Email,
-                error: None,
-                submitting: false,
-            },
-        });
+        self.set_status_notice("Login: SSC unavailable");
     }
 
     pub(super) fn start_claude_login_for_account(&mut self, label: &str) {
@@ -1716,18 +1520,10 @@ impl App {
             return;
         }
 
-        if trimmed.is_empty()
-            && !matches!(
-                pending,
-                PendingLogin::SaitecForm { .. }
-            )
-        {
+        if trimmed.is_empty() {
             let help = match &pending {
                 PendingLogin::AutoImportSelection { .. } => {
                     "Auto import is waiting for your selection. Reply with `a` to approve all, `1,3` to approve specific sources, or `/cancel` to abort.".to_string()
-                }
-                PendingLogin::SaitecForm { .. } => {
-                    "Ssc login form is open. Fill in email or phone plus password, then submit. Type `/cancel` to abort.".to_string()
                 }
                 _ => "Login still in progress. Complete it in your browser, or paste the callback URL / authorization code here. Type `/cancel` to abort.".to_string(),
             };
@@ -1786,15 +1582,6 @@ impl App {
                 // key-save step; calling it again is a no-op for the env vars.
                 crate::cli::provider_init::lock_model_provider("openrouter");
                 self.start_openai_compatible_post_login_activation(provider);
-            }
-            PendingLogin::SaitecForm { mut form } => {
-                if form.submitting {
-                    self.stage_saitec_form(form);
-                    return;
-                }
-                self.input = input;
-                self.cursor_pos = self.input.len();
-                self.handle_saitec_form_submit(form);
             }
             PendingLogin::ClaudeAccount {
                 verifier,
@@ -2385,7 +2172,7 @@ impl App {
 
         let provider = Arc::clone(&self.provider);
         let session_id = self.session.id.clone();
-        let provider_descriptor = crate::provider_catalog::saitec_auth_status_login_providers()
+        let provider_descriptor = crate::provider_catalog::auth_status_login_providers_with_jcode()
             .into_iter()
             .find(|candidate| candidate.display_name == provider_label);
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
@@ -2659,31 +2446,9 @@ impl App {
                 &login.message,
             );
             if login.provider == "jcode" {
-                match self.pending_login.take() {
-                    Some(PendingLogin::SaitecForm { mut form }) => {
-                        form.submitting = false;
-                        form.focus = if form.form.password.trim().is_empty() {
-                            if form.form.email.trim().is_empty()
-                                && form.form.phone.trim().is_empty()
-                            {
-                                SaitecLoginField::Email
-                            } else {
-                                SaitecLoginField::Password
-                            }
-                        } else {
-                            SaitecLoginField::Password
-                        };
-                        form.error = Some(message);
-                        self.set_status_notice("Login: SSC-TUI failed");
-                        self.stage_saitec_form(form);
-                        self.sync_input_with_pending_saitec_form();
-                    }
-                    other => {
-                        self.pending_login = other;
-                        self.push_display_message(DisplayMessage::error(message));
-                        self.set_status_notice(format!("Login: {} failed", login.provider));
-                    }
-                }
+                // Tier 3: jcode platform login removed, no form to restore.
+                self.push_display_message(DisplayMessage::error(message));
+                self.set_status_notice("Login: jcode unavailable");
             } else if let Some(provider_descriptor) =
                 resolve_openai_compatible_provider_descriptor(&login.provider)
             {
@@ -2712,7 +2477,7 @@ impl App {
         event: crate::bus::ProviderValidationCompleted,
     ) {
         if self.login_picker_overlay.is_some() {
-            self.refresh_open_saitec_base_model_login_picker();
+            self.refresh_open_base_model_login_picker();
         }
         if event.success {
             self.push_display_message(DisplayMessage::system(event.message));
@@ -2773,7 +2538,7 @@ impl App {
                 crate::auth::AuthStatus::invalidate_cache();
                 self.invalidate_model_picker_cache();
                 if self.login_picker_overlay.is_some() {
-                    self.refresh_open_saitec_base_model_login_picker();
+                    self.refresh_open_base_model_login_picker();
                 }
                 self.set_status_notice(format!(
                     "Validation: {} ready",
@@ -2975,7 +2740,7 @@ fn looks_like_oauth_callback_input(input: &str) -> bool {
         || input.contains("state=")
 }
 
-fn looks_like_saitec_callback_input(input: &str) -> bool {
+fn looks_like_jcode_callback_input(input: &str) -> bool {
     let input = input.trim();
     input.starts_with("http://")
         || input.starts_with("https://")
@@ -3006,7 +2771,7 @@ fn resolve_openai_compatible_provider_descriptor(
             )
         })
         .or_else(|| {
-            crate::provider_catalog::saitec_auth_status_login_providers()
+            crate::provider_catalog::auth_status_login_providers_with_jcode()
                 .into_iter()
                 .find(|provider| {
                     matches!(

@@ -41,7 +41,7 @@ pub(crate) fn handle_auth_command(
             || requested.eq_ignore_ascii_case("base-model")
             || requested.eq_ignore_ascii_case("models")
         {
-            app.open_saitec_base_model_login_picker();
+            app.open_base_model_login_picker();
         } else if requested.eq_ignore_ascii_case("jcode")
             || requested.eq_ignore_ascii_case("subscription")
             || requested.eq_ignore_ascii_case("jcode-subscription")
@@ -102,8 +102,7 @@ fn handle_logout_target_command(
             provider_id = Some(part);
         } else {
             app.push_display_message(DisplayMessage::error(
-                "Use `/logout`, `/logout base-models`, `/logout base-models <provider>`, or `/logout jcode`."
-                    .to_string(),
+                "Use `/logout` or `/logout base-models [<provider>] [--confirm]`.".to_string(),
             ));
             return;
         }
@@ -122,7 +121,7 @@ fn handle_logout_target_command(
         || target.eq_ignore_ascii_case("models")
     {
         let Some(provider_id) = provider_id else {
-            app.open_saitec_base_model_logout_picker();
+            app.open_base_model_logout_picker();
             return;
         };
 
@@ -151,27 +150,19 @@ fn handle_logout_target_command(
         || target.eq_ignore_ascii_case("subscription")
         || target.eq_ignore_ascii_case("jcode-subscription")
     {
-        if confirm {
-            clear_saitec_session_after_confirmation(app, remote);
-        } else {
-            app.open_saitec_logout_confirmation();
-        }
+        // Tier 3: SAITEC platform login retired; /logout jcode is a no-op
+        // informational message so legacy scripts don't break silently.
+        app.push_display_message(DisplayMessage::system(
+            "SSC platform login is not available in the baseline. \
+             Use `/logout base-models` to manage provider credentials."
+                .to_string(),
+        ));
         return;
     }
 
     app.push_display_message(DisplayMessage::error(
-        "Use `/logout`, `/logout base-models`, `/logout base-models <provider>`, or `/logout jcode`."
-            .to_string(),
+        "Use `/logout`, `/logout base-models`, or `/logout base-models <provider>`.".to_string(),
     ));
-}
-
-fn clear_saitec_session_after_confirmation(
-    _app: &mut App,
-    _remote: Option<&mut crate::tui::backend::RemoteConnection>,
-) {
-    // Stage 2D: SAITEC backend session file retired. The baseline has no
-    // server-side session to clear; /logout for the SAITEC target now just
-    // closes the local provider picker.
 }
 
 fn clear_base_model_provider_after_confirmation(
@@ -205,7 +196,7 @@ fn clear_base_model_provider_after_confirmation(
             app.invalidate_model_picker_cache();
             app.trigger_provider_auth_changed();
             app.push_display_message(DisplayMessage::system(format!(
-                "Logged out from {}. SAITEC credentials are unchanged.",
+                "Logged out from {}.",
                 provider.display_name
             )));
             app.set_status_notice(format!("Logout: {} cleared", provider.display_name));
@@ -1181,14 +1172,14 @@ fn render_auth_doctor_markdown(provider_filter: Option<&str>) -> String {
             }
         },
         None => {
-            let configured = crate::provider_catalog::saitec_auth_status_login_providers()
+            let configured = crate::provider_catalog::auth_status_login_providers_with_jcode()
                 .into_iter()
                 .filter(|provider| {
                     status.state_for_provider(*provider) != crate::auth::AuthState::NotConfigured
                 })
                 .collect::<Vec<_>>();
             if configured.is_empty() {
-                crate::provider_catalog::saitec_auth_status_login_providers()
+                crate::provider_catalog::auth_status_login_providers_with_jcode()
             } else {
                 configured
             }

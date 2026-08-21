@@ -83,7 +83,6 @@ impl App {
                 "connection_type": self.connection_type,
                 "remote_transport": self.remote_transport,
                 "pending_login": self.pending_login.as_ref().map(|pending| match pending {
-                    PendingLogin::SaitecForm { .. } => "saitec_form",
                     PendingLogin::ClaudeAccount { .. } => "claude_account",
                     PendingLogin::OpenAiAccount { .. } => "openai_account",
                     PendingLogin::Gemini { .. } => "gemini",

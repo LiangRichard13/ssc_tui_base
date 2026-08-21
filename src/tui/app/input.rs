@@ -1372,10 +1372,6 @@ pub(super) fn handle_pending_login_key(
     code: KeyCode,
     modifiers: KeyModifiers,
 ) -> bool {
-    if handle_pending_saitec_login_key(app, code, modifiers) {
-        return true;
-    }
-
     let has_text_entry_login = matches!(
         app.pending_login.as_ref(),
         Some(
@@ -1485,100 +1481,6 @@ pub(super) fn handle_pending_login_key(
                 app.pending_text_entry_focus = super::PendingTextEntryFocus::Input;
             }
             app.submit_input();
-            true
-        }
-        _ => false,
-    }
-}
-
-pub(super) fn handle_pending_saitec_login_key(
-    app: &mut App,
-    code: KeyCode,
-    modifiers: KeyModifiers,
-) -> bool {
-    let has_saitec_form = matches!(
-        app.pending_login.as_ref(),
-        Some(super::auth::PendingLogin::SaitecForm { .. })
-    );
-    if !has_saitec_form {
-        return false;
-    }
-
-    if modifiers.contains(KeyModifiers::CONTROL) {
-        return false;
-    }
-
-    match code {
-        KeyCode::Tab | KeyCode::BackTab => {
-            let reverse = code == KeyCode::BackTab;
-            if app.commit_input_to_pending_saitec_form()
-                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
-                    app.pending_login.as_mut()
-            {
-                form.focus = App::next_saitec_focus(form.focus, reverse);
-                form.error = None;
-                form.submitting = false;
-            }
-            app.sync_input_with_pending_saitec_form();
-            true
-        }
-        KeyCode::Up => {
-            let recall_allowed = matches!(
-                app.pending_login.as_ref(),
-                Some(super::auth::PendingLogin::SaitecForm { form })
-                    if form.focus == super::auth::SaitecLoginField::Email
-            ) && (app.input.is_empty()
-                || app.submitted_input_history.recall_index.is_some());
-            if recall_allowed {
-                if recall_submitted_input(app, true) {
-                    return true;
-                }
-                if app.input.is_empty() {
-                    crate::logging::info(
-                        "login-debug: Up on empty Email field did not recall history; falling back to field navigation",
-                    );
-                }
-            }
-            if app.commit_input_to_pending_saitec_form()
-                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
-                    app.pending_login.as_mut()
-            {
-                form.focus = App::next_saitec_focus(form.focus, true);
-                form.error = None;
-                form.submitting = false;
-            }
-            app.sync_input_with_pending_saitec_form();
-            true
-        }
-        KeyCode::Down => {
-            let recall_allowed = matches!(
-                app.pending_login.as_ref(),
-                Some(super::auth::PendingLogin::SaitecForm { form })
-                    if form.focus == super::auth::SaitecLoginField::Email
-            ) && app.submitted_input_history.recall_index.is_some();
-            if recall_allowed && recall_submitted_input(app, false) {
-                return true;
-            }
-            if app.commit_input_to_pending_saitec_form()
-                && let Some(super::auth::PendingLogin::SaitecForm { form }) =
-                    app.pending_login.as_mut()
-            {
-                form.focus = App::next_saitec_focus(form.focus, false);
-                form.error = None;
-                form.submitting = false;
-            }
-            app.sync_input_with_pending_saitec_form();
-            true
-        }
-        KeyCode::Enter => {
-            let pending = app.pending_login.take();
-            if let Some(super::auth::PendingLogin::SaitecForm { form }) = pending {
-                app.handle_saitec_form_submit(form);
-            }
-            true
-        }
-        KeyCode::Esc => {
-            app.cancel_pending_saitec_form();
             true
         }
         _ => false,

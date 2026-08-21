@@ -39,7 +39,7 @@ impl App {
                     return;
                 }
             },
-            None => crate::provider_catalog::saitec_account_providers(),
+            None => crate::provider_catalog::account_providers_with_jcode(),
         };
 
         let mut items = Vec::new();

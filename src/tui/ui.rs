@@ -1842,15 +1842,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         }
 
         input_ui::draw_startup_input(frame, app, prompt_area, &mut debug_capture);
-        if let Some(form) = app.pending_saitec_login_form() {
-            overlays::draw_saitec_login_overlay(
-                frame,
-                shell_content_area,
-                form,
-                app.input(),
-                app.cursor_pos(),
-            );
-        } else if let Some(overlay) = app.pending_text_entry_overlay() {
+        if let Some(overlay) = app.pending_text_entry_overlay() {
             overlays::draw_pending_text_entry_overlay(
                 frame,
                 shell_content_area,
@@ -2349,9 +2341,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         user_count + pending_count + 1,
         &mut debug_capture,
     );
-    if let Some(form) = app.pending_saitec_login_form() {
-        overlays::draw_saitec_login_overlay(frame, chat_area, form, app.input(), app.cursor_pos());
-    } else if let Some(overlay) = app.pending_text_entry_overlay() {
+    if let Some(overlay) = app.pending_text_entry_overlay() {
         overlays::draw_pending_text_entry_overlay(
             frame,
             chat_area,

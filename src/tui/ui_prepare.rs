@@ -371,7 +371,7 @@ fn prepare_messages_inner(app: &dyn TuiState, width: u16, height: u16) -> Prepar
         wrapped_lines.push(Line::from(""));
         if show_login_hint {
             wrapped_lines.push(Line::from(Span::styled(
-                "Use `/login` to open the Saitec login form.",
+                "Use `/login base-models` to configure a provider, or `/account` to manage credentials.",
                 Style::default().fg(dim_color()),
             )));
             wrapped_lines.push(Line::from(""));

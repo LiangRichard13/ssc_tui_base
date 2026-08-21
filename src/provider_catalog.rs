@@ -191,21 +191,21 @@ pub fn active_openai_compatible_profile_id() -> Option<String> {
     }
 }
 
-pub fn saitec_visible_base_model_providers() -> Vec<LoginProviderDescriptor> {
+pub fn visible_base_model_providers() -> Vec<LoginProviderDescriptor> {
     // Stage 2D: SAITEC allowlist retired; this is now identical to
     // tui_login_providers (the previous allowlist filter is gone).
     tui_login_providers()
 }
 
-pub fn saitec_auth_status_login_providers() -> Vec<LoginProviderDescriptor> {
+pub fn auth_status_login_providers_with_jcode() -> Vec<LoginProviderDescriptor> {
     let mut providers = vec![JCODE_LOGIN_PROVIDER];
     providers.extend(auth_status_login_providers());
     providers
 }
 
-pub fn saitec_account_providers() -> Vec<LoginProviderDescriptor> {
+pub fn account_providers_with_jcode() -> Vec<LoginProviderDescriptor> {
     let mut providers = vec![JCODE_LOGIN_PROVIDER];
-    providers.extend(saitec_visible_base_model_providers());
+    providers.extend(visible_base_model_providers());
     providers
 }
 

@@ -579,8 +579,7 @@ impl crate::tui::TuiState for App {
         matches!(
             self.pending_login,
             Some(
-                PendingLogin::SaitecForm { .. }
-                    | PendingLogin::ApiKeyProfile { .. }
+                PendingLogin::ApiKeyProfile { .. }
                     | PendingLogin::OpenAiCompatibleApiBase { .. }
                     | PendingLogin::OpenAiCompatibleModelName { .. }
                     | PendingLogin::CursorApiKey
@@ -591,13 +590,6 @@ impl crate::tui::TuiState for App {
                 .display_messages
                 .iter()
                 .all(|msg| msg.effective_role() == "system")
-    }
-
-    fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
-        match self.pending_login.as_ref() {
-            Some(PendingLogin::SaitecForm { form }) => Some(form),
-            _ => None,
-        }
     }
 
     fn pending_text_entry_overlay(&self) -> Option<crate::tui::PendingTextEntryOverlay> {

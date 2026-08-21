@@ -65,7 +65,7 @@ fn centered_mode_centers_unstructured_messages_and_preserves_structured_left_blo
 }
 
 #[test]
-fn initial_empty_screen_uses_minimal_saitec_splash_layout() {
+fn initial_empty_screen_uses_minimal_splash_layout() {
     let _guard = crate::storage::lock_test_env();
     let temp = tempfile::tempdir().expect("tempdir");
     let prev_cwd = std::env::current_dir().expect("current dir");
@@ -97,7 +97,7 @@ fn initial_empty_screen_uses_minimal_saitec_splash_layout() {
     );
     assert!(
         !rendered.contains("JCode"),
-        "startup splash should be SAITEC-branded: {rendered}"
+        "startup splash should use the SSC logo text fallback: {rendered}"
     );
     assert!(
         !rendered.contains("mcp:"),
@@ -114,7 +114,7 @@ fn initial_empty_screen_uses_minimal_saitec_splash_layout() {
         "startup splash should not show suggestion prompts: {rendered}"
     );
     assert!(
-        rendered.contains("Use `/login` to open the Saitec login form."),
+        rendered.contains("Use `/login base-models` to configure a provider"),
         "startup splash should show an explicit /login hint before the first message: {rendered}"
     );
     assert!(
@@ -294,77 +294,3 @@ fn remote_startup_screen_still_uses_splash_with_only_system_placeholder_messages
     );
 }
 
-#[test]
-fn saitec_pending_login_keeps_startup_splash_after_system_waiting_message() {
-    let _guard = crate::storage::lock_test_env();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let prev_cwd = std::env::current_dir().expect("current dir");
-    std::env::set_current_dir(temp.path()).expect("set current dir");
-
-    let frame = {
-        let mut app = create_test_app();
-        app.set_pending_saitec_login_for_tests();
-        app.set_display_messages_for_tests(vec![DisplayMessage::system(
-            "Ssc login form is open.".to_string(),
-        )]);
-
-        assert_eq!(app.display_user_message_count(), 0);
-        prepare_messages_inner(&app, 80, 24)
-    };
-
-    std::env::set_current_dir(prev_cwd).expect("restore current dir");
-
-    let lines = rendered_lines(&frame);
-    let rendered = lines.join("\n");
-
-    assert!(
-        rendered.contains("SSC") || rendered.contains(semver()),
-        "pending saitec login should keep the branded splash: {rendered}"
-    );
-    assert!(
-        !rendered.contains("mcp:"),
-        "pending saitec login should not fall back to the normal chat header: {rendered}"
-    );
-    assert!(
-        !rendered.contains("/model to switch"),
-        "pending saitec login should not render the normal conversation chrome: {rendered}"
-    );
-}
-
-#[test]
-fn saitec_pending_login_renders_form_fields_and_masked_password() {
-    let _guard = crate::storage::lock_test_env();
-    let temp = tempfile::tempdir().expect("tempdir");
-    let prev_cwd = std::env::current_dir().expect("current dir");
-    std::env::set_current_dir(temp.path()).expect("set current dir");
-
-    let frame = {
-        let mut app = create_test_app();
-        app.set_pending_saitec_login_form_for_tests(
-            crate::tui::app::SaitecLoginForm::new(
-                "user@example.com".to_string(),
-                "".to_string(),
-                "secret".to_string(),
-            ),
-            crate::tui::app::SaitecLoginField::Password,
-            Some("password cannot be empty".to_string()),
-            false,
-        );
-
-        prepare_messages_inner(&app, 80, 24)
-    };
-
-    std::env::set_current_dir(prev_cwd).expect("restore current dir");
-
-    let lines = rendered_lines(&frame);
-    let rendered = lines.join("\n");
-
-    assert!(
-        rendered.contains("SSC") || rendered.contains(semver()),
-        "rendered: {rendered}"
-    );
-    assert!(
-        !rendered.contains("/model to switch"),
-        "pending saitec login should stay on branded startup prep surface: {rendered}"
-    );
-}

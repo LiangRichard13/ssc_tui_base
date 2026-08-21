@@ -177,7 +177,7 @@ fn test_remote_successful_kimi_turn_refreshes_open_login_picker_validation_state
         let _guard = rt.enter();
         let mut remote = crate::tui::backend::RemoteConnection::dummy();
 
-        app.open_saitec_base_model_login_picker();
+        app.open_base_model_login_picker();
         for _ in 0..4 {
             app.handle_key(KeyCode::Down, KeyModifiers::empty())
                 .expect("move selection to Kimi");

@@ -161,7 +161,7 @@ fn matrix_tui_login_selection_supports_numbers_and_names() {
 fn baseline_visible_base_model_providers_include_canonical_entries() {
     // Stage 2B: the previously SAITEC-only filter is lifted; the visible
     // list now exposes the union of providers the catalog knows about.
-    let providers = saitec_visible_base_model_providers();
+    let providers = visible_base_model_providers();
     let provider_ids = providers
         .iter()
         .map(|provider| provider.id)

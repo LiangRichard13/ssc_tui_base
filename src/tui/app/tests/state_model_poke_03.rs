@@ -1294,7 +1294,7 @@ fn test_login_command_opens_login_mode_selector() {
 
     assert!(
         app.is_login_mode_selector_open(),
-        "/login should open the SAITEC/base-model selector"
+        "/login should open the base-models login selector"
     );
     assert!(
         app.pending_login.is_none(),
@@ -1302,23 +1302,6 @@ fn test_login_command_opens_login_mode_selector() {
     );
 }
 
-#[test]
-fn test_login_picker_preview_enter_starts_login_flow() {
-    let mut app = create_test_app();
-
-    for c in "/login jcode".chars() {
-        app.handle_key(KeyCode::Char(c), KeyModifiers::empty())
-            .unwrap();
-    }
-    app.handle_key(KeyCode::Enter, KeyModifiers::empty())
-        .unwrap();
-
-    assert!(app.inline_interactive_state.is_none());
-    match app.pending_login {
-        Some(crate::tui::app::auth::PendingLogin::SaitecForm { .. }) => {}
-        ref other => panic!("unexpected pending login state: {other:?}"),
-    }
-}
 
 #[test]
 fn test_subagent_model_command_sets_and_resets_session_preference() {

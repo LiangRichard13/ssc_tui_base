@@ -61,7 +61,7 @@ impl App {
 
     pub(crate) fn open_login_picker_inline(&mut self) {
         let status = crate::auth::AuthStatus::check_fast();
-        let providers = crate::provider_catalog::saitec_account_providers();
+        let providers = crate::provider_catalog::account_providers_with_jcode();
         let models = providers
             .into_iter()
             .map(|provider| {

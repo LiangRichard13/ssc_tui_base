@@ -739,7 +739,7 @@ impl App {
                 "/login base-models".into(),
                 "Open the filtered base-model provider picker",
             ));
-            for provider in crate::provider_catalog::saitec_visible_base_model_providers() {
+            for provider in crate::provider_catalog::visible_base_model_providers() {
                 suggestions.push((format!("{} {}", base, provider.id), provider.menu_detail));
             }
             return self.rank_suggestions(input, suggestions);
@@ -758,7 +758,7 @@ impl App {
                     "Set preferred default model",
                 ),
             ];
-            for provider in crate::provider_catalog::saitec_account_providers() {
+            for provider in crate::provider_catalog::account_providers_with_jcode() {
                 suggestions.push((
                     format!("/account {}", provider.id),
                     "Open this provider's account/settings actions",

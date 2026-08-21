@@ -13,7 +13,7 @@ pub struct TuiRuntimeState {
 
 fn should_enable_mouse_capture(
     mouse_capture_configured: bool,
-    _saitec_login_overlay_visible: bool,
+    _login_overlay_visible: bool,
 ) -> bool {
     mouse_capture_configured
 }
@@ -149,10 +149,10 @@ pub fn init_tui_runtime() -> Result<(ratatui::DefaultTerminal, TuiRuntimeState)>
 
 pub fn sync_tui_runtime_mouse_capture(
     state: &mut TuiRuntimeState,
-    saitec_login_overlay_visible: bool,
+    login_overlay_visible: bool,
 ) -> Result<()> {
     let desired =
-        should_enable_mouse_capture(state.mouse_capture_configured, saitec_login_overlay_visible);
+        should_enable_mouse_capture(state.mouse_capture_configured, login_overlay_visible);
     if desired == state.mouse_capture_enabled {
         return Ok(());
     }

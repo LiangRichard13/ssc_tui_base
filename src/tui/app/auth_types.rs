@@ -1,59 +1,5 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SaitecLoginField {
-    Email,
-    Phone,
-    Password,
-    Submit,
-    Cancel,
-}
-
-// Stage 2D: SaitecPendingForm and PendingLogin::SaitecForm retired — the
-// SAITEC business login form is gone with src/saitec/.
-
-#[derive(Debug, Clone)]
-pub(crate) struct SaitecPendingForm {
-    pub form: SaitecLoginForm,
-    pub focus: SaitecLoginField,
-    pub error: Option<String>,
-    pub submitting: bool,
-}
-
-/// Stage 2D (chore/ssc-tui-baseline): the SAITEC backend login form shape is
-/// kept so the TUI's PendingLogin::SaitecForm plumbing compiles; the actual
-/// submission is a no-op because src/saitec/ was retired.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct SaitecLoginForm {
-    pub email: String,
-    pub phone: String,
-    pub password: String,
-}
-
-impl SaitecLoginForm {
-    pub fn new(email: String, phone: String, password: String) -> Self {
-        Self {
-            email,
-            phone,
-            password,
-        }
-    }
-
-    pub fn validate(&self) -> Result<(), String> {
-        if self.email.trim().is_empty() && self.phone.trim().is_empty() {
-            return Err("Enter an email or phone number.".to_string());
-        }
-        if self.password.is_empty() {
-            return Err("Enter your password.".to_string());
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) enum PendingLogin {
-    /// Stage 2D (chore/ssc-tui-baseline): kept as a plumbing stub — the SAITEC
-    /// backend login is retired but the form state type still exists so the
-    /// TUI input/overlay code compiles. Submitting always fails.
-    SaitecForm { form: SaitecPendingForm },
     /// Waiting for user to paste Claude OAuth code for a specific stored account
     ClaudeAccount {
         verifier: String,
@@ -117,7 +63,6 @@ pub(crate) enum PendingLogin {
 impl PendingLogin {
     pub(crate) fn telemetry_context(&self) -> Option<(String, String)> {
         match self {
-            Self::SaitecForm { .. } => Some(("jcode".to_string(), "password".to_string())),
             Self::ClaudeAccount { .. } => Some(("claude".to_string(), "oauth".to_string())),
             Self::OpenAiAccount { .. } => Some(("openai".to_string(), "oauth".to_string())),
             Self::Gemini { .. } => Some(("gemini".to_string(), "oauth".to_string())),

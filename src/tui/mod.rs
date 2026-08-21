@@ -196,10 +196,6 @@ pub trait TuiState {
     fn preserve_branded_startup_surface(&self) -> bool {
         false
     }
-    /// Pending SAITEC business-login form state when the login overlay should render.
-    fn pending_saitec_login_form(&self) -> Option<&crate::tui::app::SaitecPendingForm> {
-        None
-    }
     /// Whether the startup welcome guide overlay is active.
     fn pending_startup_guide(&self) -> bool {
         false
@@ -209,7 +205,7 @@ pub trait TuiState {
         None
     }
     fn input_hidden_for_login(&self) -> bool {
-        self.pending_saitec_login_form().is_some() || self.pending_text_entry_overlay().is_some()
+        self.pending_text_entry_overlay().is_some()
     }
     /// Whether mouse-wheel smoothing has queued lines to animate.
     fn has_pending_mouse_scroll_animation(&self) -> bool {
