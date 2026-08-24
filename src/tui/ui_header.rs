@@ -304,11 +304,11 @@ fn startup_logo_text_lines(width: usize) -> Vec<String> {
     const B: &str = "\u{2588}\u{2588}";
     const S: &str = "  ";
     let full = vec![
-        format!("{S}{B}{B}{B}{S}{S}{B}{B}{S}{S}{B}{S}{B}{B}{B}{S}{B}{B}{B}{S}{B}{B}{B}{S}"),
-        format!("{S}{B}{S}{S}{S}{B}{S}{S}{B}{S}{B}{S}{S}{B}{S}{S}{B}{S}{S}{S}{B}{S}{S}{S}"),
-        format!("{S}{B}{B}{B}{S}{B}{B}{B}{B}{S}{B}{S}{S}{B}{S}{S}{B}{B}{S}{S}{B}{S}{S}{S}"),
-        format!("{S}{S}{S}{B}{S}{B}{S}{S}{B}{S}{B}{S}{S}{B}{S}{S}{B}{S}{S}{S}{B}{S}{S}{S}"),
-        format!("{S}{B}{B}{B}{S}{B}{S}{S}{B}{S}{B}{S}{S}{B}{S}{S}{B}{B}{B}{S}{B}{B}{B}{S}"),
+        format!("{S}{B}{B}{B}{S}{B}{B}{B}{S}{B}{B}{B}{S}"),
+        format!("{S}{B}{S}{S}{S}{B}{S}{S}{S}{B}{S}{S}{S}"),
+        format!("{S}{B}{B}{S}{S}{B}{B}{S}{S}{B}{S}{S}{S}"),
+        format!("{S}{S}{S}{B}{S}{S}{S}{B}{S}{S}{B}{S}{S}{S}"),
+        format!("{S}{B}{B}{B}{S}{B}{B}{B}{S}{B}{B}{B}{S}"),
     ];
     let full_width = full
         .iter()
@@ -320,9 +320,9 @@ fn startup_logo_text_lines(width: usize) -> Vec<String> {
     }
 
     let compact = vec![
-        format!("{B}{B}{B}  {B}{B}   {B}{B}{B} {B}{B}{B} {B}{B}{B}  {B}{B}{B}"),
-        format!("{B}       {B}   {B}    {B}       {B}    {B}        {B}"),
-        format!("{B}{B}{B} {B}{B}{B}    {B}       {B}    {B}{B}     {B}"),
+        format!("{B}{B}{B}  {B}{B}{B}  {B}{B}{B}"),
+        format!("{B}      {B}      {B}"),
+        format!("{B}{B}{B}  {B}{B}{B}  {B}{B}{B}"),
     ];
     let compact_width = compact
         .iter()
@@ -456,10 +456,7 @@ pub(crate) fn animated_startup_logo_lines(width: usize, elapsed: f32) -> Vec<Lin
 fn animated_brand_header_line_for(elapsed: f32, animated: bool) -> Line<'static> {
     if !animated {
         return Line::from(Span::styled(
-            // Stage 2D: SAITEC brand_header_label retired; use a neutral placeholder
-            // string. Stage 3 (chore/ssc-tui-baseline) will set the actual
-            // ssc-tui header label here.
-            "jcode".to_string(),
+            "SSC-TUI".to_string(),
             Style::default().fg(header_name_color()),
         ))
         .alignment(Alignment::Center);
