@@ -285,7 +285,9 @@ RegisteredCommand::public("/export", "Export Q&A pairs to a Markdown file"),
 4. **UI 渲染**：状态栏 banner 读全局 pending-update 静态（RwLock）——**刻意绕过 `&dyn TuiState` trait 派发**，因为 draw_status 是 60fps 热路径，每帧走 trait 虚表 + Option 包装开销不划算；
 5. **下载执行**：`u` 快捷键或命令触发 → `reqwest` 流式下载（默认 headers 注入鉴权、**每 256KB publish 一次 DownloadProgress**、`watch::Receiver` 支持 Esc 取消、401 主动清理半成品文件并提示重新登录）。
 
-完整源码级参考见 [H](#h-参考实现索引)（更新通道约 700 行）。**决策指南**：
+完整源码级参考见 [H](#h-参考实现索引)（更新通道约 700 行）。
+
+**可拆卸性警示**：这类后端推送通道与客户端耦合较深（启动钩子、Bus 事件、全局状态、UI banner、快捷键五处触点），一旦引入，后续想移除或替换的成本远高于当初接入。实现前建议先评估：是否可以退化为"客户端定期 `GET` 一个版本清单 + 手动 `/download`"的松耦合形态，把推送通道作为增强而非依赖。**决策指南**：
 
 | 需求形态 | 推荐做法 |
 |---|---|
