@@ -1,8 +1,8 @@
 # SSC-TUI 定制改造指南
 
 > 本文档写给**基于 SSC-TUI 基线进行二次开发的部门团队**：如何在基线上接入自己的 MCP 业务服务、扩展斜杠命令、给 Agent 添加内置工具、接入自己的模型网关，以及品牌化与测试规范。
->
-> 所有案例均来自真实改造记录：SAITEC 部门是基线的第一个改造者（153 个定制 commit，共同祖先 `340fb04c`），本指南以其真实实现为教材，所有 `file:line` 均可直接跳转。
+
+> **关于案例的定位**：文中案例取自 SAITEC 部门的改造记录（153 个 commit，共同祖先 `340fb04c`）——它是一条**已经走过的路，不是标准答案**。SAITEC 的实现经历过多次返工：MCP 集成踩过协议错误引发的重连风暴、句柄泄漏导致的 Unknown tool（都是自己引入后修复的）；schedule 工具族最初只有创建、连自己人都要手改队列文件；更新通道与登录门禁最终因耦合过深被整体拆除。本指南尽量同时给出"怎么做"和"哪里返工过"，供各部门按自身情况取舍——**不必照抄 SAITEC 的选择**。
 
 ## 目录
 
@@ -30,7 +30,7 @@
 | **D. Provider** | `crates/jcode-provider-metadata` 或 config.toml | 可选 | 接入部门模型网关 / 新模型供应商 |
 | **E. 品牌化** | logo 字模、窗口标题、存储路径等 | 是（定点修改） | 把 SSC-TUI 变成 `XX-TUI` |
 
-**选型建议**：业务能力优先走 **MCP（扩展面 A）**——零客户端代码、独立部署、跨 Agent 复用（Claude Code 等标准 MCP 客户端也能连）；只有需要深度集成 TUI 内部状态（会话数据、UI、进程内调度）的能力才下沉为内置工具（扩展面 C）。
+**选型建议**：业务能力优先走 **MCP（扩展面 A）**——零客户端代码、独立部署、跨 Agent 复用（Claude Code 等标准 MCP 客户端也能连）；只有需要深度集成 TUI 内部状态（会话数据、UI、进程内调度）的能力才下沉为内置工具（扩展面 C）。这条优先级是 SAITEC 一路返工后的体会，也是可商榷的起点。
 
 ---
 
@@ -48,9 +48,9 @@
 | 凭据 | API Key 经 HTTP header 传输，可接网关审计 | env 注入子进程 |
 | 适用 | 有保密要求 / 多用户 / 需要统一管控 | 无保密要求 / 纯本地工具 |
 
-SAITEC 采用**模式一**：MCP server 部署在部门服务器，SKILL 文档（含业务操作规范、参数规则等敏感提示词）只存在服务端，Agent 通过 `list_skills` / `get_skill_doc` 工具按需读取，本地磁盘不留副本；业务工具全部经服务端转发到 Core API（鉴权 + 数据库事务），MCP server 本身是无状态薄代理。
+SAITEC 在自己的场景里选择了**模式一**（有文档保密和集中管控需求）：MCP server 部署在部门服务器，SKILL 文档（含业务操作规范、参数规则等敏感提示词）只存在服务端，Agent 通过 `list_skills` / `get_skill_doc` 工具按需读取，本地磁盘不留副本；业务工具全部经服务端转发到 Core API（鉴权 + 数据库事务），MCP server 本身是无状态薄代理。
 
-### A.2 模式一实战：HTTP 远程 MCP（SAITEC-Skills 全程示范）
+### A.2 模式一参考实现：HTTP 远程 MCP（以 SAITEC-Skills 为例）
 
 #### 第 1 步：实现 MCP 服务端（Python FastMCP）
 
@@ -88,7 +88,7 @@ def register_text_tools(mcp: FastMCP):
         return resp.json()
 ```
 
-三个关键工程实践（均来自踩坑实录）：
+三个值得交代的实现细节（其中两个是踩坑后才补的）：
 
 1. **API Key 请求级透传**：用 `ContextVar` 而非 `os.environ` 存当前请求的 key，避免并发请求互相覆盖：
 
@@ -191,15 +191,15 @@ TUI 按 stdio 子进程拉起并逐行交换 NDJSON。适合纯本地工具（�
 
 ### A.4 凭据轮换与密钥保护（可选进阶，SAITEC 实战）
 
-若部门需要"登录换 key → 热重连 MCP"（SAITEC 模式），核心是三条铁律 + 一条链路：
+若部门需要"登录换 key → 热重连 MCP"（SAITEC 模式），先看我们返工后留下的三条教训，再决定是否采用同一条链路：
 
-**铁律 1：密钥永不落盘。** SAITEC 的 `mcp.json` 落盘形状只有 `type/url/shared`，不含 `X-API-Key`：
+**教训 1：密钥永不落盘。** SAITEC 的 `mcp.json` 落盘形状只有 `type/url/shared`，不含 `X-API-Key`：
 - `ensure_bootstrap`（每次 `McpConfig::load` 先执行）会**主动剥离**任何误持久化的 `X-API-Key` header；
 - 真实凭据仅经 `apply_runtime_env` 在**内存中**注入 headers——磁盘上的配置文件泄露也拿不到密钥。
 
-**铁律 2：重连必须真正释放池句柄。** `pool.disconnect_server(name)` 若只标记不摘除句柄，重连后 Agent 沿用旧工具表会报 Unknown tool（真实事故：commit `0f49c226` 修复）。
+**教训 2：重连必须真正释放池句柄。** `pool.disconnect_server(name)` 若只标记不摘除句柄，重连后 Agent 沿用旧工具表会报 Unknown tool——这是我们集成时自己引入的 bug，`0f49c226` 才修复。
 
-**铁律 3：三层同步。** MCP 工具在 server 进程执行、TUI 是瘦客户端，凭据变化要三层都刷新：
+**教训 3：三层同步。** MCP 工具在 server 进程执行、TUI 是瘦客户端，凭据变化要三层都刷新：
 
 ```
 (1) server 进程:  凭据变化 → reconnect/disconnect_saitec_mcp()（pool 断开 → 重读配置 → 重连）
@@ -223,7 +223,7 @@ TUI 按 stdio 子进程拉起并逐行交换 NDJSON。适合纯本地工具（�
 3. **命令注册**：`src/tui/app/state_ui_input_helpers.rs` 的 `RegisteredCommand::public("/xxx", "一句话描述")`——进补全建议与合法命令表；
 4. （可选）**帮助文本**：`src/tui/app/input_help.rs` 增加 `"xxx" => "..."` 分支（`/help xxx` 显示）。
 
-### B.2 完整案例：`/export`（SAITEC 实录，纯本地同步命令模板）
+### B.2 案例：`/export`（纯本地同步命令的做法参考）
 
 SAITEC-TUI 的 `/export [path]` 把当前会话 Q&A 导出为 Markdown（commits `22b70c82`、`f76f3e57`——后者修复远程模式下优先导出"可见"消息），共 4 处改动：
 
@@ -279,7 +279,7 @@ RegisteredCommand::public("/export", "Export Q&A pairs to a Markdown file"),
 
 ### B.3 进阶案例：`/download-latest`（命令触发后台任务 + 事件回推 UI）
 
-当命令需要**异步长任务**（轮询远端、下载），采用"命令 → spawn 后台任务 → Bus 事件 → UI 渲染"四段式。SAITEC 的 TUI 更新通道（commit `f147e9fd`，约 700 行，全链路实录）是完整模板：
+当命令需要**异步长任务**（轮询远端、下载），可采用"命令 → spawn 后台任务 → Bus 事件 → UI 渲染"四段式。SAITEC 的 TUI 更新通道（commit `f147e9fd`，约 700 行）是一份可拆解的参考实现——注意这条通道后来在基线剥离中被整体移除（耦合较深），借鉴其结构时建议同时评估可拆卸性：
 
 1. **命令入口**（`src/tui/app/input.rs:2382`，SAITEC 版）：匹配 `/download-latest`（别名 `/tui-download`），从全局待更新状态读 payload，无更新则提示并退出；
 2. **后台轮询**（SAITEC 版 `src/saitec/tui_update.rs::check_tui_update`）：TUI 启动时 `tokio::spawn`，**先 sleep 2s 等 App 完成 Bus 订阅**（broadcast 通道无回放，早发的事件会丢——真实踩坑）再 `GET {后端}/check-update?current_version=x.y.z` 比对版本；
@@ -315,9 +315,9 @@ pub trait Tool: Send + Sync {
 }
 ```
 
-### C.2 完整案例：补全 `schedule` 任务生命周期（SAITEC 实录 commit `340fb04c`）
+### C.2 案例：补全 `schedule` 任务生命周期（commit `340fb04c`）
 
-基线原有 `schedule` 工具只能**创建**心跳轮询任务，查询/取消要手改队列文件。SAITEC 补齐 create → list → cancel（三件套现均已在基线中，`src/tool/mod.rs:187-198`）。以 `cancel_schedule` 为例：
+这是对早期设计的补课：`schedule` 工具最初只有创建路径，查看和取消要**手工编辑队列文件**——直到实际使用不便才补齐 create → list → cancel（三个工具现均已在基线中，`src/tool/mod.rs:187-198`）。以 `cancel_schedule` 为例：
 
 ```rust
 // src/tool/ambient.rs（SAITEC 版 340fb04c 新增，基线已包含）
@@ -423,7 +423,7 @@ OpenAiCompatibleProfile {
 
 ## E. 品牌化你的 Fork
 
-把 SSC-TUI 变成 `XX-TUI` 的定点修改清单（SAITEC 做过一遍、剥离时又做了一遍反向操作，两轮实践验证过的完整触点表）：
+把 SSC-TUI 变成 `XX-TUI` 的定点修改清单（SAITEC 替换时实际触碰过的文件；两次替换的教训：**分小批做、每批保持可编译**——我们曾在一个 commit 里删了 PNG 却把引用它的代码留在下一个 commit，造成该 commit 单独 checkout 无法编译；还曾把存储路径改错方向、后续再返工修正）：
 
 | 触点 | 位置 | 说明 |
 |---|---|---|
@@ -455,7 +455,7 @@ CI 五个 job 的结构见 `dev_ref_docs/12-workspace-build-ci.md`。**新增功
 
 ### F.2 提交规范
 
-参考基线 git 历史：`feat(scope):` / `fix(scope):` / `chore(scope):` / `test(scope):`，正文写动机 + 行为变化 + 验证方式。SAITEC 的 `340fb04c` 是好范本（"Previously schedule only had a create path... All new behavior is covered by TDD regression tests"）。
+参考基线 git 历史：`feat(scope):` / `fix(scope):` / `chore(scope):` / `test(scope):`，正文写动机 + 行为变化 + 验证方式。`340fb04c` 的写法可供参考（"Previously schedule only had a create path... All new behavior is covered by TDD regression tests"）。
 
 ### F.3 常用测试模式速查
 
@@ -501,7 +501,7 @@ git merge base/main
 
 SAITEC 定制期共 153 个 commit（`f1deb6bf..340fb04c`，仓库 [LiangRichard13/SAITEC-TUI](https://github.com/LiangRichard13/SAITEC-TUI) 分支 `feat/saitec-mcp-http-transport`）。按扩展面分组的代表作：
 
-**A. MCP / HTTP transport 演进链**（教科书级小步提交序列）：
+**A. MCP / HTTP transport 演进链**（小步提交序列，每步可独立编译验证；链上的多个 commit 是对前面引入 bug 的修复，一并列出供对照）：
 
 | Commit | 内容 |
 |---|---|
@@ -523,4 +523,4 @@ SAITEC 定制期共 153 个 commit（`f1deb6bf..340fb04c`，仓库 [LiangRichard
 
 **E. 品牌化**：`c4c3ae03` → `42358f97` → `3fe29808` → `03c46037`（按 auth/prompts/CLI/setup-hints 分批替换 jcode→SAITEC-TUI 的四连提交——品牌替换应分批做、每批可编译可验证）
 
-**剥离（反向工程）**：`2e6f65c1..ec271540`（基线仓库 main 的前 24 个 commit，示范了"哪些是可剥离的定制、哪些是应保留的通用能力"）
+**剥离（反向工程）**：`2e6f65c1..ec271540`（基线仓库 main 的前 24 个 commit）——SAITEC 定制被逐层移除的过程，可作为"哪些定制容易剥离、哪些（如登录门禁、更新通道）耦合较深、剥离代价大"的一份对照材料
