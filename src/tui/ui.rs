@@ -1804,8 +1804,7 @@ fn draw_inner(frame: &mut Frame, app: &dyn TuiState) {
         None
     };
 
-    // Stage 2D: use_fixed_shell_layout always false.
-    let use_fixed_shell_layout = false;
+    let use_fixed_shell_layout = true;
     let (shell_content_area, shell_footer_area, shell_snapshot_area) = if use_fixed_shell_layout {
         let (content_area, footer_area, snapshot_area) =
             draw_fixed_shell(frame, area, app, &mut debug_capture);
