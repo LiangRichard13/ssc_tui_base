@@ -158,7 +158,7 @@ def register_text_tools(mcp: FastMCP):
 
 #### 第 3 步：验证
 
-1. 启动 TUI，输入 `/mcp`（或触发重连）后，连接成功的 server 工具以 `mcp__Dept-Skills__<tool>` 前缀注册给 Agent；
+1. 重启 TUI（或让 Agent 执行 mcp 工具的 reload），连接成功的 server 工具以 `mcp__Dept-Skills__<tool>` 前缀注册给 Agent；
 2. 对 Agent 说"列出可用的 skills"——应看到 `mcp__Dept-Skills__list_skills` 被调用并返回服务端文档列表；
 3. 排错：`~/.ssc_tui/logs/` 下有 MCP 连接日志；30 秒失败冷却、并发连接去重在 `src/mcp/pool.rs`。
 
